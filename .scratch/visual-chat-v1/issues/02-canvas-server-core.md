@@ -1,6 +1,6 @@
 # 02 — Canvas Server core: MCP stdio + authed 127.0.0.1 HTTP
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M1
 Blocked by: 01
@@ -64,3 +64,15 @@ Log to stderr only (stdout is the MCP transport).
 ## Out of Scope
 
 Artifacts/SSE (03), any UI beyond the served stub (04).
+
+## Comments
+
+Implemented workspace identity/token (src/server/workspace.ts), authed HTTP surface
+(src/server/http.ts), MCP plumbing + open_canvas/rotate_token (src/server/mcp.ts,
+index.ts). All 7 criteria covered: 6 unit + 6 integration tests over real HTTP/stdio.
+One forced clarification: the exact CSP (`script-src 'self'`) forbids inline scripts,
+so the built canvas JS loads as a subresource — which cannot carry a bearer header.
+Canvas static assets therefore also accept `?token=` (server injects it into asset
+URLs when serving index.html); /api/* remains bearer-only. Same capability posture as
+`GET /?token=`, verified 401 without it. open_canvas also honors VISUAL_CHAT_NO_OPEN=1
+so tests never launch a browser.
