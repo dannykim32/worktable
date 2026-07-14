@@ -1,6 +1,6 @@
 # 03 — Artifact store + publish/update tools + SSE
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M1
 Blocked by: 02
@@ -77,3 +77,14 @@ tmp+rename) + `meta.json` `{ id, type, title, latest, created_at, updated_at }`.
 
 Rendering (04), dashboard/compare/svg types (07/08/10), inline text formatting
 (plain text only in v1 — noted for future).
+
+## Comments
+
+Built src/server/{validate,store,sse}.ts + shared types, wired publish_artifact/
+update_artifact tools and the four HTTP routes into index.ts. Validation is a
+dependency-free structural checker mirroring the declared JSON Schemas (the SDK
+declares but does not enforce inputSchema server-side); every rejection carries the
+JSON path, e.g. `/blocks/1/kind`. Atomicity criterion 5 verified by an injected
+interrupt at the commit point (between tmp write and rename) rather than a literal
+kill -9 — same guarantee, deterministic. One tightening: update_artifact rejects a
+type change (stable identity per ADR-0006). 11 unit + 5 integration tests added.

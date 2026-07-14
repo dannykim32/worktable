@@ -1,9 +1,19 @@
 // Canvas Server entry: one MCP stdio server that owns the local HTTP canvas
 // service (ADR-0003). Log to stderr only — stdout is the MCP transport.
 import { fileURLToPath } from "node:url";
-import { startCanvasHttpServer } from "./http.js";
-import { connectStdio, createMcpServer, type ToolSpec } from "./mcp.js";
+import type { ArtifactEvent } from "../shared/artifacts.js";
+import { sendJson, startCanvasHttpServer, type ApiRoute } from "./http.js";
+import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { openInBrowser } from "./open.js";
+import { SseHub } from "./sse.js";
+import { ArtifactStore, UnknownArtifactError } from "./store.js";
+import {
+  publishArtifactSchema,
+  updateArtifactSchema,
+  validateArtifactContent,
+  validateUpdateInput,
+  ValidationError,
+} from "./validate.js";
 import { SERVER_NAME, SERVER_VERSION } from "./version.js";
 import { openWorkspace } from "./workspace.js";
 
@@ -13,17 +23,120 @@ async function main(): Promise<void> {
     new URL("../../dist/canvas", import.meta.url),
   );
 
+  const store = new ArtifactStore(workspace.dir);
+  const sse = new SseHub();
+
+  const apiRoutes: ApiRoute[] = [
+    {
+      method: "GET",
+      template: "/api/artifacts",
+      handler: ({ res }) => sendJson(res, 200, store.list()),
+    },
+    {
+      method: "GET",
+      template: "/api/artifacts/:id",
+      handler: ({ res, params }) => {
+        const meta = store.getMeta(params.id!);
+        const content = meta && store.getVersion(meta.id, meta.latest);
+        if (!meta || !content) {
+          sendJson(res, 404, { error: "unknown artifact" });
+          return;
+        }
+        sendJson(res, 200, { ...meta, content });
+      },
+    },
+    {
+      method: "GET",
+      template: "/api/artifacts/:id/v/:n",
+      handler: ({ res, params }) => {
+        const content = store.getVersion(params.id!, Number(params.n));
+        if (!content) {
+          sendJson(res, 404, { error: "unknown artifact or version" });
+          return;
+        }
+        sendJson(res, 200, content);
+      },
+    },
+    {
+      method: "GET",
+      template: "/api/events",
+      handler: ({ res }) => sse.attach(res),
+    },
+  ];
+
   const running = await startCanvasHttpServer({
     workspace,
     version: SERVER_VERSION,
     canvasDistDir,
+    apiRoutes,
   });
   workspace.recordPort(running.port);
 
   const canvasUrl = () =>
     `http://127.0.0.1:${running.port}/?token=${workspace.token}`;
 
+  let hasAutoOpened = false;
+  const announce = (event: ArtifactEvent) => {
+    sse.broadcast("artifact", event);
+    if (!hasAutoOpened) {
+      hasAutoOpened = true;
+      openInBrowser(canvasUrl()); // no-op under VISUAL_CHAT_NO_OPEN=1
+    }
+  };
+
+  const mapErrors = <T>(fn: () => T): T => {
+    try {
+      return fn();
+    } catch (err) {
+      if (err instanceof ValidationError || err instanceof UnknownArtifactError) {
+        throw new ToolInputError(err.message);
+      }
+      throw err;
+    }
+  };
+
   const tools: ToolSpec[] = [
+    {
+      name: "publish_artifact",
+      description:
+        "Publish a new visual artifact to the canvas. Component Artifacts are " +
+        "structured data drawn by the trusted Component Vocabulary. Use type " +
+        '"absence" to decline honestly (with the reason) instead of fabricating.',
+      inputSchema: publishArtifactSchema as Record<string, unknown>,
+      handler: (args) =>
+        mapErrors(() => {
+          const content = validateArtifactContent(args);
+          const meta = store.publish(content);
+          announce({ artifact_id: meta.id, version: 1, type: meta.type });
+          return { artifact_id: meta.id, version: 1, url: canvasUrl() };
+        }),
+    },
+    {
+      name: "update_artifact",
+      description:
+        "Replace an existing artifact's content in place. The artifact keeps " +
+        "its identity; every prior version stays viewable, and ask-back anchors " +
+        "bind to the version the human was reading.",
+      inputSchema: updateArtifactSchema as Record<string, unknown>,
+      handler: (args) =>
+        mapErrors(() => {
+          const { artifactId, content } = validateUpdateInput(args);
+          const existing = store.getMeta(artifactId);
+          if (existing && existing.type !== content.type) {
+            throw new ToolInputError(
+              `invalid input at /type: artifact ${artifactId} is type ` +
+                `"${existing.type}"; an artifact keeps one type for its lifetime`,
+            );
+          }
+          const meta = store.update(artifactId, content);
+          announce({
+            artifact_id: meta.id,
+            version: meta.latest,
+            type: meta.type,
+          });
+          return { artifact_id: meta.id, version: meta.latest };
+        }),
+    },
     {
       name: "open_canvas",
       description:
@@ -64,6 +177,7 @@ async function main(): Promise<void> {
   });
 
   const shutdown = async () => {
+    sse.close();
     await running.close().catch(() => {});
     process.exit(0);
   };

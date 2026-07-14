@@ -118,6 +118,97 @@ export function bearer(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
+export interface SseFrame {
+  event: string;
+  data: unknown;
+}
+
+export interface SseListener {
+  frames: SseFrame[];
+  /** Resolves with the first frame of this event matching the predicate
+   *  (already-received or future). */
+  waitFor(
+    event: string,
+    timeoutMs?: number,
+    predicate?: (frame: SseFrame) => boolean,
+  ): Promise<SseFrame>;
+  close(): void;
+}
+
+/** Open a live /api/events stream (bearer-authed) and parse its frames. */
+export function openSse(port: number, token: string): Promise<SseListener> {
+  return new Promise((resolve, reject) => {
+    const frames: SseFrame[] = [];
+    const waiters: Array<{
+      event: string;
+      predicate: (f: SseFrame) => boolean;
+      resolve: (f: SseFrame) => void;
+    }> = [];
+    const req = http.request(
+      { host: "127.0.0.1", port, path: "/api/events", headers: bearer(token) },
+      (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`SSE connect failed: ${res.statusCode}`));
+          return;
+        }
+        let buffer = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => {
+          buffer += chunk;
+          let sep;
+          while ((sep = buffer.indexOf("\n\n")) !== -1) {
+            const raw = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            let event = "message";
+            let data: unknown;
+            for (const line of raw.split("\n")) {
+              if (line.startsWith("event: ")) event = line.slice(7);
+              if (line.startsWith("data: ")) data = JSON.parse(line.slice(6));
+            }
+            if (raw.startsWith(":")) continue; // comment/heartbeat frame
+            const frame = { event, data };
+            frames.push(frame);
+            for (let i = waiters.length - 1; i >= 0; i--) {
+              if (waiters[i]!.event === event && waiters[i]!.predicate(frame)) {
+                waiters[i]!.resolve(frame);
+                waiters.splice(i, 1);
+              }
+            }
+          }
+        });
+        resolve({
+          frames,
+          waitFor: (event, timeoutMs = 3000, predicate = () => true) =>
+            new Promise<SseFrame>((resolveWait, rejectWait) => {
+              const existing = frames.find(
+                (f) => f.event === event && predicate(f),
+              );
+              if (existing) {
+                resolveWait(existing);
+                return;
+              }
+              const timer = setTimeout(
+                () => rejectWait(new Error(`no ${event} frame in ${timeoutMs}ms`)),
+                timeoutMs,
+              );
+              waiters.push({
+                event,
+                predicate,
+                resolve: (f) => {
+                  clearTimeout(timer);
+                  resolveWait(f);
+                },
+              });
+            }),
+          close: () => req.destroy(),
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 /** Extract the JSON payload of a tool result's first text content block. */
 export function toolJson(result: unknown): Record<string, unknown> {
   const r = result as {
