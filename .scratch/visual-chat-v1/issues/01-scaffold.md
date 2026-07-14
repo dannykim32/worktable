@@ -1,6 +1,6 @@
 # 01 — Scaffold: package + TS/Vite/bun-test toolchain
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M1
 
@@ -46,3 +46,14 @@ Dependencies: `@modelcontextprotocol/sdk` (runtime); `typescript`, `vite`,
 ## Out of Scope
 
 Any server logic (02), any real canvas rendering (04), linting/CI.
+
+## Comments
+
+Built as specified: package.json (private, placeholder name, exact dep list), strict
+NodeNext tsconfig, server stub (version banner to stderr — stdout stays reserved for
+the MCP transport), Vite canvas stub, sanitizer .gitkeep, smoke test. Two small
+additions: `src/canvas/tsconfig.json` (noEmit, DOM lib) so the canvas code typechecks
+in `build` — cross-cutting criterion 5 requires zero TS errors and Vite alone never
+typechecks; and `.gstack/` in .gitignore (approved deviation, local tool state).
+Verified: build produces dist/server + dist/canvas, stub prints version and exits 0,
+bun test green.
