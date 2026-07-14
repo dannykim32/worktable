@@ -1,6 +1,6 @@
 # 04 — Document component renderer + gallery shell
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M1
 Blocked by: 03
@@ -64,3 +64,16 @@ prototype.
 ## Out of Scope
 
 Ask-back UI (05), other artifact types (07/08/10), version diffing UI.
+
+## Comments
+
+Shell (src/canvas/main.ts, gallery.ts, api.ts) + renderers (components/document.ts,
+absence.ts) behind the ComponentRenderer registry seam; theme lifted verbatim from the
+prototype's custom properties. SSE runs over fetch (EventSource cannot attach the
+bearer). Dev-dependency justification: the issue's testing plan calls for jsdom-style
+DOM tests; happy-dom (dev-only, never shipped) was used instead of jsdom for bun-test
+compatibility — same role, XSS canary is meaningful (it parses innerHTML, and the
+canary asserts the hostile string stays literal text with no <img> created).
+Criterion 6 verified via headless Chromium screenshots in both schemes (dark forced by
+re-applying the stylesheet's @media-dark rules); both legible, matching the prototype.
+10 unit + 2 integration tests added.

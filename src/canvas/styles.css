@@ -1,0 +1,253 @@
+/* Canvas theme — values lifted from the judged prototype
+   (prototype/canvas-vocabulary/PROTOTYPE-canvas-mock.html). One clean
+   register (ADR-0009); light/dark via prefers-color-scheme. */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+  --series-1: #2a78d6;
+  --series-2: #1baf7a;
+  --delta-good: #006300;
+  --callout-bg: #f0efec;
+  --code-bg: #f0efec;
+  --accent-warm: #eb6834;
+  --dot-live: #0ca30c;
+  --dot-dead: #898781;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --series-1: #3987e5;
+    --series-2: #199e70;
+    --delta-good: #0ca30c;
+    --callout-bg: #26261f;
+    --code-bg: #111110;
+    --accent-warm: #d95926;
+    --dot-live: #0ca30c;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+body {
+  background: var(--page);
+  color: var(--text-primary);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 0 0 96px;
+}
+
+header.canvas-chrome {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  max-width: 880px;
+  margin: 24px auto 8px;
+  padding: 0 20px;
+}
+header.canvas-chrome h1 {
+  font-size: 19px;
+}
+header.canvas-chrome .ws {
+  color: var(--muted);
+  font-size: 13px;
+}
+header.canvas-chrome .live {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-dead);
+}
+.dot.connected {
+  background: var(--dot-live);
+}
+
+.gallery-empty,
+.canvas-error {
+  max-width: 880px;
+  margin: 40px auto;
+  padding: 0 20px;
+  color: var(--muted);
+}
+.canvas-error {
+  color: var(--accent-warm);
+}
+
+/* ── Artifact card chrome ───────────────────────────────────────────── */
+.artifact {
+  max-width: 880px;
+  margin: 20px auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.artifact > .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.artifact > .head h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.badge.absence {
+  border-color: var(--baseline);
+  color: var(--muted);
+  font-style: italic;
+}
+.vchip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.vchip button.scrub {
+  all: unset;
+  cursor: pointer;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.2;
+}
+.vchip button.scrub:hover:not(:disabled) {
+  background: var(--callout-bg);
+}
+.vchip button.scrub:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.viewing-marker {
+  font-size: 11px;
+  color: var(--accent-warm);
+  border: 1px solid var(--accent-warm);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.artifact > .body {
+  padding: 18px 22px;
+}
+
+/* ── Document component ─────────────────────────────────────────────── */
+.doc .doc-heading {
+  margin: 18px 0 6px;
+}
+.doc h3.doc-heading {
+  font-size: 16px;
+}
+.doc h4.doc-heading {
+  font-size: 15px;
+}
+.doc h5.doc-heading {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.doc .doc-heading:first-child {
+  margin-top: 0;
+}
+.doc p {
+  margin: 8px 0;
+  color: var(--text-primary);
+}
+.doc .callout {
+  border-left: 3px solid var(--series-1);
+  background: var(--callout-bg);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  margin: 12px 0;
+  color: var(--text-secondary);
+}
+.doc .callout.tone-warn {
+  border-left-color: var(--accent-warm);
+}
+.doc pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 12px 0;
+}
+.doc table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 13.5px;
+}
+.doc th,
+.doc td {
+  border: 1px solid var(--grid);
+  padding: 6px 10px;
+  text-align: left;
+}
+.doc th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: var(--callout-bg);
+}
+.doc ul,
+.doc ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+.doc li {
+  margin: 2px 0;
+}
+
+/* ── Honest Absence: a first-class outcome, never an error banner ───── */
+.absence-body .absence-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.absence-body .absence-reason {
+  border-left: 3px solid var(--baseline);
+  background: var(--callout-bg);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+}
