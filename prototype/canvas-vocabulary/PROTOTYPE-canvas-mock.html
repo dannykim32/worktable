@@ -1,0 +1,602 @@
+<!doctype html>
+<!--
+  PROTOTYPE — THROWAWAY. Not production code. Delete or absorb once judged.
+
+  Question: for the v1 Canvas, does a Document + Dashboard + Compare component
+  vocabulary cover the real jobs, and should diagrams be free-form model-authored
+  SVG or a structured nodes/edges component with trusted auto-layout?
+
+  Plan: one static mock canvas page, three variants switchable via ?variant=
+  (floating bottom bar, arrow keys):
+    A — free-form SVG owns diagrams
+    B — structured auto-layout Diagram component
+    C — both side-by-side (direct comparison)
+
+  Run: open prototype/canvas-vocabulary/PROTOTYPE-canvas-mock.html
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — Visual Chat Canvas mock</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:          #f9f9f7;
+    --surface-1:     #fcfcfb;
+    --text-primary:  #0b0b0b;
+    --text-secondary:#52514e;
+    --muted:         #898781;
+    --grid:          #e1e0d9;
+    --baseline:      #c3c2b7;
+    --border:        rgba(11,11,11,0.10);
+    --series-1:      #2a78d6;
+    --series-2:      #1baf7a;
+    --delta-good:    #006300;
+    --callout-bg:    #f0efec;
+    --code-bg:       #f0efec;
+    --add-bg:        #e2f2e2;
+    --del-bg:        #fbe3e3;
+    --accent-warm:   #eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:          #0d0d0d;
+      --surface-1:     #1a1a19;
+      --text-primary:  #ffffff;
+      --text-secondary:#c3c2b7;
+      --muted:         #898781;
+      --grid:          #2c2c2a;
+      --baseline:      #383835;
+      --border:        rgba(255,255,255,0.10);
+      --series-1:      #3987e5;
+      --series-2:      #199e70;
+      --delta-good:    #0ca30c;
+      --callout-bg:    #26261f;
+      --code-bg:       #111110;
+      --add-bg:        #14330f;
+      --del-bg:        #3d1414;
+      --accent-warm:   #d95926;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 0 0 96px;
+  }
+  .proto-banner {
+    background: repeating-linear-gradient(45deg, #fab219, #fab219 12px, #0b0b0b 12px, #0b0b0b 24px);
+    color: #fff; text-align: center; font-weight: 700; font-size: 12px;
+    letter-spacing: .08em; text-transform: uppercase; padding: 4px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  }
+  header.canvas-chrome {
+    display: flex; align-items: baseline; gap: 12px;
+    max-width: 880px; margin: 24px auto 8px; padding: 0 20px;
+  }
+  header.canvas-chrome h1 { font-size: 19px; }
+  header.canvas-chrome .ws { color: var(--muted); font-size: 13px; }
+  header.canvas-chrome .live {
+    margin-left: auto; font-size: 12px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #0ca30c; }
+
+  .artifact {
+    max-width: 880px; margin: 20px auto; background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .artifact > .head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid var(--border);
+  }
+  .artifact > .head h2 { font-size: 15px; font-weight: 650; }
+  .badge {
+    font-size: 11px; font-weight: 600; letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .badge.freeform { border-color: var(--accent-warm); color: var(--accent-warm); }
+  .vchip { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .artifact > .body { padding: 18px 22px; }
+
+  /* Document component */
+  .doc h3 { font-size: 16px; margin: 18px 0 6px; }
+  .doc h3:first-child { margin-top: 0; }
+  .doc p { margin: 8px 0; color: var(--text-primary); }
+  .doc .callout {
+    border-left: 3px solid var(--series-1); background: var(--callout-bg);
+    padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0;
+    color: var(--text-secondary);
+  }
+  .doc pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+    font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin: 12px 0;
+  }
+  .doc table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
+  .doc th, .doc td { border: 1px solid var(--grid); padding: 6px 10px; text-align: left; }
+  .doc th { color: var(--text-secondary); font-weight: 600; background: var(--callout-bg); }
+
+  /* Dashboard component */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .tile .label { font-size: 12px; color: var(--text-secondary); }
+  .tile .value { font-size: 26px; font-weight: 650; margin-top: 2px; }
+  .tile .delta { font-size: 12px; color: var(--delta-good); }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 6px 0 8px; }
+  .chart-wrap { position: relative; }
+  .tooltip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--text-primary); color: var(--page);
+    font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap;
+    transform: translate(-50%, -130%);
+  }
+
+  /* Compare component */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pane { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .pane .pane-head { font-size: 12px; font-weight: 600; padding: 6px 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); background: var(--callout-bg); }
+  .pane pre { margin: 0; padding: 10px 12px; font: 12px/1.6 ui-monospace, Menlo, monospace; overflow-x: auto; }
+  .pane .del { background: var(--del-bg); display: block; }
+  .pane .add { background: var(--add-bg); display: block; }
+  @media (max-width: 700px) { .compare { grid-template-columns: 1fr; } }
+
+  .diagram-note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .side-by-side { grid-template-columns: 1fr; } }
+  .svg-holder img, .svg-holder svg { max-width: 100%; height: auto; display: block; }
+  .footnotes { font-size: 12.5px; color: var(--text-secondary); margin-top: 10px; }
+  .footnotes li { margin: 2px 0 2px 16px; }
+
+  /* Ask-back mock */
+  .askback-pill {
+    position: absolute; display: none; z-index: 30;
+    background: var(--text-primary); color: var(--page);
+    font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px;
+    cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.25);
+  }
+  .askback-composer {
+    position: absolute; display: none; z-index: 31; width: 340px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.25); padding: 12px;
+  }
+  .askback-composer .anchor {
+    font: 11px/1.5 ui-monospace, Menlo, monospace; background: var(--code-bg);
+    border-radius: 6px; padding: 8px; color: var(--text-secondary);
+    max-height: 90px; overflow: auto; margin-bottom: 8px; white-space: pre-wrap;
+  }
+  .askback-composer input {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--page); color: var(--text-primary); font: inherit; font-size: 13px;
+  }
+  .askback-composer .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* Floating variant switcher (not part of the design being judged) */
+  .switcher {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 50;
+    display: flex; align-items: center; gap: 4px;
+    background: #0b0b0b; color: #fff; border-radius: 999px; padding: 6px 10px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35); font-size: 13px;
+  }
+  .switcher button {
+    all: unset; cursor: pointer; padding: 2px 10px; border-radius: 999px; font-weight: 700;
+  }
+  .switcher button:hover { background: rgba(255,255,255,.15); }
+  .switcher .lbl { min-width: 260px; text-align: center; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="proto-banner">Prototype — throwaway mock, judging the v1 component vocabulary</div>
+
+<header class="canvas-chrome">
+  <h1>Visual Chat — Canvas</h1>
+  <span class="ws">workspace: visual-chat</span>
+  <span class="live"><span class="dot"></span> agent connected</span>
+</header>
+
+<!-- ══════════ 1. DOCUMENT component ══════════ -->
+<section class="artifact">
+  <div class="head"><h2>Design note: why the canvas is a companion, not a chat client</h2>
+    <span class="badge">document</span><span class="vchip">v3 · just now</span></div>
+  <div class="body doc" id="doc-body">
+    <h3>Decision</h3>
+    <p>The terminal agent host stays the conversation driver. The browser page is a companion
+      canvas: the agent publishes artifacts to it, and the human sends selection-anchored
+      ask-backs from it. The framework owns exactly two flows — agent → canvas rendering, and
+      canvas → agent ask-backs. <em>Try selecting any sentence in this paragraph</em> to see the
+      ask-back affordance this design exists for.</p>
+    <h3>Why not a browser chat?</h3>
+    <p>Rebuilding streaming, interrupts, permission prompts, and session lifecycle is a large
+      project orthogonal to the actual value here: the rendering boundary and artifact quality.
+      The core motivation — “ask about a specific paragraph” — needs an anchor, not a chat box.</p>
+    <div class="callout"><strong>Honest absence:</strong> when the agent cannot render something
+      truthfully (e.g. “summarize 5,471 directories in one artifact”), it declines with a reason.
+      The canvas renders that refusal as a first-class card, never a fabricated visual.</div>
+    <h3>What the agent actually emits</h3>
+    <pre>{
+  "tool": "publish_artifact",
+  "arguments": {
+    "type": "document",
+    "title": "Design note: why the canvas is a companion…",
+    "blocks": [
+      { "kind": "heading", "text": "Decision" },
+      { "kind": "paragraph", "text": "The terminal agent host stays…" },
+      { "kind": "callout", "tone": "info", "text": "Honest absence: …" }
+    ]
+  }
+}</pre>
+    <h3>Candidate vocabulary</h3>
+    <table>
+      <tr><th>Component</th><th>Job</th><th>Ask-back anchor</th></tr>
+      <tr><td>document</td><td>design docs, ADRs, explanations</td><td>text span / block</td></tr>
+      <tr><td>dashboard</td><td>metrics, gate results, test health</td><td>tile / mark</td></tr>
+      <tr><td>compare</td><td>before/after, diffs, tradeoffs</td><td>pane / line</td></tr>
+      <tr><td>svg (free-form)</td><td>diagrams, sketches, spatial ideas</td><td>region box</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════ 2. DASHBOARD component ══════════ -->
+<section class="artifact">
+  <div class="head"><h2>Pilot gallery health</h2>
+    <span class="badge">dashboard</span><span class="vchip">v1 · 2 min ago</span></div>
+  <div class="body">
+    <div class="tiles">
+      <div class="tile"><div class="label">Artifacts published</div><div class="value">24</div><div class="delta">↑ 7 this session</div></div>
+      <div class="tile"><div class="label">Legibility gate pass</div><div class="value">87%</div><div class="delta">↑ 4 pts after repair round</div></div>
+      <div class="tile"><div class="label">Hostile fixtures</div><div class="value">42/42</div><div class="delta">all neutralized</div></div>
+      <div class="tile">
+        <div class="label">Publishes per session</div>
+        <div class="value" style="font-size:20px; margin-bottom:2px;">trend</div>
+        <svg viewBox="0 0 120 28" width="120" height="28" aria-label="Publishes per session, rising trend">
+          <polyline points="2,24 22,20 42,21 62,14 82,15 102,8 118,4"
+                    fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <div class="chart-title">Artifacts by type (this workspace)</div>
+    <div class="chart-wrap" id="bar-wrap">
+      <svg id="bar-chart" viewBox="0 0 640 190" width="100%" role="img" aria-label="Bar chart: artifacts by type"></svg>
+      <div class="tooltip" id="bar-tip"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 3. COMPARE component ══════════ -->
+<section class="artifact">
+  <div class="head"><h2>Ask-back delivery: before / after</h2>
+    <span class="badge">compare</span><span class="vchip">v2 · 9 min ago</span></div>
+  <div class="body">
+    <div class="compare">
+      <div class="pane">
+        <div class="pane-head">Before — clipboard hand-off</div>
+        <pre><span>user selects paragraph in browser</span><span class="del">- copies quote by hand</span><span class="del">- pastes into terminal, retypes context</span><span>agent guesses which artifact/version</span><span class="del">- anchor lost; answer may address</span><span class="del">  a paragraph the user never meant</span></pre>
+      </div>
+      <div class="pane">
+        <div class="pane-head">After — queue + pull (+ host hook)</div>
+        <pre><span>user selects paragraph in browser</span><span class="add">+ ask-back POSTed with anchor:</span><span class="add">  artifact a_7f2, v3, block 4, chars 12–96</span><span>agent pulls queue next turn</span><span class="add">+ hook injects it automatically on Claude Code</span><span class="add">+ answer can update the same artifact (v4)</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 4A. FREE-FORM SVG diagram ══════════ -->
+<section class="artifact" id="art-freeform">
+  <div class="head"><h2>How an artifact reaches your browser (and how questions come back)</h2>
+    <span class="badge freeform">svg · free-form</span><span class="vchip">v1 · 12 min ago</span></div>
+  <div class="body">
+    <div class="svg-holder" id="freeform-holder"></div>
+    <div class="diagram-note">Model-authored SVG, rendered as an inert &lt;img&gt; (image isolation).
+      Note the in-place idioms: the emphasized trust boundary, the numbered flow, the warning pinned
+      directly to the edge it warns about, node sizes carrying importance.</div>
+  </div>
+</section>
+
+<!-- ══════════ 4B. STRUCTURED auto-layout diagram ══════════ -->
+<section class="artifact" id="art-structured">
+  <div class="head"><h2>How an artifact reaches your browser (and how questions come back)</h2>
+    <span class="badge">diagram · auto-layout</span><span class="vchip">v1 · 12 min ago</span></div>
+  <div class="body">
+    <div class="svg-holder" id="structured-holder"></div>
+    <ol class="footnotes" id="structured-notes">
+      <li>Every browser request carries the per-workspace capability token.</li>
+      <li>The Canvas Server is the single last boundary: schema validation + SVG sanitizer live here.</li>
+      <li>Ask-backs queue until the agent pulls them (or a host hook injects them).</li>
+    </ol>
+    <div class="diagram-note">Structured nodes/edges spec, trusted engine owns all positions.
+      The three notes above are the annotations that had nowhere to live in-place.</div>
+  </div>
+</section>
+
+<!-- ══════════ 4C. SIDE-BY-SIDE (variant C only) ══════════ -->
+<section class="artifact" id="art-sxs" style="display:none">
+  <div class="head"><h2>Same story, two renderers — which tells it better?</h2>
+    <span class="badge">comparison</span><span class="vchip">prototype-only view</span></div>
+  <div class="body">
+    <div class="side-by-side">
+      <div>
+        <div class="chart-title">Free-form model-authored SVG</div>
+        <div class="svg-holder" id="sxs-freeform"></div>
+      </div>
+      <div>
+        <div class="chart-title">Structured spec, engine-owned layout</div>
+        <div class="svg-holder" id="sxs-structured"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Ask-back mock affordance -->
+<div class="askback-pill" id="ab-pill">Ask about this ¶</div>
+<div class="askback-composer" id="ab-comp">
+  <div class="anchor" id="ab-anchor"></div>
+  <input placeholder="Ask the agent about this selection…" id="ab-input">
+  <div class="hint">↵ would queue this ask-back for the agent’s next turn (mock — goes nowhere)</div>
+</div>
+
+<!-- Floating variant switcher -->
+<div class="switcher">
+  <button id="prev" aria-label="previous variant">←</button>
+  <div class="lbl" id="variant-label"></div>
+  <button id="next" aria-label="next variant">→</button>
+</div>
+
+<script>
+/* ───────────────────────── bar chart (trusted-renderer emulation) ───────── */
+(function () {
+  const data = [
+    { type: 'document', n: 9 }, { type: 'svg sketch', n: 7 },
+    { type: 'dashboard', n: 5 }, { type: 'compare', n: 3 },
+  ];
+  const svg = document.getElementById('bar-chart');
+  const W = 640, H = 190, padL = 84, padR = 40, padT = 8, padB = 24;
+  const max = 10, innerW = W - padL - padR, innerH = H - padT - padB;
+  const rowH = innerH / data.length, barH = 18;
+  const x = v => padL + (v / max) * innerW;
+  let s = '';
+  for (let g = 0; g <= max; g += 2) {
+    s += `<line x1="${x(g)}" y1="${padT}" x2="${x(g)}" y2="${H - padB}" stroke="var(--grid)" stroke-width="1"/>`;
+    s += `<text x="${x(g)}" y="${H - 8}" font-size="11" fill="var(--muted)" text-anchor="middle">${g}</text>`;
+  }
+  s += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}" stroke="var(--baseline)" stroke-width="1"/>`;
+  data.forEach((d, i) => {
+    const cy = padT + rowH * i + rowH / 2;
+    s += `<text x="${padL - 8}" y="${cy + 4}" font-size="12" fill="var(--text-secondary)" text-anchor="end">${d.type}</text>`;
+    s += `<path class="bar" data-i="${i}" d="M ${padL} ${cy - barH / 2}
+           H ${x(d.n) - 4} a4 4 0 0 1 4 4 v ${barH - 8} a4 4 0 0 1 -4 4 H ${padL} Z"
+           fill="var(--series-1)"/>`;
+    s += `<text x="${x(d.n) + 6}" y="${cy + 4}" font-size="12" fill="var(--text-primary)">${d.n}</text>`;
+  });
+  svg.innerHTML = s;
+  const tip = document.getElementById('bar-tip'), wrap = document.getElementById('bar-wrap');
+  svg.addEventListener('mousemove', e => {
+    const b = e.target.closest('.bar');
+    if (!b) { tip.style.display = 'none'; return; }
+    const d = data[+b.dataset.i], r = wrap.getBoundingClientRect();
+    tip.textContent = `${d.type}: ${d.n} artifacts`;
+    tip.style.left = (e.clientX - r.left) + 'px';
+    tip.style.top = (e.clientY - r.top) + 'px';
+    tip.style.display = 'block';
+  });
+  svg.addEventListener('mouseleave', () => tip.style.display = 'none');
+})();
+
+/* ─────────────── free-form SVG diagram (what an LLM would author) ─────────
+   Rendered via data: URL in <img> — the image-isolation posture itself.       */
+(function () {
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const ink = dark ? '#ffffff' : '#0b0b0b', sub = dark ? '#c3c2b7' : '#52514e',
+        line = dark ? '#898781' : '#52514e', box = dark ? '#26261f' : '#ffffff',
+        blue = dark ? '#3987e5' : '#2a78d6', warm = dark ? '#d95926' : '#eb6834',
+        bg = dark ? '#1a1a19' : '#fcfcfb';
+  const svgSrc = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 470" font-family="system-ui, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="${line}"/></marker>
+    <marker id="arrb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="${blue}"/></marker>
+  </defs>
+  <rect width="860" height="470" fill="${bg}"/>
+
+  <!-- trust boundary: the in-place idiom a layout engine can't draw -->
+  <rect x="285" y="60" width="300" height="330" rx="14" fill="none"
+        stroke="${warm}" stroke-width="2.5" stroke-dasharray="10 6"/>
+  <text x="435" y="48" font-size="13" font-weight="700" fill="${warm}" text-anchor="middle">TRUST BOUNDARY — the single last gate before your browser</text>
+
+  <!-- agent host -->
+  <rect x="40" y="150" width="170" height="88" rx="10" fill="${box}" stroke="${line}" stroke-width="1.5"/>
+  <text x="125" y="186" font-size="15" font-weight="700" fill="${ink}" text-anchor="middle">Agent Host</text>
+  <text x="125" y="206" font-size="12" fill="${sub}" text-anchor="middle">Claude Code (terminal)</text>
+
+  <!-- canvas server: bigger = more important, model chose this emphasis -->
+  <rect x="310" y="110" width="250" height="150" rx="12" fill="${box}" stroke="${ink}" stroke-width="2.5"/>
+  <text x="435" y="140" font-size="16" font-weight="800" fill="${ink}" text-anchor="middle">Canvas Server (MCP)</text>
+  <text x="435" y="163" font-size="12" fill="${sub}" text-anchor="middle">schema-validates components</text>
+  <text x="435" y="181" font-size="12" fill="${sub}" text-anchor="middle">sanitizes + re-serializes SVG</text>
+  <text x="435" y="199" font-size="12" fill="${sub}" text-anchor="middle">versions every artifact</text>
+  <rect x="335" y="212" width="200" height="34" rx="6" fill="none" stroke="${sub}" stroke-width="1" stroke-dasharray="4 4"/>
+  <text x="435" y="234" font-size="12" fill="${sub}" text-anchor="middle">artifact store · v1 v2 v3…</text>
+
+  <!-- ask-back queue: small satellite inside the boundary -->
+  <rect x="330" y="300" width="210" height="66" rx="10" fill="${box}" stroke="${blue}" stroke-width="2"/>
+  <text x="435" y="327" font-size="14" font-weight="700" fill="${blue}" text-anchor="middle">Ask-back Queue</text>
+  <text x="435" y="347" font-size="11.5" fill="${sub}" text-anchor="middle">anchored: artifact + version + span</text>
+
+  <!-- browser -->
+  <rect x="650" y="150" width="170" height="88" rx="10" fill="${box}" stroke="${line}" stroke-width="1.5"/>
+  <text x="735" y="186" font-size="15" font-weight="700" fill="${ink}" text-anchor="middle">Browser Canvas</text>
+  <text x="735" y="206" font-size="12" fill="${sub}" text-anchor="middle">you, reading + selecting</text>
+
+  <!-- forward path ① ② -->
+  <line x1="210" y1="185" x2="303" y2="185" stroke="${line}" stroke-width="2" marker-end="url(#arr)"/>
+  <circle cx="238" cy="168" r="10" fill="${ink}"/><text x="238" y="172.5" font-size="12" font-weight="700" fill="${bg}" text-anchor="middle">1</text>
+  <text x="256" y="172" font-size="11.5" fill="${sub}">publish_artifact (stdio)</text>
+
+  <line x1="560" y1="185" x2="643" y2="185" stroke="${line}" stroke-width="2" marker-end="url(#arr)"/>
+  <circle cx="584" cy="168" r="10" fill="${ink}"/><text x="584" y="172.5" font-size="12" font-weight="700" fill="${bg}" text-anchor="middle">2</text>
+  <text x="598" y="172" font-size="11.5" fill="${sub}">SSE push 🔒</text>
+
+  <!-- back path ③ ④ : curved, blue = the return story -->
+  <path d="M 700 238 C 660 320, 600 333 547 333" fill="none" stroke="${blue}" stroke-width="2" marker-end="url(#arrb)"/>
+  <circle cx="655" cy="300" r="10" fill="${blue}"/><text x="655" y="304.5" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+  <text x="672" y="304" font-size="11.5" fill="${sub}">ask-back POST 🔒</text>
+
+  <path d="M 330 333 C 180 333, 125 300 125 245" fill="none" stroke="${blue}" stroke-width="2" marker-end="url(#arrb)"/>
+  <circle cx="212" cy="316" r="10" fill="${blue}"/><text x="212" y="320.5" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+  <text x="130" y="320" font-size="11.5" fill="${sub}">check_askbacks</text>
+
+  <!-- the warning, pinned exactly where it applies -->
+  <path d="M 665 128 C 640 96, 600 90 566 104" fill="none" stroke="${warm}" stroke-width="1.5" stroke-dasharray="3 4" marker-end="url(#arr)"/>
+  <text x="672" y="120" font-size="12" font-weight="700" fill="${warm}">⚠ every browser request carries the</text>
+  <text x="672" y="136" font-size="12" font-weight="700" fill="${warm}">capability token — no open endpoints</text>
+
+  <text x="40" y="440" font-size="12" font-style="italic" fill="${sub}">Depicts the idea, not the exact code — free-form SVG, drawn by the model, shown as an inert image.</text>
+</svg>`;
+  const url = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgSrc);
+  for (const id of ['freeform-holder', 'sxs-freeform']) {
+    const img = document.createElement('img');
+    img.src = url; img.alt = 'Free-form architecture flowchart';
+    document.getElementById(id).appendChild(img);
+  }
+})();
+
+/* ────────── structured diagram: nodes/edges spec + trusted auto-layout ────
+   Emulates a dagre-style layered layout: ranks left→right, uniform boxes,
+   engine owns every position. The model only supplied the spec below.        */
+(function () {
+  const spec = {
+    nodes: [
+      { id: 'agent',   label: 'Agent Host',      sub: 'Claude Code' },
+      { id: 'server',  label: 'Canvas Server',   sub: 'MCP · validates' },
+      { id: 'store',   label: 'Artifact Store',  sub: 'versioned' },
+      { id: 'browser', label: 'Browser Canvas',  sub: 'human' },
+      { id: 'queue',   label: 'Ask-back Queue',  sub: 'anchored' },
+    ],
+    edges: [
+      { from: 'agent',   to: 'server',  label: 'publish_artifact' },
+      { from: 'server',  to: 'store',   label: 'write vN' },
+      { from: 'server',  to: 'browser', label: 'SSE push [1]' },
+      { from: 'browser', to: 'queue',   label: 'ask-back [1]' },
+      { from: 'queue',   to: 'agent',   label: 'check_askbacks [3]' },
+    ],
+  };
+  // rank = longest path from a source (what dagre does, simplified)
+  const rank = {}; const indeg = {};
+  spec.nodes.forEach(n => indeg[n.id] = 0);
+  spec.edges.forEach(e => indeg[e.to]++);
+  const back = new Set(); // crude cycle break: treat queue→agent as a back-edge
+  spec.edges.forEach(e => { if (e.from === 'queue') back.add(e); });
+  const fwd = spec.edges.filter(e => !back.has(e));
+  spec.nodes.forEach(n => rank[n.id] = 0);
+  for (let pass = 0; pass < 5; pass++)
+    fwd.forEach(e => rank[e.to] = Math.max(rank[e.to], rank[e.from] + 1));
+  const cols = {}; spec.nodes.forEach(n => (cols[rank[n.id]] ??= []).push(n));
+  const NW = 158, NH = 56, GX = 92, GY = 34, PAD = 24, LABELPAD = 40;
+  const nRanks = Object.keys(cols).length;
+  const W = PAD * 2 + nRanks * NW + (nRanks - 1) * GX;
+  const maxRows = Math.max(...Object.values(cols).map(c => c.length));
+  const H = PAD * 2 + LABELPAD + maxRows * NH + (maxRows - 1) * GY + 40;
+  const pos = {};
+  Object.entries(cols).forEach(([r, ns]) => {
+    const colH = ns.length * NH + (ns.length - 1) * GY;
+    ns.forEach((n, i) => {
+      pos[n.id] = { x: PAD + r * (NW + GX), y: PAD + LABELPAD + (H - LABELPAD - PAD * 2 - colH) / 2 + i * (NH + GY) };
+    });
+  });
+  let s = '';
+  spec.edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.to];
+    let x1, y1, x2, y2, path;
+    if (back.has(e)) { // route the back-edge underneath
+      x1 = a.x + NW / 2; y1 = a.y + NH; x2 = b.x + NW / 2; y2 = b.y + NH;
+      const dip = H - PAD - 6;
+      path = `M ${x1} ${y1} C ${x1} ${dip}, ${x2} ${dip}, ${x2} ${y2 + 8}`;
+      s += `<path d="${path}" fill="none" stroke="var(--baseline)" stroke-width="1.5" marker-end="url(#sarr)"/>`;
+      s += `<text x="${(x1 + x2) / 2}" y="${dip - 6}" font-size="11" fill="var(--muted)" text-anchor="middle">${e.label}</text>`;
+    } else {
+      x1 = a.x + NW; y1 = a.y + NH / 2; x2 = b.x; y2 = b.y + NH / 2;
+      path = `M ${x1} ${y1} C ${x1 + GX / 2} ${y1}, ${x2 - GX / 2} ${y2}, ${x2} ${y2}`;
+      s += `<path d="${path}" fill="none" stroke="var(--baseline)" stroke-width="1.5" marker-end="url(#sarr)"/>`;
+      s += `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 7}" font-size="11" fill="var(--muted)" text-anchor="middle">${e.label}</text>`;
+    }
+  });
+  spec.nodes.forEach(n => {
+    const p = pos[n.id];
+    s += `<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="8"
+           fill="var(--surface-1)" stroke="var(--baseline)" stroke-width="1.5"/>
+          <text x="${p.x + NW / 2}" y="${p.y + 24}" font-size="13.5" font-weight="650" fill="var(--text-primary)" text-anchor="middle">${n.label}</text>
+          <text x="${p.x + NW / 2}" y="${p.y + 42}" font-size="11" fill="var(--muted)" text-anchor="middle">${n.sub}</text>`;
+  });
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Structured architecture diagram">
+    <defs><marker id="sarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--baseline)"/></marker></defs>
+    <text x="${PAD}" y="${PAD + 8}" font-size="12" fill="var(--muted)">layout: engine-owned (layered, L→R) — model supplied only nodes + edges</text>${s}</svg>`;
+  document.getElementById('structured-holder').innerHTML = svg;
+  document.getElementById('sxs-structured').innerHTML = svg;
+})();
+
+/* ───────────────────────── ask-back mock (document only) ─────────────────── */
+(function () {
+  const pill = document.getElementById('ab-pill'), comp = document.getElementById('ab-comp'),
+        anchor = document.getElementById('ab-anchor'), doc = document.getElementById('doc-body');
+  document.addEventListener('mouseup', e => {
+    if (comp.contains(e.target)) return;
+    comp.style.display = 'none';
+    const sel = getSelection();
+    if (sel.isCollapsed || !doc.contains(sel.anchorNode)) { pill.style.display = 'none'; return; }
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    pill.style.left = (scrollX + r.left + r.width / 2 - 50) + 'px';
+    pill.style.top = (scrollY + r.top - 34) + 'px';
+    pill.style.display = 'block';
+    pill.dataset.quote = sel.toString().slice(0, 160);
+  });
+  pill.addEventListener('click', () => {
+    anchor.textContent = JSON.stringify({
+      artifact: 'a_7f2c (document)', version: 'v3',
+      quote: pill.dataset.quote,
+    }, null, 1);
+    comp.style.left = pill.style.left; comp.style.top = (parseFloat(pill.style.top) + 40) + 'px';
+    comp.style.display = 'block'; pill.style.display = 'none';
+    document.getElementById('ab-input').focus();
+  });
+})();
+
+/* ───────────────────────── variant switcher ─────────────────────────────── */
+(function () {
+  const variants = [
+    { key: 'A', name: 'Free-form SVG owns diagrams' },
+    { key: 'B', name: 'Structured Diagram component' },
+    { key: 'C', name: 'Side-by-side comparison' },
+  ];
+  const label = document.getElementById('variant-label');
+  function current() {
+    const k = new URLSearchParams(location.search).get('variant') || 'A';
+    return Math.max(0, variants.findIndex(v => v.key === k));
+  }
+  function apply(i) {
+    const v = variants[i];
+    history.replaceState(null, '', location.pathname + '?variant=' + v.key);
+    label.textContent = `${v.key} — ${v.name}`;
+    document.getElementById('art-freeform').style.display = v.key === 'A' ? '' : 'none';
+    document.getElementById('art-structured').style.display = v.key === 'B' ? '' : 'none';
+    document.getElementById('art-sxs').style.display = v.key === 'C' ? '' : 'none';
+  }
+  const step = d => apply((current() + d + variants.length) % variants.length);
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(1);
+  document.addEventListener('keydown', e => {
+    if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (e.key === 'ArrowLeft') step(-1);
+    if (e.key === 'ArrowRight') step(1);
+  });
+  apply(current());
+})();
+</script>
+</body>
+</html>
