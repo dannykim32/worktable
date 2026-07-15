@@ -90,3 +90,13 @@ the light page (surface #FFFBEE, insets #F8EDCB) and burnt orange
 unchanged and re-validated against the new light surface (six checks:
 PASS, same series-2 contrast WARN relieved by direct labels). The
 m2-dashboard screenshots were re-captured on the new theme.
+
+2026-07-14 — committed light-only identity (user direction): dark mode
+removed entirely (the @media prefers-color-scheme block is gone). Warm
+espresso ink (#241C12/#6B5D48), vanilla-tinted hairlines, burnt orange
+promoted to the lead chrome color (masthead rule, provenance badges,
+version marker, keyboard focus). Bad-tone deltas moved off orange onto
+warm red --delta-bad #B23127 so the brand color never doubles as a
+warning; series colors untouched and held out of the brand lane. AC6 is
+now a single-theme check — only docs/qa/m2-dashboard-light.png remains
+(dark PNG deleted). Series still validated on #FFFBEE (six checks PASS).

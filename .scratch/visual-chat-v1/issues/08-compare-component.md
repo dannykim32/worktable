@@ -70,3 +70,9 @@ inspected during QA and shows the panes stacked.
 2026-07-14 — m2-compare screenshots re-captured after the user-directed
 brand palette update (vanilla page + burnt orange accent); add/del tints
 unchanged and still distinct on the new vanilla-tinted surfaces.
+
+2026-07-14 — committed light-only identity (user direction): dark mode
+removed. Compare's add/del tints (--add-bg/--del-bg) are unchanged and
+still read clearly on the warm surfaces; pane heads pick up the vanilla
+inset. AC4/legibility now a single-theme check — only
+docs/qa/m2-compare-light.png remains (dark PNG deleted).

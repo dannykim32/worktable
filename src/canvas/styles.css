@@ -1,59 +1,54 @@
 /* Canvas theme — structure and mark conventions from the judged prototype
    (prototype/canvas-vocabulary/PROTOTYPE-canvas-mock.html). One clean
-   register (ADR-0009); light/dark via prefers-color-scheme.
-   Brand primaries set by user direction (2026-07-14): vanilla #FFF4D6 as
-   the light page, burnt orange #FC6C26 as the warm accent in both schemes. */
+   register (ADR-0009). Committed light-only identity (user direction,
+   2026-07-14): a vanilla ground with burnt orange as the lead color.
+   Burnt orange owns the chrome; warm espresso ink + vanilla-tinted
+   hairlines keep the page native rather than grey-on-cream; data and
+   semantics hold their own lane so the accent never doubles as a warning.
+   Contrast of the text/semantic steps verified with WCAG on #FFFBEE. */
 :root {
   color-scheme: light;
+
+  /* Grounds — vanilla */
   --page: #fff4d6;
   --surface-1: #fffbee;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --muted: #898781;
-  --grid: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
+
+  /* Warm ink (not pure grey/black — reads chosen on vanilla) */
+  --text-primary: #241c12; /* 16.2:1 on surface */
+  --text-secondary: #6b5d48; /* 6.2:1 */
+  --muted: #9a8b70; /* ticks / neutral deltas */
+
+  /* Warm hairlines — tints of the vanilla, not cool grey */
+  --grid: #eadfc2;
+  --baseline: #d8c7a0;
+  --border: rgba(74, 45, 20, 0.14);
+
+  /* Hero — burnt orange (fills, focus, large marks) + a legible text step */
+  --accent-warm: #fc6c26;
+  --accent-ink: #b5430f; /* small orange text on vanilla — 5.4:1, AA */
+  --accent-wash: #ffe7d6; /* badge/pill fill, focus glow */
+
+  /* Semantics — kept off the hero so orange never means "bad" */
+  --delta-good: #006300; /* 7.3:1 */
+  --delta-bad: #b23127; /* warm red — negative deltas + warnings, 6.0:1 */
+
+  /* Data series — validated categorical set, held apart from brand.
+     Slots assigned in fixed order; six-checks PASS on #FFFBEE (series-2
+     contrast WARN relieved by the mandatory direct value labels). */
   --series-1: #2a78d6;
   --series-2: #1baf7a;
-  /* Slots 3–4 extend the prototype's categorical order; validated with the
-     dataviz six-checks script against --surface-1 (light run: PASS, series-2
-     contrast WARN relieved by the mandatory direct value labels). */
   --series-3: #9a5bd2;
   --series-4: #c85c8e;
-  --delta-good: #006300;
+
+  /* Component insets + diff tints */
   --callout-bg: #f8edcb;
   --code-bg: #f8edcb;
   --add-bg: #e2f2e2;
   --del-bg: #fbe3e3;
-  --accent-warm: #fc6c26;
+
+  /* Status dots — connection state stays a true status signal (green/idle) */
   --dot-live: #0ca30c;
-  --dot-dead: #898781;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --page: #0d0d0d;
-    --surface-1: #1a1a19;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --series-1: #3987e5;
-    --series-2: #199e70;
-    /* Dark steps selected separately and validated against the dark
-       surface (all six checks PASS) — not an automatic flip. */
-    --series-3: #a97ae0;
-    --series-4: #cf6690;
-    --delta-good: #0ca30c;
-    --callout-bg: #26261f;
-    --code-bg: #111110;
-    --add-bg: #14330f;
-    --del-bg: #3d1414;
-    --accent-warm: #fc6c26;
-    --dot-live: #0ca30c;
-  }
+  --dot-dead: #9a8b70;
 }
 
 * {
@@ -67,13 +62,22 @@ body {
   padding: 0 0 96px;
 }
 
+/* Brand-colored keyboard focus everywhere interactive. */
+:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 header.canvas-chrome {
   display: flex;
   align-items: baseline;
   gap: 12px;
   max-width: 880px;
   margin: 24px auto 8px;
-  padding: 0 20px;
+  padding: 0 20px 12px;
+  /* Burnt orange masthead rule — the accent's most prominent placement. */
+  border-bottom: 2px solid var(--accent-warm);
 }
 header.canvas-chrome h1 {
   font-size: 19px;
@@ -108,7 +112,7 @@ header.canvas-chrome .live {
   color: var(--muted);
 }
 .canvas-error {
-  color: var(--accent-warm);
+  color: var(--delta-bad);
 }
 
 /* ── Artifact card chrome ───────────────────────────────────────────── */
@@ -138,12 +142,15 @@ header.canvas-chrome .live {
   letter-spacing: 0.04em;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
+  border: 1px solid var(--accent-warm);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
   white-space: nowrap;
 }
+/* Honest Absence stays deliberately calm — never wears the brand badge. */
 .badge.absence {
   border-color: var(--baseline);
+  background: transparent;
   color: var(--muted);
   font-style: italic;
 }
@@ -179,7 +186,7 @@ header.canvas-chrome .live {
 }
 .viewing-marker {
   font-size: 11px;
-  color: var(--accent-warm);
+  color: var(--accent-ink); /* small text — the legible orange step */
   border: 1px solid var(--accent-warm);
   border-radius: 999px;
   padding: 1px 8px;
@@ -219,7 +226,7 @@ header.canvas-chrome .live {
   color: var(--text-secondary);
 }
 .doc .callout.tone-warn {
-  border-left-color: var(--accent-warm);
+  border-left-color: var(--delta-bad);
 }
 .doc pre {
   background: var(--code-bg);
@@ -298,7 +305,7 @@ header.canvas-chrome .live {
   color: var(--delta-good);
 }
 .dash .tile .delta.tone-bad {
-  color: var(--accent-warm);
+  color: var(--delta-bad);
 }
 .dash .tile .delta.tone-neutral {
   color: var(--muted);
@@ -396,8 +403,11 @@ header.canvas-chrome .live {
   stroke-width: 1.5;
 }
 .dash svg .mark:focus {
-  stroke: var(--text-primary);
-  stroke-width: 1.5;
+  stroke: var(--accent-warm);
+  stroke-width: 2;
+}
+.dash svg .mark:focus-visible {
+  outline: none; /* the brand stroke above is the focus affordance on marks */
 }
 
 /* ── Compare component ──────────────────────────────────────────────── */
