@@ -15,13 +15,18 @@ prior conversation context.
 
 - **M1 — walking skeleton: DONE, merged, human-verified.** MCP server (stdio) +
   capability-URL canvas on 127.0.0.1; versioned artifact store + SSE; Document +
-  absence renderers; ask-back queue with anchors; demo + E2E. 58 tests green.
-- **M2 (Dashboard + Compare) and M3 (SVG sanitizer + image-isolated SVG type):
-  IN FLIGHT** — parallel worktree agents branched from `415731f`. Review + merge
-  protocol: independent test re-run → two-axis review (standards / spec) → fixes
-  routed back to the building agent → merge.
-- **Next:** M4 legibility gate (report-only + calibration), M5 enforcement +
-  repair round, M6 Claude Code hook + request_review.
+  absence renderers; ask-back queue with anchors; demo + E2E.
+- **M2 — Dashboard + Compare: DONE, merged, both review axes passed.** Single-axis
+  bar/line + stat tiles; two-pane compare. Brand palette (burnt orange + vanilla)
+  applied. Points capped at 200/series. 80 tests green.
+- **M3 — SVG sanitizer + image-isolated SVG type: BUILT, in security review.**
+  Zero-dep reject-not-drop sanitizer (16 hostile fixtures + fuzz), SVG rendered
+  only as inert `<img>` data: URL. Branch `worktree-agent-a6943cabd35cd48bf`.
+- **Security drill (2026-07-15): passed.** An owner-run cookie-exfil injection into
+  the sanitizer worktree was contained at every layer, nothing merged. See
+  `docs/security/red-team-drills.md`.
+- **Next:** merge M3 after review; then M4 legibility gate (report-only +
+  calibration), M5 enforcement + repair round, M6 Claude Code hook + request_review.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.
