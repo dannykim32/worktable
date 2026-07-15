@@ -50,6 +50,67 @@ export interface DocumentContent {
   blocks: DocumentBlock[];
 }
 
+// ── Dashboard component (issue 07, ADR-0007) ────────────────────────────
+
+export interface TileDelta {
+  text: string;
+  tone: "good" | "bad" | "neutral";
+}
+
+export interface DashboardTile {
+  label: string;
+  value: string | number;
+  delta?: TileDelta;
+}
+
+export interface ChartPoint {
+  x: string | number;
+  y: number;
+}
+
+export interface ChartSeries {
+  label: string;
+  points: ChartPoint[];
+}
+
+export interface DashboardChart {
+  kind: "bar" | "line";
+  title: string;
+  unit?: string;
+  /** ≤4 series, categorical palette slots assigned in fixed order. */
+  series: ChartSeries[];
+}
+
+export interface DashboardContent {
+  type: "dashboard";
+  title: string;
+  /** 0..8 stat tiles. */
+  tiles: DashboardTile[];
+  /** 0..4 charts, each with exactly ONE y-axis (none other exists). */
+  charts: DashboardChart[];
+}
+
+// ── Compare component (issue 08, ADR-0007) ──────────────────────────────
+
+export interface CompareLine {
+  text: string;
+  /** Supplied by the agent — the canvas never computes diffs. */
+  mark: "add" | "del" | null;
+}
+
+export interface ComparePane {
+  label: string;
+  /** ≤500 lines. */
+  lines: CompareLine[];
+}
+
+export interface CompareContent {
+  type: "compare";
+  title: string;
+  /** Exactly 2 panes. */
+  panes: ComparePane[];
+}
+
 /** Honest Absence: a first-class outcome, never an error (CONTEXT.md). */
 export interface AbsenceContent {
   type: "absence";
@@ -57,7 +118,11 @@ export interface AbsenceContent {
   reason: string;
 }
 
-export type ArtifactContent = DocumentContent | AbsenceContent;
+export type ArtifactContent =
+  | DocumentContent
+  | DashboardContent
+  | CompareContent
+  | AbsenceContent;
 export type ArtifactType = ArtifactContent["type"];
 
 export interface ArtifactMeta {

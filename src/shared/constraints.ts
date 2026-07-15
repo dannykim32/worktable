@@ -10,6 +10,9 @@ export const QUOTE_MAX = 300;
 /** Ask-back questions longer than this are rejected with a 400. */
 export const QUESTION_MAX = 2000;
 
+/** A dashboard chart series is capped at this many points (bound large inputs). */
+export const POINTS_MAX = 200;
+
 export function isArtifactId(value: unknown): value is string {
   return typeof value === "string" && ARTIFACT_ID_PATTERN.test(value);
 }

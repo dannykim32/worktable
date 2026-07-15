@@ -3,9 +3,17 @@
 // call with the offending JSON path — nothing is silently discarded.
 import type {
   ArtifactContent,
+  ChartSeries,
+  ComparePane,
+  DashboardChart,
+  DashboardTile,
   DocumentBlock,
 } from "../shared/artifacts.js";
-import { ARTIFACT_ID_PATTERN, isArtifactId } from "../shared/constraints.js";
+import {
+  ARTIFACT_ID_PATTERN,
+  isArtifactId,
+  POINTS_MAX,
+} from "../shared/constraints.js";
 
 export class ValidationError extends Error {
   constructor(
@@ -19,6 +27,14 @@ export class ValidationError extends Error {
 const TITLE_MAX = 200;
 const BLOCKS_MAX = 200;
 const REASON_MAX = 2000;
+// Dashboard (issue 07): the schema forbids a legend explosion and a second
+// y-axis by construction — there is nowhere to put either.
+const TILES_MAX = 8;
+const CHARTS_MAX = 4;
+const SERIES_MAX = 4;
+// Compare (issue 08): exactly two panes, agent-supplied marks.
+const PANES_EXACT = 2;
+const PANE_LINES_MAX = 500;
 
 // ---------------------------------------------------------------------------
 // JSON Schemas, declared on the MCP tools so hosts see the exact contract.
@@ -89,6 +105,88 @@ const blockSchemas = [
   },
 ];
 
+const tileSchema = {
+  type: "object",
+  properties: {
+    label: { type: "string" },
+    value: { type: ["string", "number"] },
+    delta: {
+      type: "object",
+      properties: {
+        text: { type: "string" },
+        tone: { enum: ["good", "bad", "neutral"] },
+      },
+      required: ["text", "tone"],
+      additionalProperties: false,
+    },
+  },
+  required: ["label", "value"],
+  additionalProperties: false,
+};
+
+const chartSchema = {
+  type: "object",
+  description:
+    "one value axis per chart — the schema has no second axis by construction",
+  properties: {
+    kind: { enum: ["bar", "line"] },
+    title: { type: "string" },
+    unit: { type: "string" },
+    series: {
+      type: "array",
+      maxItems: SERIES_MAX,
+      items: {
+        type: "object",
+        properties: {
+          label: { type: "string" },
+          points: {
+            type: "array",
+            maxItems: POINTS_MAX,
+            items: {
+              type: "object",
+              properties: {
+                x: { type: ["string", "number"] },
+                y: { type: "number" },
+              },
+              required: ["x", "y"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["label", "points"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["kind", "title", "series"],
+  additionalProperties: false,
+};
+
+const paneSchema = {
+  type: "object",
+  properties: {
+    label: { type: "string" },
+    lines: {
+      type: "array",
+      maxItems: PANE_LINES_MAX,
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          mark: {
+            enum: ["add", "del", null],
+            description: "supplied by the agent — the canvas never diffs",
+          },
+        },
+        required: ["text", "mark"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["label", "lines"],
+  additionalProperties: false,
+};
+
 const contentVariants = [
   {
     type: "object",
@@ -103,6 +201,32 @@ const contentVariants = [
       },
     },
     required: ["type", "title", "blocks"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "dashboard" },
+      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+      tiles: { type: "array", maxItems: TILES_MAX, items: tileSchema },
+      charts: { type: "array", maxItems: CHARTS_MAX, items: chartSchema },
+    },
+    required: ["type", "title", "tiles", "charts"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "compare" },
+      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+      panes: {
+        type: "array",
+        minItems: PANES_EXACT,
+        maxItems: PANES_EXACT,
+        items: paneSchema,
+      },
+    },
+    required: ["type", "title", "panes"],
     additionalProperties: false,
   },
   {
@@ -237,6 +361,117 @@ function validateBlock(v: unknown, path: string): DocumentBlock {
   }
 }
 
+function requireFiniteNumber(v: unknown, path: string): number {
+  if (typeof v !== "number" || !Number.isFinite(v)) {
+    throw new ValidationError(path, "expected a finite number");
+  }
+  return v;
+}
+
+function requireLabelValue(v: unknown, path: string): string | number {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  throw new ValidationError(path, "expected a string or finite number");
+}
+
+function validateTile(v: unknown, path: string): DashboardTile {
+  if (!isRecord(v)) throw new ValidationError(path, "expected an object");
+  rejectUnknownFields(v, ["label", "value", "delta"], path);
+  requireString(v.label, `${path}/label`);
+  requireLabelValue(v.value, `${path}/value`);
+  if (v.delta !== undefined) {
+    const delta = v.delta;
+    if (!isRecord(delta)) {
+      throw new ValidationError(`${path}/delta`, "expected an object");
+    }
+    rejectUnknownFields(delta, ["text", "tone"], `${path}/delta`);
+    requireString(delta.text, `${path}/delta/text`);
+    if (delta.tone !== "good" && delta.tone !== "bad" && delta.tone !== "neutral") {
+      throw new ValidationError(
+        `${path}/delta/tone`,
+        'expected "good", "bad", or "neutral"',
+      );
+    }
+  }
+  return v as unknown as DashboardTile;
+}
+
+function validateSeries(v: unknown, path: string): ChartSeries {
+  if (!isRecord(v)) throw new ValidationError(path, "expected an object");
+  rejectUnknownFields(v, ["label", "points"], path);
+  requireString(v.label, `${path}/label`);
+  if (!Array.isArray(v.points)) {
+    throw new ValidationError(`${path}/points`, "expected an array");
+  }
+  if (v.points.length > POINTS_MAX) {
+    throw new ValidationError(
+      `${path}/points`,
+      `must have at most ${POINTS_MAX} points`,
+    );
+  }
+  v.points.forEach((point, i) => {
+    const pointPath = `${path}/points/${i}`;
+    if (!isRecord(point)) {
+      throw new ValidationError(pointPath, "expected an object");
+    }
+    rejectUnknownFields(point, ["x", "y"], pointPath);
+    requireLabelValue(point.x, `${pointPath}/x`);
+    requireFiniteNumber(point.y, `${pointPath}/y`);
+  });
+  return v as unknown as ChartSeries;
+}
+
+function validateChart(v: unknown, path: string): DashboardChart {
+  if (!isRecord(v)) throw new ValidationError(path, "expected an object");
+  rejectUnknownFields(v, ["kind", "title", "unit", "series"], path);
+  if (v.kind !== "bar" && v.kind !== "line") {
+    throw new ValidationError(`${path}/kind`, 'expected "bar" or "line"');
+  }
+  requireString(v.title, `${path}/title`);
+  if (v.unit !== undefined) requireString(v.unit, `${path}/unit`);
+  if (!Array.isArray(v.series)) {
+    throw new ValidationError(`${path}/series`, "expected an array");
+  }
+  if (v.series.length > SERIES_MAX) {
+    throw new ValidationError(
+      `${path}/series`,
+      `must have at most ${SERIES_MAX} series`,
+    );
+  }
+  v.series.forEach((series, i) => validateSeries(series, `${path}/series/${i}`));
+  return v as unknown as DashboardChart;
+}
+
+function validatePane(v: unknown, path: string): ComparePane {
+  if (!isRecord(v)) throw new ValidationError(path, "expected an object");
+  rejectUnknownFields(v, ["label", "lines"], path);
+  requireString(v.label, `${path}/label`);
+  if (!Array.isArray(v.lines)) {
+    throw new ValidationError(`${path}/lines`, "expected an array");
+  }
+  if (v.lines.length > PANE_LINES_MAX) {
+    throw new ValidationError(
+      `${path}/lines`,
+      `must have at most ${PANE_LINES_MAX} lines`,
+    );
+  }
+  v.lines.forEach((line, i) => {
+    const linePath = `${path}/lines/${i}`;
+    if (!isRecord(line)) {
+      throw new ValidationError(linePath, "expected an object");
+    }
+    rejectUnknownFields(line, ["text", "mark"], linePath);
+    requireString(line.text, `${linePath}/text`);
+    if (line.mark !== "add" && line.mark !== "del" && line.mark !== null) {
+      throw new ValidationError(
+        `${linePath}/mark`,
+        'expected "add", "del", or null',
+      );
+    }
+  });
+  return v as unknown as ComparePane;
+}
+
 /** Validate publish_artifact input; throws ValidationError with a JSON path. */
 export function validateArtifactContent(input: unknown): ArtifactContent {
   if (!isRecord(input)) throw new ValidationError("/", "expected an object");
@@ -256,6 +491,46 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
       input.blocks.forEach((block, i) => validateBlock(block, `/blocks/${i}`));
       return input as unknown as ArtifactContent;
     }
+    case "dashboard": {
+      rejectUnknownFields(input, ["type", "title", "tiles", "charts"], "");
+      requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
+      if (!Array.isArray(input.tiles)) {
+        throw new ValidationError("/tiles", "expected an array");
+      }
+      if (input.tiles.length > TILES_MAX) {
+        throw new ValidationError(
+          "/tiles",
+          `must have at most ${TILES_MAX} tiles`,
+        );
+      }
+      input.tiles.forEach((tile, i) => validateTile(tile, `/tiles/${i}`));
+      if (!Array.isArray(input.charts)) {
+        throw new ValidationError("/charts", "expected an array");
+      }
+      if (input.charts.length > CHARTS_MAX) {
+        throw new ValidationError(
+          "/charts",
+          `must have at most ${CHARTS_MAX} charts`,
+        );
+      }
+      input.charts.forEach((chart, i) => validateChart(chart, `/charts/${i}`));
+      return input as unknown as ArtifactContent;
+    }
+    case "compare": {
+      rejectUnknownFields(input, ["type", "title", "panes"], "");
+      requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
+      if (!Array.isArray(input.panes)) {
+        throw new ValidationError("/panes", "expected an array");
+      }
+      if (input.panes.length !== PANES_EXACT) {
+        throw new ValidationError(
+          "/panes",
+          `must have exactly ${PANES_EXACT} panes`,
+        );
+      }
+      input.panes.forEach((pane, i) => validatePane(pane, `/panes/${i}`));
+      return input as unknown as ArtifactContent;
+    }
     case "absence": {
       rejectUnknownFields(input, ["type", "title", "reason"], "");
       requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
@@ -265,7 +540,8 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
     default:
       throw new ValidationError(
         "/type",
-        `expected "document" or "absence", got ${JSON.stringify(input.type)}`,
+        `expected "document", "dashboard", "compare", or "absence", ` +
+          `got ${JSON.stringify(input.type)}`,
       );
   }
 }

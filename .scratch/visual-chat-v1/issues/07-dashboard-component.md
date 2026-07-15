@@ -1,6 +1,6 @@
 # 07 — Dashboard component
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M2
 Blocked by: 04
@@ -53,3 +53,40 @@ series colors. Numbers formatted with tabular-nums in axis/table contexts.
 ## Out of Scope
 
 Heatmaps, stacked/multi-axis charts, filters (ADR-0010 — no app-like state).
+
+## Comments
+
+2026-07-14 — done. Schema added verbatim to the publish/update tool union
+(src/server/validate.ts: tiles 0..8, charts 0..4, series ≤4, all objects
+additionalProperties:false), mirrored in the hand validator with JSON-path
+rejections at the tool boundary. Renderer (src/canvas/components/dashboard.ts)
+is a pure DOM function behind the registry seam: trusted-code SVG via
+createElementNS, all model-influenced strings land as textContent/aria-label.
+One zero-anchored value axis per chart (a second is unrepresentable —
+AC2 test asserts /charts/0/y2 rejects); fixed categorical slots s1–s4;
+rounded 4px data ends; hairline grid; direct value labels and series labels
+in ink colors only; per-mark hover tooltip + tabindex=0 keyboard focus.
+Slots 3–4 (--series-3/4 in styles.css) chosen with the dataviz six-checks
+validator against --surface-1: light `#9a5bd2 #c85c8e` (PASS; series-2
+contrast WARN relieved by mandatory direct labels), dark `#a97ae0 #cf6690`
+(all PASS, selected separately — not a flipped light palette).
+Tests: +13 in test/dashboard-renderer.test.ts (boundary rejections, scale
+edge cases neg/zero/single-point, golden 4-tiles+bar+line fixture, legend
+order, baseline anchoring, tooltip hover/focus, XSS canary); suite 71 pass.
+AC6 verified by headless-Chromium captures of the real renderer+stylesheet:
+docs/qa/m2-dashboard-light.png and docs/qa/m2-dashboard-dark.png (dark run
+exercises the real dark custom-property block made unconditional in the
+harness copy of the stylesheet).
+
+2026-07-14 — review addition: points per series are now capped at
+POINTS_MAX = 200 (src/shared/constraints.ts), enforced in both the
+declared JSON schema (maxItems) and the hand validator (rejection path
+/charts/N/series/M/points), per the PRD's bound-large-inputs doctrine.
+Boundary tests: 200 accepted, 201 rejected.
+
+2026-07-14 — brand palette update per user direction: vanilla #FFF4D6 is
+the light page (surface #FFFBEE, insets #F8EDCB) and burnt orange
+#FC6C26 the warm accent in both schemes. Categorical series slots are
+unchanged and re-validated against the new light surface (six checks:
+PASS, same series-2 contrast WARN relieved by direct labels). The
+m2-dashboard screenshots were re-captured on the new theme.
