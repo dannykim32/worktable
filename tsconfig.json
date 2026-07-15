@@ -12,5 +12,10 @@
     "forceConsistentCasingInFileNames": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["src/server/**/*", "src/shared/**/*", "src/sanitizer/**/*"]
+  "include": [
+    "src/server/**/*",
+    "src/shared/**/*",
+    "src/sanitizer/**/*",
+    "src/gate/**/*"
+  ]
 }

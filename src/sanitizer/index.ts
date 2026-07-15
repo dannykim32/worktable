@@ -66,5 +66,5 @@ export function sanitizeSvg(input: string): SanitizeResult {
   if (root === null || violations.length > 0) {
     return { ok: false, violations };
   }
-  return { ok: true, svg: writeSvg(root) };
+  return { ok: true, svg: writeSvg(root), root };
 }

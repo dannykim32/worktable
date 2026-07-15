@@ -37,7 +37,13 @@ function boot(): void {
   const liveLabel = document.createElement("span");
   liveLabel.textContent = "connecting…";
   live.append(dot, liveLabel);
-  header.append(h1, ws, live);
+  // Link to the authed legibility calibration gallery (issue 11). The token
+  // rides the URL so the page can hold it in memory like this one does.
+  const calLink = document.createElement("a");
+  calLink.className = "cal-back";
+  calLink.href = `/calibration?token=${encodeURIComponent(token)}`;
+  calLink.textContent = "calibration gallery →";
+  header.append(h1, ws, live, calLink);
 
   const galleryRoot = document.createElement("main");
   galleryRoot.id = "gallery";

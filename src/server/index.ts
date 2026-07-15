@@ -15,6 +15,8 @@ import {
 } from "./http.js";
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { sanitizeSvg } from "../sanitizer/index.js";
+import { runGate } from "../gate/index.js";
+import { CalibrationLedger, InvalidRulingError } from "./calibration.js";
 import { openInBrowser } from "./open.js";
 import {
   ASKBACK_RATE_LIMIT,
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
   );
 
   const store = new ArtifactStore(workspace.dir);
+  const calibration = new CalibrationLedger(workspace.dir);
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
   const askbackLimiter = new RateLimiter(
@@ -86,6 +89,69 @@ async function main(): Promise<void> {
       method: "GET",
       template: "/api/events",
       handler: ({ res }) => sse.attach(res),
+    },
+    // ── Calibration gallery (issue 11) ──────────────────────────────────
+    // Every svg Version, its sanitized markup, and the gate findings recorded
+    // for it — the calibration route renders these with overlay boxes.
+    {
+      method: "GET",
+      template: "/api/calibration/gallery",
+      handler: ({ res }) => {
+        const items: Array<{
+          artifact_id: string;
+          version: number;
+          title: string;
+          svg: string;
+          findings: unknown[];
+        }> = [];
+        for (const meta of store.list()) {
+          if (meta.type !== "svg") continue;
+          for (let v = meta.latest; v >= 1; v--) {
+            const content = store.getVersion(meta.id, v);
+            if (!content || content.type !== "svg") continue;
+            items.push({
+              artifact_id: meta.id,
+              version: v,
+              title: content.title,
+              svg: content.svg,
+              findings: store.getFindings(meta.id, v),
+            });
+          }
+        }
+        sendJson(res, 200, { items, summary: calibration.summary() });
+      },
+    },
+    {
+      method: "GET",
+      template: "/api/calibration",
+      handler: ({ res }) =>
+        sendJson(res, 200, {
+          summary: calibration.summary(),
+          rulings: calibration.all(),
+        }),
+    },
+    {
+      method: "POST",
+      template: "/api/calibration",
+      handler: async ({ req, res }) => {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch (err) {
+          sendJson(res, 400, { error: String((err as Error).message) });
+          return;
+        }
+        try {
+          const ruling = calibration.append(body);
+          sendJson(res, 201, { ruling, summary: calibration.summary() });
+        } catch (err) {
+          if (err instanceof InvalidRulingError) {
+            sendJson(res, 400, { error: err.message });
+            return;
+          }
+          throw err;
+        }
+      },
     },
     {
       method: "POST",
@@ -152,8 +218,14 @@ async function main(): Promise<void> {
   // violations verbatim and NOTHING is stored — the agent can fix or decline.
   // On success we store ONLY the re-serialized output; the raw input is
   // discarded, never persisted.
-  const sanitizeSvgContent = (content: ArtifactContent): ArtifactContent => {
-    if (content.type !== "svg") return content;
+  //
+  // The Legibility Gate (issue 11) then runs over the SAME AST the sanitizer
+  // just validated — never reparsing. It is REPORT-ONLY this milestone: the
+  // findings are returned for storage but NEVER block or alter the publish.
+  const prepareContent = (
+    content: ArtifactContent,
+  ): { content: ArtifactContent; findings: unknown[] } => {
+    if (content.type !== "svg") return { content, findings: [] };
     const result = sanitizeSvg(content.svg);
     if (!result.ok) {
       const lines = result.violations
@@ -164,7 +236,7 @@ async function main(): Promise<void> {
           `retry, or publish an "absence" artifact instead:\n${lines}`,
       );
     }
-    return { ...content, svg: result.svg };
+    return { content: { ...content, svg: result.svg }, findings: runGate(result.root) };
   };
 
   const mapErrors = <T>(fn: () => T): T => {
@@ -192,8 +264,14 @@ async function main(): Promise<void> {
       inputSchema: publishArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {
-          const content = sanitizeSvgContent(validateArtifactContent(args));
+          const { content, findings } = prepareContent(
+            validateArtifactContent(args),
+          );
           const meta = store.publish(content);
+          // Report-only: store the gate's findings alongside the version. The
+          // publish has already succeeded regardless of what the gate found.
+          // Only free-form SVG passes through the gate; other types have none.
+          if (content.type === "svg") store.writeFindings(meta.id, 1, findings);
           broadcastArtifactEvent({
             artifact_id: meta.id,
             version: 1,
@@ -212,10 +290,15 @@ async function main(): Promise<void> {
       inputSchema: updateArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {
-          const { artifactId, content } = validateUpdateInput(args);
+          const { artifactId, content: input } = validateUpdateInput(args);
+          const { content, findings } = prepareContent(input);
           // Type stability is enforced by the store itself (ADR-0006);
           // ArtifactTypeMismatchError surfaces as a friendly tool error.
-          const meta = store.update(artifactId, sanitizeSvgContent(content));
+          const meta = store.update(artifactId, content);
+          // Updating an artifact re-runs the gate for the new version.
+          if (content.type === "svg") {
+            store.writeFindings(meta.id, meta.latest, findings);
+          }
           broadcastArtifactEvent({
             artifact_id: meta.id,
             version: meta.latest,
