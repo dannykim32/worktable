@@ -276,7 +276,9 @@ function renderBarChart(
       const yTop = groupTop + seriesIndex * (barH + 2);
       const from = x(0);
       const to = x(point.y);
-      // A true-zero value still gets a visible 1.5px sliver at the baseline.
+      // Any bar under 1.5px of magnitude (including true zero) draws as a
+      // visible 1.5px sliver at the baseline so it stays hoverable; the
+      // data attributes and the value label always carry the true value.
       const drawTo =
         Math.abs(to - from) < 1.5 ? from + 1.5 * Math.sign(to - from || 1) : to;
       const bar = svgEl(doc, "path", {
