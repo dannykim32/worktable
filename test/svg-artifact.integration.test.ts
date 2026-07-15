@@ -141,8 +141,10 @@ describe("svg artifact publish over MCP", () => {
       },
     });
     expect(toolError(bad)).toContain("element-not-allowed");
-    // Still only v1 on disk — the rejected update stored nothing.
+    // Still only v1 on disk — the rejected update stored nothing. The
+    // legibility gate (issue 11) writes v1.findings.json alongside every svg
+    // version; the rejected update added no v2 of anything.
     const files = readdirSync(join(server.stateDir, "artifacts", id)).sort();
-    expect(files).toEqual(["meta.json", "v1.json"]);
+    expect(files).toEqual(["meta.json", "v1.findings.json", "v1.json"]);
   });
 });

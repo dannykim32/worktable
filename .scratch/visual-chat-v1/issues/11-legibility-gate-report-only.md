@@ -1,6 +1,6 @@
 # 11 — Legibility gate, report-only + calibration gallery
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M4
 Blocked by: 10
@@ -63,3 +63,129 @@ header shows precision so far per check.
 
 Enforcement/repair (12), truth/fidelity checking (doctrine: never a truth gate),
 pixel-perfect text metrics (heuristic model is the v1 contract).
+
+## Comments
+
+Done. `src/gate/` is a zero-dependency, DOM-free geometry module that CONSUMES
+the sanitizer's AST — it never reparses SVG. The sanitizer is the project's only
+SVG parser: `sanitizeSvg`'s `ok` result now also returns the validated `root`
+(the tree the canonical output was written from), and the gate walks that same
+tree. Coordinates therefore match the stored canonical svg exactly (the writer
+canonicalises attribute order/escaping, never numbers).
+
+Module layout:
+- `geometry.ts` — 2-D affine matrices (translate/scale/rotate/matrix, composed
+  down the tree), point/bbox transforms (rotation → conservative AABB of the
+  four corners), text bbox estimation, shape geometry incl. a path `d`
+  point-collector. Pure functions, no state.
+- `checks.ts` — the four checks, each emitting coordinate-bearing
+  `{ check, elements, bbox, message }` findings (element ref = `#id` when
+  present, else the AST path — precise enough to hand to issue 12).
+- `index.ts` — `runGate(root): Finding[]`: one tree walk collecting text runs
+  and shapes (with inherited font-size / text-anchor / transform), then the
+  four checks. Pure, side-effect free.
+
+Thresholds per spec: text-overlap >15% of the smaller box; edge-straddle when a
+label overlaps a closed shape yet pokes past an edge by >2px (neither fully in
+nor out); clipped when a bbox exceeds the viewBox (1px slack); sub-legible when
+the *rendered* font size (font-size × transform scale) < 9.
+
+Wiring (`src/server/index.ts`): on svg publish/update the gate runs over the
+sanitizer's AST and `store.writeFindings` persists `v<N>.findings.json` next to
+the version. REPORT-ONLY and proven so — the publish has already succeeded
+before findings are written; a finding-laden svg still publishes and renders.
+Non-svg types get no findings file. The store gained `writeFindings`/
+`getFindings` (typed `unknown[]`, so the store keeps no gate dependency).
+
+Calibration gallery: a second Vite entry (`calibration.html` + `calibration.ts`)
+served at the authed canvas route `/calibration` (token-injected assets, 401
+without the token). It renders every svg Version as an inert
+`data:image/svg+xml` `<img>` (Image Isolation preserved) with the gate findings
+drawn as numbered outline boxes over the image, a per-finding message + element
+refs, and correct / false-positive buttons that POST to `/api/calibration`
+(appending to `<stateDir>/calibration.jsonl`, 0600). A header shows precision
+per check (correct ÷ ruled, latest ruling per finding wins). `CalibrationLedger`
+(`src/server/calibration.ts`) owns the append-only ledger + summary. All
+model-influenced strings reach the DOM via textContent only. The main canvas
+header links to it.
+
+### Acceptance criteria
+1. ✅ Fixture suite (`test/legibility-gate.test.ts`): 9 known-bad SVGs (2
+   overlap, 2 straddle, 3 clipped, 2 sub-legible) each produce the expected
+   finding with coords asserted within ±5px; 6 known-good produce zero findings.
+2. ✅ Findings stored per version; update re-runs the gate into
+   `v<N+1>.findings.json` (integration test).
+3. ✅ Report-only proven: a finding-laden svg publishes (version returned) and
+   is served/renders (integration test).
+4. ✅ Rulings persist to `calibration.jsonl`; the precision summary reflects
+   them; a bad ruling → 400, nothing appended.
+5. ✅ Zero runtime deps + no DOM: guard test greps `src/gate/*` imports (only
+   `./…` and the sanitizer AST *types*) and forbids DOM globals.
+
+### Tests
+`bun test` green: 199 pass (was 160; +39 = 30 gate unit/fixture + 8 integration
++ 1 ledger-math). Both tsconfigs typecheck clean; `bun run build` succeeds.
+
+### Geometry judgment calls (heuristics are the v1 contract, per Out of Scope)
+- Text baseline split: ascent = fontSize above the baseline, descent =
+  0.2·fontSize below (sum = 1.2·fontSize = height). Width = charCount ·
+  fontSize · 0.6 (monospace-ish upper bound, per spec).
+- tspans without their own x/y inherit the parent text position; a tspan with
+  x/y starts a fresh run. Direct text of a `<text>` and each `<tspan>` become
+  separate runs.
+- edge-straddle tests a label against the AABB of closed shapes (rect, polygon,
+  circle, ellipse) — an over-approximation for circles/ellipses.
+- path `d` bbox is the AABB of the anchor + control points it visits (curves
+  bounded by their control polygon — the safe side for a clip check; arc
+  radii/flags are not expanded, only the arc endpoint is taken).
+- sub-legible uses transform scale only (sqrt|det|); the viewBox→viewport
+  display scale is unknown at publish time, so user-space is the reference.
+- Findings coordinates are rounded to 0.1px (they are approximate — full float
+  precision would imply false exactness).
+
+### 09-AC2 deferred manual-render check — RECORDED (done)
+Rendered the benign flowchart fixture and its sanitized form to PNG via
+QuickLook: byte-identical output (93,674 bytes each) — the sanitizer's
+re-serialization renders visually identical. Also viewed the live calibration
+gallery in headless Chrome driving the real server: both the flowchart and an
+illegible sample render correctly as inert images with the finding overlays
+positioned correctly. 09-AC2's one-time "renders visually identical" check is
+satisfied.
+
+### Bug found + fixed while verifying (not in original scope)
+Adding the second Vite entry made Rollup hoist a shared module-preload helper
+into its own chunk that BOTH entries imported via a token-less
+`import "./styles-*.js"` — which 401s under the capability model, silently
+breaking the whole canvas (main included) in a real browser. Fixed with
+`build.modulePreload: false` so each HTML entry compiles to a single
+self-contained JS file (the project's existing invariant). Added a regression
+guard test asserting no built entry imports a sibling chunk.
+
+### How to view the calibration gallery
+`bun run build`, start the server, open the canvas URL the agent prints, and
+click "calibration gallery →" in the header (or open `/calibration?token=…`
+directly). Every free-form svg version appears with its findings overlaid;
+rule each correct / false-positive and watch the per-check precision update.
+
+### Known minor (non-blocking)
+- The gate's edge-straddle fires on legitimately-adjacent labels in dense real
+  diagrams (e.g. a numbered badge poking 2.6px past a box corner) — expected,
+  and exactly what the report-only calibration pass exists to measure before
+  issue 12 turns any of this into enforcement.
+
+### Review fix — report-only made structural against gate exceptions
+Review finding: `runGate` was called in `prepareContent` before `store.publish`
+with no try/catch, so a hypothetical geometry bug (pathological path `d`,
+degenerate transform) would propagate and block the publish — making the
+report-only guarantee incidental on `runGate` being total rather than
+structural. Fixed with `runGateSafe(root)` (new export in `src/gate/index.ts`):
+it wraps `runGate` in try/catch and, on any throw, degrades to zero findings +
+an error string. The server calls `runGateSafe` and logs any error to stderr
+(stdout is the MCP transport), then publishes regardless — so the gate can now
+affect a publish neither by its findings NOR by throwing. Added a unit test that
+feeds `runGate` a structurally broken AST (children not iterable) proving the
+raw gate throws while `runGateSafe` returns `{ findings: [], error }` — a real
+throw, not a mock. (An integration test forcing a throw through the real MCP
+path would need a fault-injection seam in production code; the wrapper is the
+exact seam the server uses, so the unit test covers the guarantee honestly.)
+`bun test` green: 201 pass.

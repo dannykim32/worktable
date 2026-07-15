@@ -8,5 +8,19 @@ export default defineConfig({
   build: {
     outDir: fileURLToPath(new URL("../../dist/canvas", import.meta.url)),
     emptyOutDir: true,
+    // Each HTML entry must compile to a SINGLE self-contained JS file. The
+    // capability model injects the token into HTML-referenced asset URLs
+    // (http.ts), but a cross-chunk ESM `import "./shared.js"` carries no token
+    // and would 401 — so no shared chunks. Disabling the module-preload helper
+    // removes the only chunk two entries would otherwise share.
+    modulePreload: false,
+    rollupOptions: {
+      // Multi-page: the artifact canvas (index) and the authed legibility
+      // calibration gallery (issue 11) are separate entry points.
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        calibration: fileURLToPath(new URL("./calibration.html", import.meta.url)),
+      },
+    },
   },
 });

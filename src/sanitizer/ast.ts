@@ -40,5 +40,12 @@ export interface Violation {
 }
 
 export type SanitizeResult =
-  | { ok: true; svg: string }
+  | {
+      ok: true;
+      svg: string;
+      /** The validated AST the canonical `svg` was written from. Exposed so
+       *  the Legibility Gate (issue 11) can walk the SAME tree instead of
+       *  reparsing — the sanitizer is the only SVG parser in the project. */
+      root: SvgElement;
+    }
   | { ok: false; violations: Violation[] };

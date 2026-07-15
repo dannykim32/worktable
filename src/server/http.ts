@@ -228,16 +228,25 @@ export async function startCanvasHttpServer(
     pathname: string,
     res: ServerResponse,
   ): void {
-    if (pathname === "/") {
-      const indexPath = join(d.canvasDistDir, "index.html");
-      if (!existsSync(indexPath)) {
+    // HTML entry points (Vite multi-page): "/" → index.html, "/calibration" →
+    // the authed legibility calibration gallery (issue 11). Both get the token
+    // injected into their asset URLs.
+    const htmlEntry =
+      pathname === "/"
+        ? "index.html"
+        : pathname === "/calibration"
+          ? "calibration.html"
+          : null;
+    if (htmlEntry) {
+      const entryPath = join(d.canvasDistDir, htmlEntry);
+      if (!existsSync(entryPath)) {
         sendJson(res, 503, {
           error: "canvas not built — run `bun run build` first",
         });
         return;
       }
       const html = injectTokenIntoCanvasHtml(
-        readFileSync(indexPath, "utf8"),
+        readFileSync(entryPath, "utf8"),
         d.workspace.token,
       );
       res.writeHead(200, {
