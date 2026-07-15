@@ -2,7 +2,17 @@
 // service (ADR-0003). Log to stderr only — stdout is the MCP transport.
 import { fileURLToPath } from "node:url";
 import type { ArtifactEvent } from "../shared/artifacts.js";
-import { sendJson, startCanvasHttpServer, type ApiRoute } from "./http.js";
+import {
+  AskbackQueue,
+  AskbackValidationError,
+  validateAskbackBody,
+} from "./askbacks.js";
+import {
+  readJsonBody,
+  sendJson,
+  startCanvasHttpServer,
+  type ApiRoute,
+} from "./http.js";
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { openInBrowser } from "./open.js";
 import { SseHub } from "./sse.js";
@@ -25,6 +35,7 @@ async function main(): Promise<void> {
 
   const store = new ArtifactStore(workspace.dir);
   const sse = new SseHub();
+  const askbacks = new AskbackQueue(workspace.dir);
 
   const apiRoutes: ApiRoute[] = [
     {
@@ -61,6 +72,30 @@ async function main(): Promise<void> {
       method: "GET",
       template: "/api/events",
       handler: ({ res }) => sse.attach(res),
+    },
+    {
+      method: "POST",
+      template: "/api/askbacks",
+      handler: async ({ req, res }) => {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch (err) {
+          sendJson(res, 400, { error: String((err as Error).message) });
+          return;
+        }
+        try {
+          const validated = validateAskbackBody(body);
+          const askback = askbacks.append(validated);
+          sendJson(res, 201, { id: askback.id, state: askback.state });
+        } catch (err) {
+          if (err instanceof AskbackValidationError) {
+            sendJson(res, 400, { error: err.message });
+            return;
+          }
+          throw err;
+        }
+      },
     },
   ];
 
@@ -136,6 +171,37 @@ async function main(): Promise<void> {
           });
           return { artifact_id: meta.id, version: meta.latest };
         }),
+    },
+    {
+      name: "check_askbacks",
+      description:
+        "Pull the pending ask-backs the human sent from the canvas: each is a " +
+        "question anchored to an artifact, version, and text span. Call this " +
+        "at the start of every turn. Returned items are marked delivered.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      handler: () => {
+        const drained = askbacks.drainPending();
+        if (drained.length === 0) {
+          return {
+            askbacks: [],
+            hint: "no pending questions from the canvas",
+          };
+        }
+        return {
+          askbacks: drained.map((a) => ({
+            id: a.id,
+            question: a.question,
+            quote: a.anchor.quote,
+            anchor: a.anchor,
+            artifact_title: store.getMeta(a.anchor.artifact_id)?.title ?? null,
+            created_at: a.created_at,
+          })),
+        };
+      },
     },
     {
       name: "open_canvas",

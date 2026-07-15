@@ -33,6 +33,11 @@ interface CardState {
   next: HTMLButtonElement;
 }
 
+export interface GalleryOptions {
+  /** Card ⋯ menu → "Ask about this artifact" (whole-artifact ask-back). */
+  onAskArtifact?: (meta: ArtifactMeta, viewing: number) => void;
+}
+
 export class Gallery {
   private readonly cards = new Map<string, CardState>();
   private readonly emptyNote: HTMLElement;
@@ -40,6 +45,7 @@ export class Gallery {
   constructor(
     private readonly root: HTMLElement,
     private readonly api: CanvasApi,
+    private readonly options: GalleryOptions = {},
   ) {
     const doc = root.ownerDocument;
     this.emptyNote = doc.createElement("p");
@@ -121,6 +127,32 @@ export class Gallery {
     vchip.append(prev, vlabel, next);
 
     head.append(title, badge, marker, vchip);
+
+    if (this.options.onAskArtifact) {
+      const menuButton = doc.createElement("button");
+      menuButton.className = "card-menu";
+      menuButton.textContent = "⋯";
+      menuButton.setAttribute("aria-label", "artifact actions");
+      const menu = doc.createElement("div");
+      menu.className = "card-menu-popover";
+      menu.hidden = true;
+      const askItem = doc.createElement("button");
+      askItem.className = "card-menu-item";
+      askItem.textContent = "Ask about this artifact";
+      menu.appendChild(askItem);
+      menuButton.addEventListener("click", () => {
+        menu.hidden = !menu.hidden;
+      });
+      askItem.addEventListener("click", () => {
+        menu.hidden = true;
+        const state = this.cards.get(meta.id);
+        this.options.onAskArtifact?.(
+          state?.meta ?? meta,
+          state?.viewing ?? meta.latest,
+        );
+      });
+      head.append(menuButton, menu);
+    }
 
     const body = doc.createElement("div");
     body.className = "body";

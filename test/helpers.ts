@@ -76,11 +76,12 @@ export interface SpawnedServer {
   close(): Promise<void>;
 }
 
-/** Spawn the Canvas Server as a real subprocess with an isolated HOME. */
+/** Spawn the Canvas Server as a real subprocess with an isolated HOME.
+ *  Pass `home` to reuse existing workspace state (restart scenarios). */
 export async function spawnServer(
-  opts: { env?: Record<string, string> } = {},
+  opts: { env?: Record<string, string>; home?: string } = {},
 ): Promise<SpawnedServer> {
-  const home = mkdtempSync(join(tmpdir(), "visual-chat-test-"));
+  const home = opts.home ?? mkdtempSync(join(tmpdir(), "visual-chat-test-"));
   const transport = new StdioClientTransport({
     command: "bun",
     args: [serverEntry],

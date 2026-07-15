@@ -33,6 +33,33 @@ export function tokensEqual(candidate: string, actual: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+const BODY_LIMIT_BYTES = 64 * 1024;
+
+/** Read and parse a JSON request body (bounded). Throws on malformed input. */
+export function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > BODY_LIMIT_BYTES) {
+        reject(new Error("request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch {
+        reject(new Error("request body is not valid JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 export function sendJson(
   res: ServerResponse,
   status: number,

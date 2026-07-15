@@ -2,6 +2,7 @@
 // chrome, artifact gallery, SSE live updates.
 import "./styles.css";
 import { connectEvents, createApi } from "./api.js";
+import { AskbackUi, wholeArtifactAnchor } from "./askback.js";
 import { Gallery } from "./gallery.js";
 import type { ArtifactEvent } from "../shared/artifacts.js";
 
@@ -51,7 +52,12 @@ function boot(): void {
       ws.textContent = "workspace: unavailable";
     });
 
-  const gallery = new Gallery(galleryRoot, api);
+  const gallery: Gallery = new Gallery(galleryRoot, api, {
+    onAskArtifact: (meta, viewing) => {
+      askbackUi.openComposer(wholeArtifactAnchor(meta.id, viewing, meta.title));
+    },
+  });
+  const askbackUi = new AskbackUi(document, { api, gallery });
   void gallery.init().catch((err: unknown) => {
     const note = document.createElement("p");
     note.className = "canvas-error";

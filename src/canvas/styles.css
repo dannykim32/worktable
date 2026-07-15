@@ -111,6 +111,7 @@ header.canvas-chrome .live {
   gap: 10px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--border);
+  position: relative;
 }
 .artifact > .head h2 {
   font-size: 15px;
@@ -233,6 +234,94 @@ header.canvas-chrome .live {
 }
 .doc li {
   margin: 2px 0;
+}
+
+/* ── Ask-back pill + composer (prototype pattern) ───────────────────── */
+.askback-pill {
+  position: absolute;
+  z-index: 30;
+  border: none;
+  background: var(--text-primary);
+  color: var(--page);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.askback-composer {
+  position: absolute;
+  z-index: 31;
+  width: 340px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  padding: 12px;
+}
+.askback-composer .anchor {
+  font: 11px/1.5 ui-monospace, Menlo, monospace;
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 8px;
+  color: var(--text-secondary);
+  max-height: 90px;
+  overflow: auto;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+.askback-composer input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--page);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+.askback-composer .hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* Card ⋯ menu (whole-artifact ask affordance) */
+.card-menu {
+  all: unset;
+  cursor: pointer;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+}
+.card-menu:hover {
+  background: var(--callout-bg);
+}
+.card-menu-popover {
+  position: absolute;
+  right: 12px;
+  top: calc(100% + 4px);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  z-index: 20;
+}
+.card-menu-item {
+  all: unset;
+  display: block;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: var(--text-primary);
+}
+.card-menu-item:hover {
+  background: var(--callout-bg);
 }
 
 /* ── Honest Absence: a first-class outcome, never an error banner ───── */

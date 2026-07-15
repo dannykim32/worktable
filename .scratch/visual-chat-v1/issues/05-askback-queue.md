@@ -1,6 +1,6 @@
 # 05 — Ask-back queue, anchors, composer, check_askbacks
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M1
 Blocked by: 04
@@ -63,3 +63,14 @@ questions from the canvas").
 ## Out of Scope
 
 Claude Code hook (13), request_review (14), SVG region anchors (post-v1).
+
+## Comments
+
+Server: src/server/askbacks.ts (jsonl queue, strict body validation → 400 with reason,
+atomic tmp+rename delivery marking) + POST /api/askbacks route + check_askbacks tool.
+Canvas: src/canvas/askback.ts (Range→Anchor capture incl. multi-text-node offsets,
+pill, composer with Enter/Esc, optimistic sent state) + card ⋯ menu for whole-artifact
+asks (quote = title). All 6 criteria covered by 7 unit + 4 integration tests; anchor
+pinning (criterion 2) tested with a real gallery scrubbed to v1 over real HTTP.
+Additionally smoke-verified in headless Chromium: real selection → pill → composer →
+check_askbacks returned the anchor {v1, block 0, chars 4–23} and exact quote.
