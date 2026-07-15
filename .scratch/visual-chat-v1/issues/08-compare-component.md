@@ -66,3 +66,7 @@ AC4 + light/dark verified by headless-Chromium captures of the real
 renderer+stylesheet: docs/qa/m2-compare-light.png and
 docs/qa/m2-compare-dark.png (960px, side-by-side); a 520px capture was
 inspected during QA and shows the panes stacked.
+
+2026-07-14 — m2-compare screenshots re-captured after the user-directed
+brand palette update (vanilla page + burnt orange accent); add/del tints
+unchanged and still distinct on the new vanilla-tinted surfaces.

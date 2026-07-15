@@ -1,10 +1,12 @@
-/* Canvas theme — values lifted from the judged prototype
+/* Canvas theme — structure and mark conventions from the judged prototype
    (prototype/canvas-vocabulary/PROTOTYPE-canvas-mock.html). One clean
-   register (ADR-0009); light/dark via prefers-color-scheme. */
+   register (ADR-0009); light/dark via prefers-color-scheme.
+   Brand primaries set by user direction (2026-07-14): vanilla #FFF4D6 as
+   the light page, burnt orange #FC6C26 as the warm accent in both schemes. */
 :root {
   color-scheme: light;
-  --page: #f9f9f7;
-  --surface-1: #fcfcfb;
+  --page: #fff4d6;
+  --surface-1: #fffbee;
   --text-primary: #0b0b0b;
   --text-secondary: #52514e;
   --muted: #898781;
@@ -19,11 +21,11 @@
   --series-3: #9a5bd2;
   --series-4: #c85c8e;
   --delta-good: #006300;
-  --callout-bg: #f0efec;
-  --code-bg: #f0efec;
+  --callout-bg: #f8edcb;
+  --code-bg: #f8edcb;
   --add-bg: #e2f2e2;
   --del-bg: #fbe3e3;
-  --accent-warm: #eb6834;
+  --accent-warm: #fc6c26;
   --dot-live: #0ca30c;
   --dot-dead: #898781;
 }
@@ -49,7 +51,7 @@
     --code-bg: #111110;
     --add-bg: #14330f;
     --del-bg: #3d1414;
-    --accent-warm: #d95926;
+    --accent-warm: #fc6c26;
     --dot-live: #0ca30c;
   }
 }

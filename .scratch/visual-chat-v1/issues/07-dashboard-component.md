@@ -83,3 +83,10 @@ POINTS_MAX = 200 (src/shared/constraints.ts), enforced in both the
 declared JSON schema (maxItems) and the hand validator (rejection path
 /charts/N/series/M/points), per the PRD's bound-large-inputs doctrine.
 Boundary tests: 200 accepted, 201 rejected.
+
+2026-07-14 — brand palette update per user direction: vanilla #FFF4D6 is
+the light page (surface #FFFBEE, insets #F8EDCB) and burnt orange
+#FC6C26 the warm accent in both schemes. Categorical series slots are
+unchanged and re-validated against the new light surface (six checks:
+PASS, same series-2 contrast WARN relieved by direct labels). The
+m2-dashboard screenshots were re-captured on the new theme.
