@@ -12,6 +12,15 @@ render best. Per the "evidence over guessing" doctrine, free-form HTML gets a la
 architectural slot but is only built if the pilot gallery produces artifacts that
 components + SVG could not express.
 
+## The labeled slot, informed (2026-07-15)
+
+Security research for the deferred hatch is complete and validates this ADR's
+posture: docs/research/safe-llm-html-rendering.md. Requirements and pre-decisions
+for any future build are recorded in
+.scratch/visual-chat-v1/issues/15-html-hatch-security-model.md (sandboxed iframe +
+header CSP + MessageChannel bridge from a second token-free port; never
+sanitize-into-host-DOM; frame network never; data-starved frames).
+
 ## Considered Options
 
 - Free-form HTML hatch (sanitizer + sandboxed iframe + CSP) — rejected: hardest

@@ -1,0 +1,82 @@
+# visual-chat (placeholder name)
+
+A framework + MCP plugin that gives a terminal LLM agent a **local browser canvas**
+for rich, honest visual artifacts — design docs, diagrams, dashboards, before/after
+comparisons — with **selection-anchored ask-backs** flowing from the browser back
+into the terminal conversation. The terminal stays the conversation driver; the
+canvas is a companion, not a chat client (ADR-0001).
+
+Cold-start for any agent or human: this file + the map below is everything you need.
+**Standing rule: whoever merges to `main` updates the Status section below in the
+same change.** This document must always let a fresh session resume without any
+prior conversation context.
+
+## Status (updated 2026-07-15)
+
+- **M1 — walking skeleton: DONE, merged, human-verified.** MCP server (stdio) +
+  capability-URL canvas on 127.0.0.1; versioned artifact store + SSE; Document +
+  absence renderers; ask-back queue with anchors; demo + E2E. 58 tests green.
+- **M2 (Dashboard + Compare) and M3 (SVG sanitizer + image-isolated SVG type):
+  IN FLIGHT** — parallel worktree agents branched from `415731f`. Review + merge
+  protocol: independent test re-run → two-axis review (standards / spec) → fixes
+  routed back to the building agent → merge.
+- **Next:** M4 legibility gate (report-only + calibration), M5 enforcement +
+  repair round, M6 Claude Code hook + request_review.
+- **Deferred with labeled slots:** free-form HTML hatch (security model +
+  pre-decisions already recorded — issue 15), structured Diagram component,
+  native MCP Apps hosting, sketch aesthetic register.
+
+## Run it
+
+```sh
+bun install && bun run build && bun test
+bun scripts/demo.ts        # publishes a doc, prints the tokened canvas URL, polls ask-backs
+```
+
+Claude Code registration + manual walkthrough: `docs/setup.md`.
+
+## Map of record (read in this order when coming in cold)
+
+| Where | What |
+|-------|------|
+| `CONTEXT.md` | The domain glossary — use these exact terms in code, tests, prose |
+| `docs/adr/0001–0010` | Every architectural decision, with the why and the rejected alternatives |
+| `.scratch/visual-chat-v1/` | The tracker: PRD (epic, dependency graph) + numbered issues with pass/fail acceptance criteria |
+| `docs/agents/` | Issue-tracker conventions, triage labels, domain-doc consumer rules |
+| `docs/research/` | Landscape survey (niche analysis) + safe-HTML-rendering research (informs the deferred hatch) |
+| `AGENTS.md` | Working conventions + how agents should use the canvas itself |
+| `prototype/canvas-vocabulary/` | The judged prototype — reference rendering for components |
+
+## Design philosophy (the owner's, distilled — binding)
+
+- **Truth doctrine.** An artifact may abstract, but may never tell an untrue story.
+  Honest absence is a first-class outcome: decline with a reason, never fabricate.
+  Scale is a wall: bound the work and degrade visibly ("showing N of M"), never
+  silently truncate.
+- **Security is structural, not filtered.** Model output is untrusted. Prefer
+  impossible-by-construction (image isolation, schema-validated structured intent)
+  over sanitize-and-hope. Reject-not-drop: a stripped artifact can lie. One
+  authenticated write channel (the ask-back queue) — ADR-0010.
+- **Evidence over guessing.** Prototype before deciding; calibrate before
+  enforcing; research before building. Gates gain power only after a human rules
+  on real output.
+- **Best-version engineering.** Optimize for the best long-term design, not for
+  preserving effort already spent — no sunk-cost bias. Aggressive simplicity:
+  fewer, denser artifacts beat complete ones.
+
+## Implementation preferences (binding defaults)
+
+- TypeScript + official `@modelcontextprotocol/sdk`, Node 20+, bun for dev/test.
+- Canvas: vanilla TS + Vite; components are pure render functions behind the
+  `ComponentRenderer` seam (a dedicated visual library may replace internals
+  later — the seam is the contract).
+- Model-influenced strings render via `textContent`/`createElement` only.
+- Zero runtime dependencies in security modules (`src/sanitizer/`, gate); new
+  dependencies anywhere require written justification — default no.
+- Security invariants are test-enforced (perms via fs.stat, 401/403 over real
+  HTTP, XSS canaries), not aspirational.
+- Server logs to stderr only (stdout is the MCP transport).
+- Placeholder name; `"private": true`; never publish to npm; never push or merge
+  without the owner's say-so.
+- Commits: one per issue/logical fix, `feat(NN):`/`fix(review):` style, ending
+  ``.

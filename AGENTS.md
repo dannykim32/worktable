@@ -4,6 +4,10 @@ A framework + plugin that gives an LLM agent a local browser surface for renderi
 rich, interactive, honest visual artifacts (design docs, flowcharts, diagrams,
 dashboards) instead of plain terminal text.
 
+**Cold start / context recovery: read `README.md` FIRST** — it is the always-current
+project status, philosophy, and map of record. Standing rule: any merge to `main`
+updates README.md's Status section in the same change.
+
 ## Agent skills
 
 ### Issue tracker
