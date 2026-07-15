@@ -258,6 +258,13 @@ const contentVariants = [
         maxLength: SVG_MAX,
         description: "SVG source (≤256KB); sanitized + re-serialized on publish",
       },
+      repair_token: {
+        type: "string",
+        description:
+          "Only when resubmitting an SVG the Legibility Gate just failed under " +
+          "enforcement: echo the repair_token from that failure so the server " +
+          "correlates this retry with it. Omit on a first publish.",
+      },
     },
     required: ["type", "title", "svg"],
     additionalProperties: false,

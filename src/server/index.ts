@@ -16,6 +16,8 @@ import {
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { sanitizeSvg } from "../sanitizer/index.js";
 import { runGateSafe } from "../gate/index.js";
+import { readGateMode, shouldEnforce } from "./config.js";
+import { mintRepairToken, RepairRegistry } from "./repair.js";
 import { CalibrationLedger, InvalidRulingError } from "./calibration.js";
 import { openInBrowser } from "./open.js";
 import {
@@ -47,6 +49,10 @@ async function main(): Promise<void> {
 
   const store = new ArtifactStore(workspace.dir);
   const calibration = new CalibrationLedger(workspace.dir);
+  // The gate mode is a human-only decision read once at startup (issue 12): no
+  // MCP tool can change it, and a flip takes effect on the next restart.
+  const gateMode = readGateMode(workspace.dir);
+  const repairs = new RepairRegistry(workspace.dir);
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
   const askbackLimiter = new RateLimiter(
@@ -264,6 +270,67 @@ async function main(): Promise<void> {
     }
   };
 
+  // ── Gate enforcement (issue 12, ADR-0007) ──────────────────────────────
+  // Engaged ONLY when gateMode === "enforce" AND the gate produced real
+  // findings (shouldEnforce). A gate crash yields zero findings via
+  // runGateSafe, so enforcement never fires on an exception — the fail-open
+  // invariant is structural. In report mode this whole block is skipped and
+  // behaviour is byte-identical to issue 11.
+
+  /** A compact, human-readable roll-up of the findings for an absence reason. */
+  const summarizeFindings = (findings: readonly unknown[]): string =>
+    findings
+      .map((raw) => {
+        const f = raw as {
+          check?: string;
+          message?: string;
+          elements?: string[];
+          bbox?: { x: number; y: number };
+        };
+        const els = f.elements?.length ? ` [${f.elements.join(", ")}]` : "";
+        const at = f.bbox ? ` at (${f.bbox.x}, ${f.bbox.y})` : "";
+        return `${f.check ?? "finding"}${els}${at}: ${f.message ?? ""}`;
+      })
+      .join("; ");
+
+  /** The first-failure response: the verbatim coordinate findings plus a hint
+   *  that instructs a bounded repair. NOTHING is stored. */
+  const gateFailedResponse = (
+    findings: unknown[],
+    repairHint: string,
+    repairToken?: string,
+  ) => ({
+    gate: "failed" as const,
+    findings,
+    repair_hint: repairHint,
+    ...(repairToken ? { repair_token: repairToken } : {}),
+  });
+
+  /** Second failure in a repair context → publish an Honest Absence in place of
+   *  the artifact. Title is preserved; the reason names the twice-failed gate
+   *  and summarizes the findings. A first-class outcome, never an error. */
+  const publishHonestAbsence = (title: string, findings: unknown[]) => {
+    const reason = `Failed the legibility gate twice. ${summarizeFindings(findings)}`;
+    const meta = store.publish({ type: "absence", title, reason });
+    broadcastArtifactEvent({
+      artifact_id: meta.id,
+      version: 1,
+      type: meta.type,
+    });
+    autoOpenCanvasOnFirstPublish();
+    return {
+      outcome: "honest_absence" as const,
+      artifact_id: meta.id,
+      version: 1,
+      title,
+      reason,
+      message:
+        "This SVG failed the legibility gate twice, so it was published as an " +
+        "honest-absence artifact instead of rendered. Honest absence is a " +
+        "first-class outcome, not an error — state the limitation and move on.",
+    };
+  };
+
   const tools: ToolSpec[] = [
     {
       name: "publish_artifact",
@@ -274,14 +341,48 @@ async function main(): Promise<void> {
       inputSchema: publishArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {
+          // repair_token is transport-level, not artifact content: strip it
+          // before content validation (which rejects unknown fields).
+          const { repair_token, ...contentArgs } = args;
+          const repairToken =
+            typeof repair_token === "string" ? repair_token : undefined;
           const { content, findings } = prepareContent(
-            validateArtifactContent(args),
+            validateArtifactContent(contentArgs),
           );
+
+          if (shouldEnforce({ mode: gateMode, type: content.type, findings })) {
+            // A resubmission under a KNOWN, still-live token is the second
+            // failure of this repair round → convert to Honest Absence.
+            if (repairToken !== undefined && repairs.has(`pub:${repairToken}`)) {
+              const resp = publishHonestAbsence(content.title, findings);
+              repairs.clear(`pub:${repairToken}`);
+              return resp;
+            }
+            // First failure → open a repair context under a fresh provisional
+            // token and hand back the coordinate findings. NOTHING is stored.
+            const token = mintRepairToken();
+            repairs.recordFailure(`pub:${token}`);
+            return gateFailedResponse(
+              findings,
+              `The legibility gate found ${findings.length} problem(s). Fix ` +
+                `ONLY the geometry named in these findings — do not restyle or ` +
+                `re-author the rest — then call publish_artifact again with the ` +
+                `corrected SVG and repair_token "${token}". One repair attempt ` +
+                `remains; a second gate failure is published as an ` +
+                `honest-absence artifact instead of rendered.`,
+              token,
+            );
+          }
+
           const meta = store.publish(content);
-          // Report-only: store the gate's findings alongside the version. The
-          // publish has already succeeded regardless of what the gate found.
-          // Only free-form SVG passes through the gate; other types have none.
-          if (content.type === "svg") store.writeFindings(meta.id, 1, findings);
+          // Report-only mode and every clean/enforced-pass submission land here.
+          // Store the gate's findings alongside the version; only free-form SVG
+          // passes through the gate, so other types have none.
+          if (content.type === "svg") {
+            store.writeFindings(meta.id, 1, findings);
+            // A passing submission clears the repair context it retried under.
+            if (repairToken !== undefined) repairs.clear(`pub:${repairToken}`);
+          }
           broadcastArtifactEvent({
             artifact_id: meta.id,
             version: 1,
@@ -300,14 +401,43 @@ async function main(): Promise<void> {
       inputSchema: updateArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {
-          const { artifactId, content: input } = validateUpdateInput(args);
+          // An update's repair context keys on the artifact id, so repair_token
+          // is unused here — strip it so content validation still passes.
+          const { repair_token: _repairToken, ...rest } = args;
+          const { artifactId, content: input } = validateUpdateInput(rest);
           const { content, findings } = prepareContent(input);
+
+          if (shouldEnforce({ mode: gateMode, type: content.type, findings })) {
+            const key = `upd:${artifactId}`;
+            const { secondFailure } = repairs.recordFailure(key);
+            if (secondFailure) {
+              // Second failing update → Honest Absence. It is published as a
+              // NEW absence artifact; the existing svg artifact keeps its last
+              // good version (an artifact keeps one type for life, ADR-0006).
+              const resp = publishHonestAbsence(content.title, findings);
+              repairs.clear(key);
+              return resp;
+            }
+            // First failure → coordinate findings back, nothing stored, no new
+            // version. The agent resubmits the corrected update for the same id.
+            return gateFailedResponse(
+              findings,
+              `The legibility gate found ${findings.length} problem(s). Fix ` +
+                `ONLY the geometry named in these findings, then call ` +
+                `update_artifact again for artifact ${artifactId}. One repair ` +
+                `attempt remains; a second gate failure is published as an ` +
+                `honest-absence artifact instead of rendered.`,
+            );
+          }
+
           // Type stability is enforced by the store itself (ADR-0006);
           // ArtifactTypeMismatchError surfaces as a friendly tool error.
           const meta = store.update(artifactId, content);
           // Updating an artifact re-runs the gate for the new version.
           if (content.type === "svg") {
             store.writeFindings(meta.id, meta.latest, findings);
+            // A passing update clears any repair context for this artifact.
+            repairs.clear(`upd:${artifactId}`);
           }
           broadcastArtifactEvent({
             artifact_id: meta.id,

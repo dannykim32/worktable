@@ -33,6 +33,36 @@ The canvas URL carries the per-workspace capability token
 (`http://127.0.0.1:<port>/?token=…`). Every browser-facing endpoint requires
 it; treat the URL like a credential and use `rotate_token` if it leaks.
 
+## Legibility gate: report vs. enforce (human-only switch)
+
+The Legibility Gate ships **report-only**: it records coordinate findings next
+to every free-form SVG version but never blocks or alters a publish. Arming
+enforcement is a one-way trust decision you make **by hand** — there is no MCP
+tool to change it, so the agent can neither grant itself enforcement nor remove
+it (ADR-0007: calibrate before you enforce).
+
+To arm it, first review calibration precision (open `/calibration?token=…` on
+the canvas, or `GET /api/calibration`) and satisfy yourself the checks are
+trustworthy. Then edit `~/.visual-chat/<workspaceId>/config.json`:
+
+```json
+{ "gate": "enforce" }
+```
+
+The mode is read once at startup, so **restart the server** to apply the change.
+Anything other than an explicit `"enforce"` (missing file, malformed, unknown
+value) stays in the safe `report` default. Delete the key or set `"report"` to
+disarm.
+
+Under `enforce`, a free-form SVG that trips the gate is **not stored**. The tool
+returns the verbatim coordinate findings and a `repair_token`; the agent gets
+ONE bounded repair round (fix only the flagged geometry and resubmit with the
+token). A second failure in that context is published as an **honest-absence**
+artifact ("Failed the legibility gate twice" + the findings summary) rather than
+rendered — a first-class outcome, not an error. A gate *crash* never blocks or
+converts anything; enforcement acts on real findings only. Repair contexts are
+persisted (they survive a restart) and expire after one hour.
+
 ## Agent guidance (add to the host project's AGENTS.md / CLAUDE.md)
 
 ```markdown
