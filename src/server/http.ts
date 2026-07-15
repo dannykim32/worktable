@@ -26,6 +26,17 @@ export function hostAllowed(
   return match[2] === undefined || Number(match[2]) === boundPort;
 }
 
+/** Rewrite built canvas asset URLs to carry the capability token: subresource
+ *  requests fired by the HTML parser cannot attach a bearer header. Scoped to
+ *  Vite's /assets/ output only; preserves any existing query string. */
+export function injectTokenIntoCanvasHtml(html: string, token: string): string {
+  return html.replace(
+    /(src|href)="(\/assets\/[^"]*)"/g,
+    (_match, attr: string, assetPath: string) =>
+      `${attr}="${assetPath}${assetPath.includes("?") ? "&" : "?"}token=${token}"`,
+  );
+}
+
 /** Constant-time token comparison (hash both sides to erase length signal). */
 export function tokensEqual(candidate: string, actual: string): boolean {
   const a = createHash("sha256").update(candidate).digest();
@@ -225,12 +236,9 @@ export async function startCanvasHttpServer(
         });
         return;
       }
-      // Rewrite built asset URLs to carry the capability token: subresource
-      // requests fired by the HTML parser cannot attach a bearer header.
-      const html = readFileSync(indexPath, "utf8").replace(
-        /(src|href)="(\/[^"]+)"/g,
-        (_m, attr: string, path: string) =>
-          `${attr}="${path}?token=${d.workspace.token}"`,
+      const html = injectTokenIntoCanvasHtml(
+        readFileSync(indexPath, "utf8"),
+        d.workspace.token,
       );
       res.writeHead(200, {
         "Content-Type": MIME[".html"]!,

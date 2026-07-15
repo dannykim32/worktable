@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hostAllowed, tokensEqual } from "../src/server/http.js";
+import {
+  hostAllowed,
+  injectTokenIntoCanvasHtml,
+  tokensEqual,
+} from "../src/server/http.js";
 import { deriveWorkspaceId, openWorkspace } from "../src/server/workspace.js";
 
 function tmp(): string {
@@ -68,6 +72,21 @@ describe("host allowlist", () => {
     expect(hostAllowed("sub.localhost", 8787)).toBe(false);
     expect(hostAllowed(undefined, 8787)).toBe(false);
     expect(hostAllowed("", 8787)).toBe(false);
+  });
+
+  test("token injection touches only /assets/ URLs and keeps query strings", () => {
+    const html =
+      '<script src="/assets/index-abc.js"></script>' +
+      '<link href="/assets/index-def.css?v=2">' +
+      '<a href="/api/health">health</a>' +
+      '<img src="/logo.png">' +
+      '<a href="https://example.test/assets/x.js">remote</a>';
+    const out = injectTokenIntoCanvasHtml(html, "TOK");
+    expect(out).toContain('src="/assets/index-abc.js?token=TOK"');
+    expect(out).toContain('href="/assets/index-def.css?v=2&token=TOK"');
+    expect(out).toContain('href="/api/health"'); // untouched
+    expect(out).toContain('src="/logo.png"'); // untouched
+    expect(out).toContain('href="https://example.test/assets/x.js"'); // untouched
   });
 
   test("tokensEqual compares without length leaks and matches exactly", () => {
