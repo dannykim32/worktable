@@ -64,3 +64,13 @@ Owner re-calibrated the fixed sub-legible check (docs/qa/calibration-round-2.md)
 all four checks now at 100% precision / trustworthy. Enforcement is UNBLOCKED —
 enforce all four checks. The 9px floor is confirmed well-placed (owner ruled the
 ~8px case borderline-illegible), so no threshold change.
+
+## Known minor (non-blocking, from M5 review 2026-07-15)
+- Repair contexts can accumulate within the 1h TTL window: a first-failure publish
+  without an echoed repair_token mints a fresh context each time, and purge only
+  runs on has()/recordFailure(), so abandoned entries linger past 1h until the next
+  op (O(n) atomic-rewrite amplification). Self-inflicted under the local
+  single-agent trust model. Future hardening: opportunistic purge-on-load + a
+  per-workspace context cap.
+- Cosmetic: repair_token is advertised only on the svg schema branch; a strict host
+  would reject document+repair_token that the server harmlessly strips pre-validate.
