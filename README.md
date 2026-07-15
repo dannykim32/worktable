@@ -31,8 +31,16 @@ prior conversation context.
 - **Security drill (2026-07-15): passed.** An owner-run cookie-exfil injection into
   the sanitizer worktree was contained at every layer, nothing merged. See
   `docs/security/red-team-drills.md`.
-- **Next:** M4 legibility gate (report-only + calibration gallery) — consumes the
-  AST types the M3 sanitizer already exports; then M5 enforcement + repair round,
+- **M4 — legibility gate (report-only) + calibration gallery: DONE, merged, both
+  axes passed.** Four geometry checks (text-overlap, edge-straddle, clipped,
+  sub-legible) over the sanitizer AST; findings stored per version; token-authed
+  `/calibration` gallery for ruling findings correct/false-positive with live
+  precision. Report-only is STRUCTURAL — the gate affects a publish neither by
+  its findings nor by throwing (`runGateSafe` fail-open). 201 tests green.
+- **Owner action before M5:** rule real findings in the calibration gallery. That
+  evidence is the ADR-0007 gate on turning enforcement ON — M5 must not ship until
+  the human has calibrated.
+- **Next:** M5 enforcement + bounded repair round (gated on calibration sign-off),
   M6 Claude Code hook + request_review.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
