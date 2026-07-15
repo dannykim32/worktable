@@ -28,8 +28,10 @@ export interface TextRun {
   text: string;
   /** AABB in user space (post-transform). */
   bbox: Bbox;
-  /** Font size AFTER transform scale — what the reader actually sees. */
-  renderedFontSize: number;
+  /** Font size in user space, AFTER transform scale only. This is NOT the
+   *  on-screen pixel size: the viewBox→viewport display scale is applied later,
+   *  by the sub-legible check, which alone knows the render width. */
+  transformedFontSize: number;
 }
 
 /** A drawable shape with its user-space AABB. `closed` shapes (rect, polygon,
@@ -52,6 +54,37 @@ export const STRADDLE_TOLERANCE = 2;
 export const CLIP_TOLERANCE = 1;
 /** Rendered font sizes below this are sub-legible (issue 11: <9). */
 export const MIN_LEGIBLE_FONT = 9;
+
+/** The pixel width the canvas renders every free-form SVG to. Derived from
+ *  src/canvas/styles.css: `.artifact` max-width 880 − 2×22 `.body` horizontal
+ *  padding = 836, and `.svg-holder img` is `max-width:100%`, so the SVG fills
+ *  that content box. This is the ONE place the layout width is encoded — if the
+ *  card layout in styles.css changes, update this constant to match (issue 16).
+ *
+ *  Why a constant and not a measurement: the gate runs at publish time on the
+ *  server, with no client viewport to read. A fixed content width is the v1
+ *  contract (issue 16, Out of Scope: no dynamic width). */
+export const CANVAS_CONTENT_WIDTH = 836;
+
+/** The viewBox→viewport display scale the canvas applies: it renders a
+ *  `vbW`-wide viewBox into CANVAS_CONTENT_WIDTH px, so lengths (and font sizes)
+ *  are multiplied by CANVAS_CONTENT_WIDTH / vbW on screen.
+ *
+ *  A missing viewBox width (`null`), or a degenerate one (zero, negative, or
+ *  non-finite), gives no reliable scale — there is nothing to divide into. In
+ *  that case we fall back to displayScale = 1 (judge the user-space size as-is)
+ *  rather than throw or divide by zero. This is the honest degenerate contract
+ *  from issue 16: never a divide-by-zero, never a scale-driven false positive. */
+export function displayScaleFor(viewBoxWidth: number | null): number {
+  if (
+    viewBoxWidth === null ||
+    !Number.isFinite(viewBoxWidth) ||
+    viewBoxWidth <= 0
+  ) {
+    return 1;
+  }
+  return CANVAS_CONTENT_WIDTH / viewBoxWidth;
+}
 
 const fmt = (n: number): string => String(Math.round(n * 10) / 10);
 
@@ -145,18 +178,31 @@ export function checkClipped(
   return findings;
 }
 
-/** sub-legible: rendered font size below the minimum. */
-export function checkSubLegible(runs: TextRun[]): Finding[] {
+/** sub-legible: the ON-SCREEN font size — user-space size after the transform
+ *  scale, then times the viewBox→viewport display scale — is below the floor.
+ *  Judging the display-scaled size (not the raw user-space size) is the issue-16
+ *  fix: a 6px font inside a 400-wide viewBox renders at ~12.5px and is legible,
+ *  while a 6px font inside a 1600-wide viewBox renders at ~3px and is not.
+ *
+ *  `viewBoxWidth` is the root viewBox width (null when the SVG declares none);
+ *  displayScaleFor handles the degenerate cases (see there). */
+export function checkSubLegible(
+  runs: TextRun[],
+  viewBoxWidth: number | null,
+): Finding[] {
+  const displayScale = displayScaleFor(viewBoxWidth);
   const findings: Finding[] = [];
   for (const run of runs) {
-    if (run.renderedFontSize >= MIN_LEGIBLE_FONT) continue;
+    const renderedPx = run.transformedFontSize * displayScale;
+    if (renderedPx >= MIN_LEGIBLE_FONT) continue;
     findings.push({
       check: "sub-legible",
       elements: [run.ref],
       bbox: roundBbox(run.bbox),
       message:
-        `text "${clip(run.text)}" renders at ${fmt(run.renderedFontSize)}px ` +
-        `— below the ${MIN_LEGIBLE_FONT}px legibility floor`,
+        `text "${clip(run.text)}" renders at ~${fmt(renderedPx)}px ` +
+        `(display scale ${fmt(displayScale)}×) — below the ` +
+        `${MIN_LEGIBLE_FONT}px legibility floor`,
     });
   }
   return findings;
