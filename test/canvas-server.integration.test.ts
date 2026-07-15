@@ -59,21 +59,32 @@ describe("canvas server core", () => {
     expect(res.status).toBe(403);
   });
 
-  test("binding is 127.0.0.1 only: LAN IP connection fails", async () => {
-    const lan = Object.values(networkInterfaces())
-      .flat()
-      .find((i) => i && i.family === "IPv4" && !i.internal);
-    if (!lan) return; // no LAN interface on this machine — nothing to probe
-    await expect(
-      httpRequest({
-        port: server.port,
-        path: "/api/health",
-        host: lan.address,
-        headers: { ...bearer(server.token()), Host: `127.0.0.1:${server.port}` },
-        timeoutMs: 1500,
-      }),
-    ).rejects.toThrow();
-  });
+  const lanInterface = Object.values(networkInterfaces())
+    .flat()
+    .find((i) => i && i.family === "IPv4" && !i.internal);
+  if (!lanInterface) {
+    console.error(
+      "SKIP: 'binding is 127.0.0.1 only' — no non-internal IPv4 interface " +
+        "on this machine, so criterion 3 was NOT verified here.",
+    );
+  }
+  test.skipIf(!lanInterface)(
+    "binding is 127.0.0.1 only: LAN IP connection fails",
+    async () => {
+      await expect(
+        httpRequest({
+          port: server.port,
+          path: "/api/health",
+          host: lanInterface!.address,
+          headers: {
+            ...bearer(server.token()),
+            Host: `127.0.0.1:${server.port}`,
+          },
+          timeoutMs: 1500,
+        }),
+      ).rejects.toThrow();
+    },
+  );
 
   test("GET /?token serves the canvas HTML; GET / without token is 401", async () => {
     const withToken = await httpRequest({
