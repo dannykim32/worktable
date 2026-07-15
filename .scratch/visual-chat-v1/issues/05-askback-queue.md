@@ -74,3 +74,8 @@ asks (quote = title). All 6 criteria covered by 7 unit + 4 integration tests; an
 pinning (criterion 2) tested with a real gallery scrubbed to v1 over real HTTP.
 Additionally smoke-verified in headless Chromium: real selection → pill → composer →
 check_askbacks returned the anchor {v1, block 0, chars 4–23} and exact quote.
+
+Review addition: POST /api/askbacks is now rate-limited (ADR-0010 names limiting a
+purpose of the single door) — in-memory fixed window, 60 requests/min keyed by the
+capability token (rotation starts a fresh window), 429 with Retry-After when
+exceeded. Unit-tested with an injected clock and wire-tested (61st POST → 429).

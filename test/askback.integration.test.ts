@@ -216,6 +216,51 @@ describe("ask-back loop", () => {
     expect(item.artifact_title).toBe("Restart doc"); // store reloaded too
   }, 20_000);
 
+  test("the door rate-limits: 61st POST inside a minute is 429 + Retry-After", async () => {
+    // Fresh server so this test's traffic cannot starve the others.
+    const fresh = await spawnServer();
+    try {
+      const body = {
+        anchor: {
+          artifact_id: "a_00000000",
+          version: 1,
+          block_index: null,
+          quote: "q",
+        },
+        question: "rapid fire",
+      };
+      for (let i = 0; i < 60; i++) {
+        const res = await httpRequest({
+          port: fresh.port,
+          path: "/api/askbacks",
+          method: "POST",
+          headers: {
+            ...bearer(fresh.token()),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+        expect(res.status).toBe(201);
+      }
+      const refused = await httpRequest({
+        port: fresh.port,
+        path: "/api/askbacks",
+        method: "POST",
+        headers: {
+          ...bearer(fresh.token()),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      expect(refused.status).toBe(429);
+      const retryAfter = Number(refused.headers["retry-after"]);
+      expect(retryAfter).toBeGreaterThan(0);
+      expect(retryAfter).toBeLessThanOrEqual(60);
+    } finally {
+      await fresh.close();
+    }
+  }, 20_000);
+
   test("POST without bearer → 401; oversized question → 400 with reason", async () => {
     const noAuth = await postAskback({
       anchor: { artifact_id: "a_00000000", version: 1, block_index: null, quote: "q" },

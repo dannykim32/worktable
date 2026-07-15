@@ -9,6 +9,7 @@ import {
   AskbackValidationError,
   validateAskbackBody,
 } from "../src/server/askbacks.js";
+import { RateLimiter } from "../src/server/rateLimit.js";
 import {
   anchorFromRange,
   AskbackUi,
@@ -141,6 +142,27 @@ describe("askback queue jsonl state transitions", () => {
       question: "whole-artifact ask",
     });
     expect(ok.anchor.block_index).toBeNull();
+  });
+});
+
+describe("ask-back rate limiter", () => {
+  test("61st request in a window is refused with a sane Retry-After", () => {
+    let clock = 1_000_000;
+    const limiter = new RateLimiter(60, 60_000, () => clock);
+    for (let i = 0; i < 60; i++) {
+      expect(limiter.consume("tok").allowed).toBe(true);
+    }
+    clock += 15_000; // 15s into the window
+    const refused = limiter.consume("tok");
+    expect(refused.allowed).toBe(false);
+    expect(refused.retryAfterSeconds).toBe(45);
+
+    // Independent keys have independent windows.
+    expect(limiter.consume("other-tok").allowed).toBe(true);
+
+    // The window expires and the door reopens.
+    clock += 45_000;
+    expect(limiter.consume("tok").allowed).toBe(true);
   });
 });
 

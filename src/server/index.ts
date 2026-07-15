@@ -15,6 +15,11 @@ import {
 } from "./http.js";
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { openInBrowser } from "./open.js";
+import {
+  ASKBACK_RATE_LIMIT,
+  ASKBACK_RATE_WINDOW_MS,
+  RateLimiter,
+} from "./rateLimit.js";
 import { SseHub } from "./sse.js";
 import {
   ArtifactStore,
@@ -40,6 +45,10 @@ async function main(): Promise<void> {
   const store = new ArtifactStore(workspace.dir);
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
+  const askbackLimiter = new RateLimiter(
+    ASKBACK_RATE_LIMIT,
+    ASKBACK_RATE_WINDOW_MS,
+  );
 
   const apiRoutes: ApiRoute[] = [
     {
@@ -81,6 +90,16 @@ async function main(): Promise<void> {
       method: "POST",
       template: "/api/askbacks",
       handler: async ({ req, res }) => {
+        // Rate limit the single write door (ADR-0010). Keyed by the
+        // capability token, so rotation starts a fresh window.
+        const decision = askbackLimiter.consume(workspace.token);
+        if (!decision.allowed) {
+          res.setHeader("Retry-After", String(decision.retryAfterSeconds));
+          sendJson(res, 429, {
+            error: `too many ask-backs; retry in ${decision.retryAfterSeconds}s`,
+          });
+          return;
+        }
         let body: unknown;
         try {
           body = await readJsonBody(req);
