@@ -41,13 +41,17 @@ prior conversation context.
   sub-legible scored 0% (judged SVG-space font, not rendered px). Fixed in issue 16
   (merged) — sub-legible now judges on-screen px via the 836px card display scale.
   Evidence: `docs/qa/calibration-round-1.md`.
-- **Calibration round 2 (2026-07-15): PASSED — owner sign-off given.** The fixed
-  sub-legible check flipped 0% → 100%; all four checks trustworthy. The 9px floor
-  is confirmed well-placed. Evidence: `docs/qa/calibration-round-2.md`. This is the
-  ADR-0007 gate — enforcement is now unblocked.
-- **Next:** M5 enforcement + bounded repair round (in progress — enforce all four
-  checks: fail → repair round → honest absence), then M6 Claude Code hook +
-  request_review.
+- **Calibration round 2 (2026-07-15): PASSED — owner sign-off given.** All four
+  checks trustworthy; 9px floor confirmed. Evidence: `docs/qa/calibration-round-2.md`.
+- **M5 — gate enforcement + bounded repair round: DONE, merged, both axes passed.**
+  Enforcement is human-only (`config.json` `gate: report|enforce`, default report;
+  NO MCP tool can change it), fail-open against gate crashes, fail → one repair
+  round → honest absence. Also fixed a latent `listTools()` failure (bare-oneOf
+  inputSchema) that blocked spec-compliant MCP hosts since M1. 224 tests green.
+- **To turn enforcement on:** edit `~/.visual-chat/<workspaceId>/config.json` to
+  `{"gate":"enforce"}` and restart the server (per `docs/setup.md`). Off by default.
+- **Next / last milestone:** M6 — Claude Code `UserPromptSubmit` hook (auto-inject
+  ask-backs) + `request_review` blocking tool. After M6, v1 is feature-complete.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.
