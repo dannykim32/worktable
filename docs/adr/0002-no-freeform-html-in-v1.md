@@ -12,6 +12,16 @@ render best. Per the "evidence over guessing" doctrine, free-form HTML gets a la
 architectural slot but is only built if the pilot gallery produces artifacts that
 components + SVG could not express.
 
+## SVG url() marker exception (ratified 2026-07-15)
+
+The SVG sanitizer (issue 09) permits exactly one `url(...)` form — a validated,
+fragment-only same-document `url(#id)` on `marker-start`/`marker-end`, resolving to
+a real `<marker>` element. This is the minimum needed for arrow-headed diagrams
+(the mandated prototype flowchart depends on it) and is inert under Image Isolation.
+It reconciles an internal contradiction in issue 09 (which said "NO url() anywhere"
+yet also required marker support). Adversarial security review found no bypass. All
+other `url(` forms remain rejected.
+
 ## The labeled slot, informed (2026-07-15)
 
 Security research for the deferred hatch is complete and validates this ADR's

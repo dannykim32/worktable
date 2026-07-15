@@ -19,14 +19,18 @@ prior conversation context.
 - **M2 — Dashboard + Compare: DONE, merged, both review axes passed.** Single-axis
   bar/line + stat tiles; two-pane compare. Brand palette (burnt orange + vanilla)
   applied. Points capped at 200/series. 80 tests green.
-- **M3 — SVG sanitizer + image-isolated SVG type: BUILT, in security review.**
-  Zero-dep reject-not-drop sanitizer (16 hostile fixtures + fuzz), SVG rendered
-  only as inert `<img>` data: URL. Branch `worktree-agent-a6943cabd35cd48bf`.
+- **M3 — SVG sanitizer + image-isolated SVG type: DONE, merged, security review
+  passed (no bypass found).** Zero-dep reject-not-drop sanitizer (16 hostile
+  fixtures + 10k fuzz), SVG rendered only as inert `<img>` data: URL. The one
+  ratified deviation: `url(#id)` same-document marker refs are permitted
+  (validated, fragment-only) so arrow-headed diagrams render — issue 09 amended.
+  160 tests green on main.
 - **Security drill (2026-07-15): passed.** An owner-run cookie-exfil injection into
   the sanitizer worktree was contained at every layer, nothing merged. See
   `docs/security/red-team-drills.md`.
-- **Next:** merge M3 after review; then M4 legibility gate (report-only +
-  calibration), M5 enforcement + repair round, M6 Claude Code hook + request_review.
+- **Next:** M4 legibility gate (report-only + calibration gallery) — consumes the
+  AST types the M3 sanitizer already exports; then M5 enforcement + repair round,
+  M6 Claude Code hook + request_review.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.

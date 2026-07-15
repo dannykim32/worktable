@@ -43,7 +43,13 @@ marker-end marker-start id` (id: `[a-zA-Z][\w-]{0,63}`). NO `style`, NO `href`/
 - `d`: `[MmLlHhVvCcSsQqTtAaZz0-9eE+\-., ]`
 - `transform`: `translate|rotate|scale|matrix` forms with numeric args only
 - paint (`fill`, `stroke`): `none`, `#hex{3,6,8}`, `rgb()/rgba()` numeric, or a
-  16-name color allowlist. NO `url(…)` anywhere (kills beacon/reference smuggling).
+  16-name color allowlist. NO `url(…)` here (kills beacon/reference smuggling).
+- `marker-start`/`marker-end` ONLY: a validated same-document fragment reference
+  `url(#id)` — the sole `url(` form permitted anywhere in the subset. Fully
+  `^url\(#id\)$`-anchored (id charset `[a-zA-Z][\w-]{0,63}`), must resolve to a
+  real `<marker>` element, inert under Image Isolation. This exception is what
+  lets arrow-headed diagrams (incl. the mandated prototype flowchart) render;
+  ratified by the owner 2026-07-15. Every other `url(` form is rejected.
 - `font-family`: `[a-zA-Z0-9 ,-]` (no quotes needed post-normalization)
 
 **Content:** text nodes allowed only inside `text/tspan/title/desc`; entity forms
@@ -68,8 +74,11 @@ Plus a benign suite (the prototype's flowchart SVG must pass unchanged in meanin
 2. Benign suite passes; output renders visually identical (manual check once).
 3. Idempotence: `sanitize(sanitize(x).svg)` byte-equals `sanitize(x).svg` for the
    benign suite.
-4. Property test: output never contains `<script`, `on[a-z]+=`, `url(`, `href`,
-   case-insensitively, for 10k random mutations of benign fixtures (fuzz smoke).
+4. Property test: output never contains `<script`, `on[a-z]+=`, `href`, or any
+   `url(` EXCEPT the anchored `url(#id)` marker form above (property:
+   `url\((?!#[a-zA-Z])`), case-insensitively, over 10k random mutations of benign
+   fixtures (fuzz smoke). Text-node content is escaped/inert and excluded from the
+   markup checks (Image Isolation).
 5. `src/sanitizer/` imports nothing outside node builtins used for types; zero
    `package.json` runtime deps added.
 6. Violations are precise enough for an agent to fix: include line/element path.
