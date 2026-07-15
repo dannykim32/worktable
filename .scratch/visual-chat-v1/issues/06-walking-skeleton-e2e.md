@@ -67,3 +67,8 @@ exercised programmatically (E2E over real stdio MCP + loopback HTTP) and once in
 headless Chromium during issue 05 (real selection → pill → composer →
 check_askbacks). AGENTS.md gained the ## Visual Chat guidance section; the demo
 script prefers dist/ and falls back to bun + src for unbuilt checkouts.
+
+**2026-07-15 (human verification):** Manual criteria 2–3 completed by the human —
+demo run end-to-end: published a_372787c8 v1→v2, canvas loaded at the tokened URL,
+selection-anchored ask-back returned via check_askbacks with correct version (2),
+block_index, char range, and quote. M1 fully closed.
