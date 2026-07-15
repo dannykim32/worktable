@@ -77,3 +77,12 @@ caption exactness, inert title, badge on the card) and
 re-serialized form byte-different from a messy-but-benign input; hostile →
 tool error + nothing stored; the `<text>alert probe</text>` XSS end-check;
 hostile update rejected). All green.
+
+## Known minor (non-blocking, from M3 spec review 2026-07-15)
+- 10-AC2 is proven via on-disk artifact-directory count after a hostile publish
+  (stronger evidence than the literal endpoint check); a literal `GET /api/artifacts`
+  empty-list assertion could be added for exactness. Fold into a future test pass.
+- 09-AC2's one-time manual "renders visually identical" check is not recorded; do it
+  during M4 calibration-gallery work (which renders real SVGs anyway).
+- `utf8ByteLength` scans the full string before rejecting oversize input — linear,
+  no tree built, cosmetic early-exit opportunity.
