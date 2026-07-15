@@ -9,7 +9,11 @@ import type {
   DashboardTile,
   DocumentBlock,
 } from "../shared/artifacts.js";
-import { ARTIFACT_ID_PATTERN, isArtifactId } from "../shared/constraints.js";
+import {
+  ARTIFACT_ID_PATTERN,
+  isArtifactId,
+  POINTS_MAX,
+} from "../shared/constraints.js";
 
 export class ValidationError extends Error {
   constructor(
@@ -137,6 +141,7 @@ const chartSchema = {
           label: { type: "string" },
           points: {
             type: "array",
+            maxItems: POINTS_MAX,
             items: {
               type: "object",
               properties: {
@@ -397,6 +402,12 @@ function validateSeries(v: unknown, path: string): ChartSeries {
   requireString(v.label, `${path}/label`);
   if (!Array.isArray(v.points)) {
     throw new ValidationError(`${path}/points`, "expected an array");
+  }
+  if (v.points.length > POINTS_MAX) {
+    throw new ValidationError(
+      `${path}/points`,
+      `must have at most ${POINTS_MAX} points`,
+    );
   }
   v.points.forEach((point, i) => {
     const pointPath = `${path}/points/${i}`;

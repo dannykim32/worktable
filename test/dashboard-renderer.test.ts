@@ -115,6 +115,29 @@ describe("dashboard schema boundary", () => {
     ).toBe("/charts/0/series");
   });
 
+  test("points per series are capped at 200 (bound large inputs)", () => {
+    const chartWith = (n: number) => ({
+      type: "dashboard",
+      title: "t",
+      tiles: [],
+      charts: [
+        {
+          kind: "line",
+          title: "c",
+          series: [
+            {
+              label: "s",
+              points: Array.from({ length: n }, (_, i) => ({ x: i, y: i })),
+            },
+          ],
+        },
+      ],
+    });
+    const ok = validateArtifactContent(chartWith(200)); // 200 exactly is fine
+    expect(ok.type).toBe("dashboard");
+    expect(rejectPath(chartWith(201))).toBe("/charts/0/series/0/points");
+  });
+
   test("a second y-axis is impossible by construction (unknown field)", () => {
     expect(
       rejectPath({

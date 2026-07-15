@@ -77,3 +77,9 @@ AC6 verified by headless-Chromium captures of the real renderer+stylesheet:
 docs/qa/m2-dashboard-light.png and docs/qa/m2-dashboard-dark.png (dark run
 exercises the real dark custom-property block made unconditional in the
 harness copy of the stylesheet).
+
+2026-07-14 — review addition: points per series are now capped at
+POINTS_MAX = 200 (src/shared/constraints.ts), enforced in both the
+declared JSON schema (maxItems) and the hand validator (rejection path
+/charts/N/series/M/points), per the PRD's bound-large-inputs doctrine.
+Boundary tests: 200 accepted, 201 rejected.
