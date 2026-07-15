@@ -77,3 +77,7 @@ canary asserts the hostile string stays literal text with no <img> created).
 Criterion 6 verified via headless Chromium screenshots in both schemes (dark forced by
 re-applying the stylesheet's @media-dark rules); both legible, matching the prototype.
 10 unit + 2 integration tests added.
+
+Review follow-up: the criterion-6 screenshots are now committed as the verification
+record — docs/qa/m1-light.png and docs/qa/m1-dark.png (document with all block kinds
++ an absence card, connected header, version chip, card menu).
