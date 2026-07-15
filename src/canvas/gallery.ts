@@ -198,8 +198,12 @@ export class Gallery {
   private refreshChrome(card: CardState): void {
     const { meta } = card;
     card.title.textContent = meta.title;
-    card.badge.textContent = meta.type;
-    card.badge.className = `badge ${meta.type === "absence" ? "absence" : ""}`.trim();
+    // Free-form SVG wears a distinct provenance badge (ADR-0009); components
+    // show their plain type. The standing caption lives in the card body.
+    card.badge.textContent = meta.type === "svg" ? "svg · free-form" : meta.type;
+    card.badge.className = `badge ${
+      meta.type === "absence" ? "absence" : meta.type === "svg" ? "freeform" : ""
+    }`.trim();
     card.vlabel.textContent = `v${card.viewing} · ${relativeTime(meta.updated_at)}`;
     card.prev.disabled = card.viewing <= 1;
     card.next.disabled = card.viewing >= meta.latest;

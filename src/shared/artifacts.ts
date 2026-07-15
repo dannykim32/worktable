@@ -57,7 +57,17 @@ export interface AbsenceContent {
   reason: string;
 }
 
-export type ArtifactContent = DocumentContent | AbsenceContent;
+/** Free-form SVG (ADR-0002): the only agent-authored markup in v1. `svg`
+ *  holds the SANITIZED, re-serialized output of the SVG sanitizer (issue 09)
+ *  — never the raw input, which is discarded on publish. Rendered only under
+ *  Image Isolation, as a data:image/svg+xml URL in an <img> (issue 10). */
+export interface SvgContent {
+  type: "svg";
+  title: string;
+  svg: string;
+}
+
+export type ArtifactContent = DocumentContent | AbsenceContent | SvgContent;
 export type ArtifactType = ArtifactContent["type"];
 
 export interface ArtifactMeta {
