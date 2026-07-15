@@ -88,3 +88,9 @@ JSON path, e.g. `/blocks/1/kind`. Atomicity criterion 5 verified by an injected
 interrupt at the commit point (between tmp write and rename) rather than a literal
 kill -9 — same guarantee, deterministic. One tightening: update_artifact rejects a
 type change (stable identity per ADR-0006). 11 unit + 5 integration tests added.
+
+Review follow-ups (behavior changes): the type-stability rejection moved INTO
+ArtifactStore.update (throws ArtifactTypeMismatchError; handler maps to a tool
+error), and the first-publish auto-open is now an explicit, publish-only side effect
+— updates never open a browser, matching this issue's "First publish auto-opens"
+exactly (previously any first event after a restart, including an update, opened it).

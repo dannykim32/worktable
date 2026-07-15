@@ -114,13 +114,17 @@ async function main(): Promise<void> {
   const canvasUrl = () =>
     `http://127.0.0.1:${running.port}/?token=${workspace.token}`;
 
-  let hasAutoOpened = false;
-  const announce = (event: ArtifactEvent) => {
+  const broadcastArtifactEvent = (event: ArtifactEvent) => {
     sse.broadcast("artifact", event);
-    if (!hasAutoOpened) {
-      hasAutoOpened = true;
-      openInBrowser(canvasUrl()); // no-op under VISUAL_CHAT_NO_OPEN=1
-    }
+  };
+
+  // Issue 03: the FIRST publish of a server run auto-opens the canvas
+  // (updates never do). openInBrowser is a no-op under VISUAL_CHAT_NO_OPEN=1.
+  let hasAutoOpenedCanvas = false;
+  const autoOpenCanvasOnFirstPublish = () => {
+    if (hasAutoOpenedCanvas) return;
+    hasAutoOpenedCanvas = true;
+    openInBrowser(canvasUrl());
   };
 
   const mapErrors = <T>(fn: () => T): T => {
@@ -150,7 +154,12 @@ async function main(): Promise<void> {
         mapErrors(() => {
           const content = validateArtifactContent(args);
           const meta = store.publish(content);
-          announce({ artifact_id: meta.id, version: 1, type: meta.type });
+          broadcastArtifactEvent({
+            artifact_id: meta.id,
+            version: 1,
+            type: meta.type,
+          });
+          autoOpenCanvasOnFirstPublish();
           return { artifact_id: meta.id, version: 1, url: canvasUrl() };
         }),
     },
@@ -167,7 +176,7 @@ async function main(): Promise<void> {
           // Type stability is enforced by the store itself (ADR-0006);
           // ArtifactTypeMismatchError surfaces as a friendly tool error.
           const meta = store.update(artifactId, content);
-          announce({
+          broadcastArtifactEvent({
             artifact_id: meta.id,
             version: meta.latest,
             type: meta.type,
