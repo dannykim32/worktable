@@ -196,6 +196,88 @@ function barPath(x0: number, x1: number, yTop: number, h: number): string {
 
 const CHART_W = 640;
 
+/** Chart margins + outer size; the frame owns everything but the marks. */
+interface ChartFrame {
+  padL: number;
+  padR: number;
+  padT: number;
+  padB: number;
+  width: number;
+  height: number;
+}
+
+function chartDomain(chart: DashboardChart): ValueDomain {
+  return valueDomain(chart.series.flatMap((s) => s.points.map((p) => p.y)));
+}
+
+/**
+ * Draws the shared chart frame — hairline grid at round ticks, muted
+ * tabular-nums tick labels, and the single zero-anchored baseline — and
+ * returns the value→pixel scale. valueAxis "x" lays values out
+ * horizontally (bar charts), "y" vertically (line charts).
+ */
+function drawChartFrame(
+  svg: SVGSVGElement,
+  frame: ChartFrame,
+  domain: ValueDomain,
+  valueAxis: "x" | "y",
+): (v: number) => number {
+  const doc = svg.ownerDocument;
+  svg.setAttribute("viewBox", `0 0 ${frame.width} ${frame.height}`);
+  const innerW = frame.width - frame.padL - frame.padR;
+  const innerH = frame.height - frame.padT - frame.padB;
+  const ratio = (v: number) => (v - domain.min) / (domain.max - domain.min);
+  const scale =
+    valueAxis === "x"
+      ? (v: number) => frame.padL + ratio(v) * innerW
+      : (v: number) => frame.padT + (1 - ratio(v)) * innerH;
+  const axisLine = (v: number, cls: string) =>
+    svgEl(
+      doc,
+      "line",
+      valueAxis === "x"
+        ? {
+            class: cls,
+            x1: scale(v),
+            y1: frame.padT,
+            x2: scale(v),
+            y2: frame.height - frame.padB,
+          }
+        : {
+            class: cls,
+            x1: frame.padL,
+            y1: scale(v),
+            x2: frame.width - frame.padR,
+            y2: scale(v),
+          },
+    );
+  for (const t of tickValues(domain)) {
+    svg.appendChild(axisLine(t, "grid"));
+    svg.appendChild(
+      svgEl(
+        doc,
+        "text",
+        valueAxis === "x"
+          ? {
+              class: "tick",
+              x: scale(t),
+              y: frame.height - 8,
+              "text-anchor": "middle",
+            }
+          : {
+              class: "tick",
+              x: frame.padL - 8,
+              y: scale(t) + 4,
+              "text-anchor": "end",
+            },
+        formatValue(t),
+      ),
+    );
+  }
+  svg.appendChild(axisLine(0, "baseline"));
+  return scale;
+}
+
 function renderBarChart(
   chart: DashboardChart,
   svg: SVGSVGElement,
@@ -209,53 +291,20 @@ function renderBarChart(
   const groupGap = 12;
   // 2px surface gap between adjacent bars in a group.
   const groupH = seriesN * barH + (seriesN - 1) * 2 + groupGap;
-  const padL = 110;
-  const padR = 48;
   const padT = 8;
   const padB = 24;
-  const H = padT + padB + Math.max(1, slots.length) * groupH;
-  const innerW = CHART_W - padL - padR;
-  svg.setAttribute("viewBox", `0 0 ${CHART_W} ${H}`);
-
-  const domain = valueDomain(
-    chart.series.flatMap((s) => s.points.map((p) => p.y)),
-  );
-  const x = (v: number) =>
-    padL + ((v - domain.min) / (domain.max - domain.min)) * innerW;
-
-  // Hairline grid + tick labels (ink, tabular-nums), behind the marks.
-  for (const t of tickValues(domain)) {
-    svg.appendChild(
-      svgEl(doc, "line", {
-        class: "grid",
-        x1: x(t),
-        y1: padT,
-        x2: x(t),
-        y2: H - padB,
-      }),
-    );
-    svg.appendChild(
-      svgEl(
-        doc,
-        "text",
-        { class: "tick", x: x(t), y: H - 8, "text-anchor": "middle" },
-        formatValue(t),
-      ),
-    );
-  }
-  // The single baseline, anchored at 0.
-  svg.appendChild(
-    svgEl(doc, "line", {
-      class: "baseline",
-      x1: x(0),
-      y1: padT,
-      x2: x(0),
-      y2: H - padB,
-    }),
-  );
+  const frame: ChartFrame = {
+    padL: 110,
+    padR: 48,
+    padT,
+    padB,
+    width: CHART_W,
+    height: padT + padB + Math.max(1, slots.length) * groupH,
+  };
+  const x = drawChartFrame(svg, frame, chartDomain(chart), "x");
 
   slots.forEach((slot, slotIndex) => {
-    const groupTop = padT + slotIndex * groupH + groupGap / 2;
+    const groupTop = frame.padT + slotIndex * groupH + groupGap / 2;
     const groupMid = groupTop + (seriesN * barH + (seriesN - 1) * 2) / 2;
     svg.appendChild(
       svgEl(
@@ -263,7 +312,7 @@ function renderBarChart(
         "text",
         {
           class: "cat-label",
-          x: padL - 8,
+          x: frame.padL - 8,
           y: groupMid + 4,
           "text-anchor": "end",
         },
@@ -324,58 +373,34 @@ function renderLineChart(
   const doc = svg.ownerDocument;
   const slots = categorySlots(chart.series);
   const multi = chart.series.length > 1;
-  const padL = 48;
-  const padR = 96; // room for direct series labels at line ends
-  const padT = 10;
-  const padB = 24;
-  const H = 190;
-  const innerW = CHART_W - padL - padR;
-  const innerH = H - padT - padB;
-  svg.setAttribute("viewBox", `0 0 ${CHART_W} ${H}`);
+  const frame: ChartFrame = {
+    padL: 48,
+    padR: 96, // room for direct series labels at line ends
+    padT: 10,
+    padB: 24,
+    width: CHART_W,
+    height: 190,
+  };
+  const y = drawChartFrame(svg, frame, chartDomain(chart), "y");
 
-  const domain = valueDomain(
-    chart.series.flatMap((s) => s.points.map((p) => p.y)),
-  );
-  const y = (v: number) =>
-    padT + (1 - (v - domain.min) / (domain.max - domain.min)) * innerH;
+  const innerW = frame.width - frame.padL - frame.padR;
   const slotX = (i: number) =>
-    slots.length < 2 ? padL + innerW / 2 : padL + (i / (slots.length - 1)) * innerW;
+    slots.length < 2
+      ? frame.padL + innerW / 2
+      : frame.padL + (i / (slots.length - 1)) * innerW;
   const slotIndex = new Map(slots.map((s, i) => [slotKey(s), i]));
 
-  for (const t of tickValues(domain)) {
-    svg.appendChild(
-      svgEl(doc, "line", {
-        class: "grid",
-        x1: padL,
-        y1: y(t),
-        x2: CHART_W - padR,
-        y2: y(t),
-      }),
-    );
-    svg.appendChild(
-      svgEl(
-        doc,
-        "text",
-        { class: "tick", x: padL - 8, y: y(t) + 4, "text-anchor": "end" },
-        formatValue(t),
-      ),
-    );
-  }
-  svg.appendChild(
-    svgEl(doc, "line", {
-      class: "baseline",
-      x1: padL,
-      y1: y(0),
-      x2: CHART_W - padR,
-      y2: y(0),
-    }),
-  );
   slots.forEach((slot, i) => {
     svg.appendChild(
       svgEl(
         doc,
         "text",
-        { class: "cat-label", x: slotX(i), y: H - 8, "text-anchor": "middle" },
+        {
+          class: "cat-label",
+          x: slotX(i),
+          y: frame.height - 8,
+          "text-anchor": "middle",
+        },
         String(slot),
       ),
     );
