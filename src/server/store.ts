@@ -20,6 +20,16 @@ export class UnknownArtifactError extends Error {
   }
 }
 
+/** An Artifact keeps one type for its lifetime (stable identity, ADR-0006). */
+export class ArtifactTypeMismatchError extends Error {
+  constructor(id: string, existing: string, attempted: string) {
+    super(
+      `invalid input at /type: artifact ${id} is type "${existing}"; ` +
+        `an artifact keeps one type for its lifetime (got "${attempted}")`,
+    );
+  }
+}
+
 export function mintArtifactId(): string {
   return `a_${randomBytes(4).toString("hex")}`;
 }
@@ -92,12 +102,14 @@ export class ArtifactStore {
   update(id: string, content: ArtifactContent): ArtifactMeta {
     const meta = this.metas.get(id);
     if (!meta) throw new UnknownArtifactError(id);
+    if (meta.type !== content.type) {
+      throw new ArtifactTypeMismatchError(id, meta.type, content.type);
+    }
     const version = meta.latest + 1;
     const dir = join(this.root, id);
     atomicWriteJson(join(dir, `v${version}.json`), content);
     const updated: ArtifactMeta = {
       ...meta,
-      type: content.type,
       title: content.title,
       latest: version,
       updated_at: new Date().toISOString(),

@@ -16,7 +16,11 @@ import {
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { openInBrowser } from "./open.js";
 import { SseHub } from "./sse.js";
-import { ArtifactStore, UnknownArtifactError } from "./store.js";
+import {
+  ArtifactStore,
+  ArtifactTypeMismatchError,
+  UnknownArtifactError,
+} from "./store.js";
 import {
   publishArtifactSchema,
   updateArtifactSchema,
@@ -123,7 +127,11 @@ async function main(): Promise<void> {
     try {
       return fn();
     } catch (err) {
-      if (err instanceof ValidationError || err instanceof UnknownArtifactError) {
+      if (
+        err instanceof ValidationError ||
+        err instanceof UnknownArtifactError ||
+        err instanceof ArtifactTypeMismatchError
+      ) {
         throw new ToolInputError(err.message);
       }
       throw err;
@@ -156,13 +164,8 @@ async function main(): Promise<void> {
       handler: (args) =>
         mapErrors(() => {
           const { artifactId, content } = validateUpdateInput(args);
-          const existing = store.getMeta(artifactId);
-          if (existing && existing.type !== content.type) {
-            throw new ToolInputError(
-              `invalid input at /type: artifact ${artifactId} is type ` +
-                `"${existing.type}"; an artifact keeps one type for its lifetime`,
-            );
-          }
+          // Type stability is enforced by the store itself (ADR-0006);
+          // ArtifactTypeMismatchError surfaces as a friendly tool error.
           const meta = store.update(artifactId, content);
           announce({
             artifact_id: meta.id,

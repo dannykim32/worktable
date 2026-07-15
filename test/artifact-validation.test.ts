@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ArtifactStore,
+  ArtifactTypeMismatchError,
   atomicWriteJson,
   mintArtifactId,
 } from "../src/server/store.js";
@@ -150,6 +151,27 @@ describe("atomic version writes", () => {
     // The stray tmp file is invisible to the store's reader.
     const leftovers = readdirSync(dir);
     expect(leftovers.some((f) => f.includes(".tmp-"))).toBe(true);
+  });
+
+  test("store itself rejects a type change on update (ADR-0006 invariant)", () => {
+    const stateDir = mkdtempSync(join(tmpdir(), "visual-chat-typestable-"));
+    const store = new ArtifactStore(stateDir);
+    const meta = store.publish({
+      type: "document",
+      title: "stays a document",
+      blocks: [{ kind: "paragraph", text: "v1" }],
+    });
+    expect(() =>
+      store.update(meta.id, {
+        type: "absence",
+        title: "stays a document",
+        reason: "trying to morph",
+      }),
+    ).toThrow(ArtifactTypeMismatchError);
+    // Nothing was written: still v1, still a document.
+    expect(store.getMeta(meta.id)?.latest).toBe(1);
+    expect(store.getMeta(meta.id)?.type).toBe("document");
+    expect(store.getVersion(meta.id, 2)).toBeNull();
   });
 
   test("store scan ignores stray tmp files and reloads metas after restart", () => {
