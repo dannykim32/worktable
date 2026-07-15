@@ -319,33 +319,33 @@ describe("no MCP tool can change the gate mode (AC6, security invariant)", () =>
   }, 30_000);
   afterAll(async () => await server?.close());
 
-  // The complete MCP tool surface. If anyone adds a gate/config mutator, they
-  // must edit this list — and the assertions below would catch it.
-  const ALL_TOOLS = [
-    "publish_artifact",
-    "update_artifact",
-    "check_askbacks",
-    "open_canvas",
-    "rotate_token",
-  ] as const;
-
-  test("no tool is named for gate/config/mode mutation", () => {
-    for (const name of ALL_TOOLS) {
-      expect(name).not.toMatch(/gate|config|mode|enforce/i);
-    }
-    // There is no set_gate_mode (nor any variant) to call at all.
-    expect(ALL_TOOLS).not.toContain("set_gate_mode" as never);
+  test("listTools() SUCCEEDS and returns exactly the closed tool set (regression)", async () => {
+    // A spec-compliant host must be able to enumerate our tools: the SDK's
+    // ListTools result parser rejects an inputSchema without a top-level
+    // type:"object" (was latent since M1 — publish/update used a bare oneOf).
+    const { tools } = await server.client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual(
+      ["check_askbacks", "open_canvas", "publish_artifact", "rotate_token", "update_artifact"].sort(),
+    );
   });
 
-  test("calling every tool with a smuggled gate field changes nothing on disk", async () => {
+  test("no REAL tool can mutate gate/config/mode, and none changes it on disk", async () => {
+    // Enumerate the ACTUAL advertised tools so a future gate-mutator addition is
+    // caught here, not by a stale hardcoded list.
+    const { tools } = await server.client.listTools();
+    expect(tools.length).toBeGreaterThan(0);
+    for (const t of tools) {
+      expect(t.name).not.toMatch(/gate|config|mode|enforce/i);
+    }
+
     // Report mode ⇒ no config.json. The agent must not be able to create it.
     const configPath = join(server.stateDir, "config.json");
     expect(existsSync(configPath)).toBe(false);
 
-    for (const name of ALL_TOOLS) {
+    for (const t of tools) {
       await server.client
         .callTool({
-          name,
+          name: t.name,
           // Smuggle gate-mutation-shaped args into each tool.
           arguments: { gate: "enforce", mode: "enforce", config: { gate: "enforce" } },
         })

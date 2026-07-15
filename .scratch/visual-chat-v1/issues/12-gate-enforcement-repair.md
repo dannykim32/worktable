@@ -101,9 +101,12 @@ smuggling `gate`/`mode`/`config` args into every tool (and a bogus
 - An `update` that fails the gate twice publishes a SEPARATE absence artifact;
   the original svg artifact keeps its last good version. Converting the svg
   artifact itself to absence would violate one-type-for-life (ADR-0006).
-- The security test asserts against the known closed tool list rather than
-  `client.listTools()`: the SDK's Zod validator rejects the existing publish/
-  update `inputSchema` (a `{ oneOf }` with no top-level `type:"object"`). That
-  schema shape predates this issue and is out of scope; left untouched.
+- (Follow-up, fix(review)) The publish/update `inputSchema` was a bare
+  top-level `oneOf` with no `type:"object"`, so `client.listTools()` failed
+  against the server (a spec-compliant host could enumerate no tools — latent
+  since M1). Fixed by wrapping as `{ type:"object", oneOf:[…] }`; each branch
+  is already `type:"object"`, and the hand-validator stays authoritative. The
+  security test now enumerates the REAL tools via `listTools()` and a regression
+  test asserts `listTools()` returns exactly the five-tool closed set.
 - Repair-context keying uses the spec's "provisional publish token" for
   publishes (the agent echoes it) and the artifact_id for updates.
