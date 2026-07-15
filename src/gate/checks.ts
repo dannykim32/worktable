@@ -57,8 +57,10 @@ export const MIN_LEGIBLE_FONT = 9;
 
 /** The pixel width the canvas renders every free-form SVG to. Derived from
  *  src/canvas/styles.css: `.artifact` max-width 880 − 2×22 `.body` horizontal
- *  padding = 836, and `.svg-holder img` is `max-width:100%`, so the SVG fills
- *  that content box. This is the ONE place the layout width is encoded — if the
+ *  padding ≈ 836 (the 1px border-box borders make the true content box ~834; the
+ *  2px difference is far below a 9px heuristic and errs conservative, so we keep
+ *  836). `.svg-holder img` is `max-width:100%`, so the SVG fills that content box.
+ *  This is the ONE place the layout width is encoded — if the
  *  card layout in styles.css changes, update this constant to match (issue 16).
  *
  *  Why a constant and not a measurement: the gate runs at publish time on the

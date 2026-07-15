@@ -37,11 +37,15 @@ prior conversation context.
   `/calibration` gallery for ruling findings correct/false-positive with live
   precision. Report-only is STRUCTURAL — the gate affects a publish neither by
   its findings nor by throwing (`runGateSafe` fail-open). 201 tests green.
-- **Owner action before M5:** rule real findings in the calibration gallery. That
-  evidence is the ADR-0007 gate on turning enforcement ON — M5 must not ship until
-  the human has calibrated.
-- **Next:** M5 enforcement + bounded repair round (gated on calibration sign-off),
-  M6 Claude Code hook + request_review.
+- **Calibration round 1 (2026-07-15):** overlap/straddle/clipped scored 100%;
+  sub-legible scored 0% (judged SVG-space font, not rendered px). Fixed in issue 16
+  (merged) — sub-legible now judges on-screen px via the 836px card display scale.
+  Evidence: `docs/qa/calibration-round-1.md`.
+- **Owner action before M5:** re-calibrate the fixed sub-legible check in the
+  gallery (round 2, with render-time-illegible cases). Its sign-off is the ADR-0007
+  gate on enforcement.
+- **Next:** M5 enforcement + bounded repair round (BLOCKED on round-2 calibration
+  sign-off), M6 Claude Code hook + request_review.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.
