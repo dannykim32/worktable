@@ -35,6 +35,9 @@ const SERIES_MAX = 4;
 // Compare (issue 08): exactly two panes, agent-supplied marks.
 const PANES_EXACT = 2;
 const PANE_LINES_MAX = 500;
+// SVG (issue 10): the sanitizer enforces the authoritative 256KB UTF-8 byte
+// cap; this char-length bound just rejects absurd inputs before they reach it.
+const SVG_MAX = 256 * 1024;
 
 // ---------------------------------------------------------------------------
 // JSON Schemas, declared on the MCP tools so hosts see the exact contract.
@@ -238,6 +241,25 @@ const contentVariants = [
       reason: { type: "string", minLength: 1, maxLength: REASON_MAX },
     },
     required: ["type", "title", "reason"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    description:
+      "Free-form SVG (ADR-0002): agent-authored markup, sanitized on publish " +
+      "and rendered as an inert image. Anything outside the strict SVG subset " +
+      "fails the publish with fixable violations — nothing is stored.",
+    properties: {
+      type: { const: "svg" },
+      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+      svg: {
+        type: "string",
+        minLength: 1,
+        maxLength: SVG_MAX,
+        description: "SVG source (≤256KB); sanitized + re-serialized on publish",
+      },
+    },
+    required: ["type", "title", "svg"],
     additionalProperties: false,
   },
 ];
@@ -537,10 +559,19 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
       requireString(input.reason, "/reason", { min: 1, max: REASON_MAX });
       return input as unknown as ArtifactContent;
     }
+    case "svg": {
+      rejectUnknownFields(input, ["type", "title", "svg"], "");
+      requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
+      // Shape only — the sanitizer (issue 09) is the authoritative gate on
+      // the markup itself, run at the publish path so violations become a
+      // tool error and nothing is stored.
+      requireString(input.svg, "/svg", { min: 1, max: SVG_MAX });
+      return input as unknown as ArtifactContent;
+    }
     default:
       throw new ValidationError(
         "/type",
-        `expected "document", "dashboard", "compare", or "absence", ` +
+        `expected "document", "dashboard", "compare", "absence", or "svg", ` +
           `got ${JSON.stringify(input.type)}`,
       );
   }

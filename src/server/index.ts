@@ -1,7 +1,7 @@
 // Canvas Server entry: one MCP stdio server that owns the local HTTP canvas
 // service (ADR-0003). Log to stderr only — stdout is the MCP transport.
 import { fileURLToPath } from "node:url";
-import type { ArtifactEvent } from "../shared/artifacts.js";
+import type { ArtifactContent, ArtifactEvent } from "../shared/artifacts.js";
 import {
   AskbackQueue,
   AskbackValidationError,
@@ -14,6 +14,7 @@ import {
   type ApiRoute,
 } from "./http.js";
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
+import { sanitizeSvg } from "../sanitizer/index.js";
 import { openInBrowser } from "./open.js";
 import {
   ASKBACK_RATE_LIMIT,
@@ -146,6 +147,26 @@ async function main(): Promise<void> {
     openInBrowser(canvasUrl());
   };
 
+  // Free-form SVG is sanitized on the publish path (issue 10): the sanitizer
+  // (issue 09) is the single last boundary. On rejection the tool returns the
+  // violations verbatim and NOTHING is stored — the agent can fix or decline.
+  // On success we store ONLY the re-serialized output; the raw input is
+  // discarded, never persisted.
+  const sanitizeSvgContent = (content: ArtifactContent): ArtifactContent => {
+    if (content.type !== "svg") return content;
+    const result = sanitizeSvg(content.svg);
+    if (!result.ok) {
+      const lines = result.violations
+        .map((v) => `  · [${v.code}] ${v.path}: ${v.detail}`)
+        .join("\n");
+      throw new ToolInputError(
+        `SVG rejected by the sanitizer — nothing was stored. Fix these and ` +
+          `retry, or publish an "absence" artifact instead:\n${lines}`,
+      );
+    }
+    return { ...content, svg: result.svg };
+  };
+
   const mapErrors = <T>(fn: () => T): T => {
     try {
       return fn();
@@ -171,7 +192,7 @@ async function main(): Promise<void> {
       inputSchema: publishArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {
-          const content = validateArtifactContent(args);
+          const content = sanitizeSvgContent(validateArtifactContent(args));
           const meta = store.publish(content);
           broadcastArtifactEvent({
             artifact_id: meta.id,
@@ -194,7 +215,7 @@ async function main(): Promise<void> {
           const { artifactId, content } = validateUpdateInput(args);
           // Type stability is enforced by the store itself (ADR-0006);
           // ArtifactTypeMismatchError surfaces as a friendly tool error.
-          const meta = store.update(artifactId, content);
+          const meta = store.update(artifactId, sanitizeSvgContent(content));
           broadcastArtifactEvent({
             artifact_id: meta.id,
             version: meta.latest,

@@ -147,6 +147,11 @@ header.canvas-chrome .live {
   color: var(--muted);
   font-style: italic;
 }
+/* Free-form SVG provenance badge — visually distinct from component badges. */
+.badge.freeform {
+  border-color: var(--accent-warm);
+  color: var(--accent-warm);
+}
 .vchip {
   margin-left: auto;
   display: flex;
@@ -436,6 +441,20 @@ header.canvas-chrome .live {
   .compare {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Free-form SVG (Image Isolation: inert <img>, ADR-0009 caption) ──── */
+.svg-holder img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+.svg-caption {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--muted);
+  margin-top: 10px;
 }
 
 /* ── Ask-back pill + composer (prototype pattern) ───────────────────── */

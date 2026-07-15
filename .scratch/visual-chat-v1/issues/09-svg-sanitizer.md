@@ -1,6 +1,6 @@
 # 09 — SVG sanitizer: zero-dep, re-serializing, reject-not-drop
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M3
 Blocked by: 02
@@ -92,3 +92,47 @@ largest single issue — it is the security spine and is budgeted accordingly.
 Rendering (10), legibility analysis (11), gradients/filters/animations (not in v1's
 expressive subset — add via allowlist extension + fixtures if the pilot gallery
 demands them).
+
+## Comments
+
+Done. `src/sanitizer/` is a self-contained, zero-dependency module (parse.ts
+tokenizer/parser, allowlist.ts element/attribute/value allowlists + tree
+validation, write.ts canonical writer, ast.ts exported types for issue 11,
+index.ts the `sanitizeSvg` entry with the input-byte cap gate). Reject-not-drop
+throughout; the AST writer is the sole producer of output bytes, so input bytes
+never pass through. Caps are checked before structural work; exceeding one is a
+violation, never a truncation.
+
+Test suite (`test/svg-sanitizer.test.ts`, 78 tests): 16 hostile fixtures +
+in-test size/element bombs, 5 benign fixtures (incl. the prototype flowchart,
+which passes with meaning intact), idempotence, re-serialization proof,
+tokenizer/allowlist/caps units, the 10k-mutation fuzz smoke, and the
+zero-dependency guard (reads package.json + greps sanitizer imports).
+
+Allowlist judgment calls (flagged for security review):
+1. **Same-document marker references** `url(#id)` are permitted on
+   `marker-start`/`marker-end` only — the sole `url(` form in the subset. The
+   issue lists those two attributes in the allowlist and the prototype flowchart
+   depends on arrowheads, yet also says "NO url(…) anywhere". Reconciled by
+   allowing ONLY the fragment form, validated to resolve to an actual `<marker>`
+   id (charset `[a-zA-Z][\w-]{0,63}`); every external/other `url(` is rejected.
+   Same-document refs cannot beacon and are inert under Image Isolation. The
+   AC4 fuzz property is therefore `url\((?!#[a-zA-Z])` (external url only) run
+   against markup with text-node payloads stripped.
+2. **Fuzz checks target markup, not displayed text.** An escaped label reading
+   "url(x)" or "href" is inert characters in an image, so the on*/url/href
+   checks run after removing text-node content; `<script` is checked raw
+   (writer escaping already neutralizes it in text).
+3. **`xmlns` on the root `<svg>`** is accepted (value must equal the SVG
+   namespace) and the writer always emits it — a data:-URL `<img>` ignores an
+   un-namespaced SVG. Not in the shared attribute list; treated as root-only.
+4. **`marker`-only geometry attributes** (`refX refY markerWidth markerHeight
+   orient`) are accepted on `<marker>` only. Needed for arrowheads; all
+   numeric/fixed-keyword, no reference or script surface.
+5. **Extra keyword value sets** beyond the issue's examples — `font-style`
+   (normal/italic/oblique), `font-weight` (normal/bold/100–900),
+   `dominant-baseline`, `stroke-linecap/linejoin` — are constrained to fixed
+   enumerations. All appear in the prototype or are trivially inert.
+6. **DOCTYPE is fatal** (stops parsing) rather than a recoverable violation,
+   because a DOCTYPE can declare entities — refusing to interpret anything after
+   it is what forecloses billion-laughs expansion.

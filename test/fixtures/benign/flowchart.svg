@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 470" font-family="system-ui, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#52514e"/></marker>
+    <marker id="arrb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2a78d6"/></marker>
+  </defs>
+  <rect width="860" height="470" fill="#fcfcfb"/>
+
+  <rect x="285" y="60" width="300" height="330" rx="14" fill="none"
+        stroke="#eb6834" stroke-width="2.5" stroke-dasharray="10 6"/>
+  <text x="435" y="48" font-size="13" font-weight="700" fill="#eb6834" text-anchor="middle">TRUST BOUNDARY — the single last gate before your browser</text>
+
+  <rect x="40" y="150" width="170" height="88" rx="10" fill="#ffffff" stroke="#52514e" stroke-width="1.5"/>
+  <text x="125" y="186" font-size="15" font-weight="700" fill="#0b0b0b" text-anchor="middle">Agent Host</text>
+  <text x="125" y="206" font-size="12" fill="#52514e" text-anchor="middle">Claude Code (terminal)</text>
+
+  <rect x="310" y="110" width="250" height="150" rx="12" fill="#ffffff" stroke="#0b0b0b" stroke-width="2.5"/>
+  <text x="435" y="140" font-size="16" font-weight="800" fill="#0b0b0b" text-anchor="middle">Canvas Server (MCP)</text>
+  <text x="435" y="163" font-size="12" fill="#52514e" text-anchor="middle">schema-validates components</text>
+  <text x="435" y="181" font-size="12" fill="#52514e" text-anchor="middle">sanitizes + re-serializes SVG</text>
+  <text x="435" y="199" font-size="12" fill="#52514e" text-anchor="middle">versions every artifact</text>
+  <rect x="335" y="212" width="200" height="34" rx="6" fill="none" stroke="#52514e" stroke-width="1" stroke-dasharray="4 4"/>
+  <text x="435" y="234" font-size="12" fill="#52514e" text-anchor="middle">artifact store · v1 v2 v3…</text>
+
+  <rect x="330" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>
+  <text x="435" y="327" font-size="14" font-weight="700" fill="#2a78d6" text-anchor="middle">Ask-back Queue</text>
+  <text x="435" y="347" font-size="11.5" fill="#52514e" text-anchor="middle">anchored: artifact + version + span</text>
+
+  <rect x="650" y="150" width="170" height="88" rx="10" fill="#ffffff" stroke="#52514e" stroke-width="1.5"/>
+  <text x="735" y="186" font-size="15" font-weight="700" fill="#0b0b0b" text-anchor="middle">Browser Canvas</text>
+  <text x="735" y="206" font-size="12" fill="#52514e" text-anchor="middle">you, reading + selecting</text>
+
+  <line x1="210" y1="185" x2="303" y2="185" stroke="#52514e" stroke-width="2" marker-end="url(#arr)"/>
+  <circle cx="238" cy="168" r="10" fill="#0b0b0b"/><text x="238" y="172.5" font-size="12" font-weight="700" fill="#fcfcfb" text-anchor="middle">1</text>
+  <text x="256" y="172" font-size="11.5" fill="#52514e">publish_artifact (stdio)</text>
+
+  <line x1="560" y1="185" x2="643" y2="185" stroke="#52514e" stroke-width="2" marker-end="url(#arr)"/>
+  <circle cx="584" cy="168" r="10" fill="#0b0b0b"/><text x="584" y="172.5" font-size="12" font-weight="700" fill="#fcfcfb" text-anchor="middle">2</text>
+  <text x="598" y="172" font-size="11.5" fill="#52514e">SSE push 🔒</text>
+
+  <path d="M 700 238 C 660 320, 600 333 547 333" fill="none" stroke="#2a78d6" stroke-width="2" marker-end="url(#arrb)"/>
+  <circle cx="655" cy="300" r="10" fill="#2a78d6"/><text x="655" y="304.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <text x="672" y="304" font-size="11.5" fill="#52514e">ask-back POST 🔒</text>
+
+  <path d="M 330 333 C 180 333, 125 300 125 245" fill="none" stroke="#2a78d6" stroke-width="2" marker-end="url(#arrb)"/>
+  <circle cx="212" cy="316" r="10" fill="#2a78d6"/><text x="212" y="320.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+  <text x="130" y="320" font-size="11.5" fill="#52514e">check_askbacks</text>
+
+  <path d="M 665 128 C 640 96, 600 90 566 104" fill="none" stroke="#eb6834" stroke-width="1.5" stroke-dasharray="3 4" marker-end="url(#arr)"/>
+  <text x="672" y="120" font-size="12" font-weight="700" fill="#eb6834">⚠ every browser request carries the</text>
+  <text x="672" y="136" font-size="12" font-weight="700" fill="#eb6834">capability token — no open endpoints</text>
+
+  <text x="40" y="440" font-size="12" font-style="italic" fill="#52514e">Depicts the idea, not the exact code — free-form SVG, drawn by the model, shown as an inert image.</text>
+</svg>
