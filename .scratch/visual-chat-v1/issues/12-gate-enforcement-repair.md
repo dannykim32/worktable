@@ -58,3 +58,9 @@ acceptable precision. Round 1 (docs/qa/calibration-round-1.md): overlap/straddle
 clipped scored 100% and are ready to enforce; sub-legible scored 0% (judges SVG-space
 font, not rendered px) and must be fixed (issue 16) + re-ruled first. Do not enforce
 any check before the owner signs off on the re-calibration.
+
+## Precondition SATISFIED (calibration round 2, 2026-07-15)
+Owner re-calibrated the fixed sub-legible check (docs/qa/calibration-round-2.md):
+all four checks now at 100% precision / trustworthy. Enforcement is UNBLOCKED —
+enforce all four checks. The 9px floor is confirmed well-placed (owner ruled the
+~8px case borderline-illegible), so no threshold change.

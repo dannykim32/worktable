@@ -41,11 +41,13 @@ prior conversation context.
   sub-legible scored 0% (judged SVG-space font, not rendered px). Fixed in issue 16
   (merged) — sub-legible now judges on-screen px via the 836px card display scale.
   Evidence: `docs/qa/calibration-round-1.md`.
-- **Owner action before M5:** re-calibrate the fixed sub-legible check in the
-  gallery (round 2, with render-time-illegible cases). Its sign-off is the ADR-0007
-  gate on enforcement.
-- **Next:** M5 enforcement + bounded repair round (BLOCKED on round-2 calibration
-  sign-off), M6 Claude Code hook + request_review.
+- **Calibration round 2 (2026-07-15): PASSED — owner sign-off given.** The fixed
+  sub-legible check flipped 0% → 100%; all four checks trustworthy. The 9px floor
+  is confirmed well-placed. Evidence: `docs/qa/calibration-round-2.md`. This is the
+  ADR-0007 gate — enforcement is now unblocked.
+- **Next:** M5 enforcement + bounded repair round (in progress — enforce all four
+  checks: fail → repair round → honest absence), then M6 Claude Code hook +
+  request_review.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.
