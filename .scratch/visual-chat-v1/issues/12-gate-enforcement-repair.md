@@ -51,3 +51,10 @@ must not be able to grant itself or remove enforcement (one-way trust decision).
 ## Out of Scope
 
 Auto-flip based on precision thresholds (human decides), gate changes to components.
+
+## Precondition (calibration round 1, 2026-07-15)
+BLOCKED until issue 16 lands AND the owner re-calibrates the sub-legible check to
+acceptable precision. Round 1 (docs/qa/calibration-round-1.md): overlap/straddle/
+clipped scored 100% and are ready to enforce; sub-legible scored 0% (judges SVG-space
+font, not rendered px) and must be fixed (issue 16) + re-ruled first. Do not enforce
+any check before the owner signs off on the re-calibration.
