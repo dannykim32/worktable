@@ -17,8 +17,11 @@ prior conversation context.
   capability-URL canvas on 127.0.0.1; versioned artifact store + SSE; Document +
   absence renderers; ask-back queue with anchors; demo + E2E.
 - **M2 — Dashboard + Compare: DONE, merged, both review axes passed.** Single-axis
-  bar/line + stat tiles; two-pane compare. Brand palette (burnt orange + vanilla)
-  applied. Points capped at 200/series. 80 tests green.
+  bar/line + stat tiles; two-pane compare. Points capped at 200/series.
+- **Visual identity: committed light-only** (owner direction) — vanilla ground,
+  burnt orange as the lead/brand color, warm espresso ink, warm red reserved for
+  bad-state (orange never means "bad"), data-series colors held out of the brand
+  lane. No dark mode. Canvas theme lives in `src/canvas/styles.css`.
 - **M3 — SVG sanitizer + image-isolated SVG type: DONE, merged, security review
   passed (no bypass found).** Zero-dep reject-not-drop sanitizer (16 hostile
   fixtures + 10k fuzz), SVG rendered only as inert `<img>` data: URL. The one
