@@ -21,6 +21,8 @@
   --delta-good: #006300;
   --callout-bg: #f0efec;
   --code-bg: #f0efec;
+  --add-bg: #e2f2e2;
+  --del-bg: #fbe3e3;
   --accent-warm: #eb6834;
   --dot-live: #0ca30c;
   --dot-dead: #898781;
@@ -45,6 +47,8 @@
     --delta-good: #0ca30c;
     --callout-bg: #26261f;
     --code-bg: #111110;
+    --add-bg: #14330f;
+    --del-bg: #3d1414;
     --accent-warm: #d95926;
     --dot-live: #0ca30c;
   }
@@ -387,6 +391,49 @@ header.canvas-chrome .live {
 .dash svg .mark:focus {
   stroke: var(--text-primary);
   stroke-width: 1.5;
+}
+
+/* ── Compare component ──────────────────────────────────────────────── */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.compare .pane {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.compare .pane-head {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--callout-bg);
+}
+.compare .pane pre {
+  margin: 0;
+  padding: 10px 12px;
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-x: auto;
+}
+.compare .pane .line {
+  display: block;
+  min-height: 1.6em; /* empty lines keep their height */
+  white-space: pre;
+}
+.compare .pane .line.add {
+  background: var(--add-bg);
+}
+.compare .pane .line.del {
+  background: var(--del-bg);
+}
+/* Side-by-side ≥700px; stacked below. */
+@media (max-width: 699px) {
+  .compare {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Ask-back pill + composer (prototype pattern) ───────────────────── */

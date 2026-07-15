@@ -90,6 +90,27 @@ export interface DashboardContent {
   charts: DashboardChart[];
 }
 
+// ── Compare component (issue 08, ADR-0007) ──────────────────────────────
+
+export interface CompareLine {
+  text: string;
+  /** Supplied by the agent — the canvas never computes diffs. */
+  mark: "add" | "del" | null;
+}
+
+export interface ComparePane {
+  label: string;
+  /** ≤500 lines. */
+  lines: CompareLine[];
+}
+
+export interface CompareContent {
+  type: "compare";
+  title: string;
+  /** Exactly 2 panes. */
+  panes: ComparePane[];
+}
+
 /** Honest Absence: a first-class outcome, never an error (CONTEXT.md). */
 export interface AbsenceContent {
   type: "absence";
@@ -100,6 +121,7 @@ export interface AbsenceContent {
 export type ArtifactContent =
   | DocumentContent
   | DashboardContent
+  | CompareContent
   | AbsenceContent;
 export type ArtifactType = ArtifactContent["type"];
 

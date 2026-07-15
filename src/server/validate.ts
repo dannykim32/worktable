@@ -4,6 +4,7 @@
 import type {
   ArtifactContent,
   ChartSeries,
+  ComparePane,
   DashboardChart,
   DashboardTile,
   DocumentBlock,
@@ -27,6 +28,9 @@ const REASON_MAX = 2000;
 const TILES_MAX = 8;
 const CHARTS_MAX = 4;
 const SERIES_MAX = 4;
+// Compare (issue 08): exactly two panes, agent-supplied marks.
+const PANES_EXACT = 2;
+const PANE_LINES_MAX = 500;
 
 // ---------------------------------------------------------------------------
 // JSON Schemas, declared on the MCP tools so hosts see the exact contract.
@@ -153,6 +157,31 @@ const chartSchema = {
   additionalProperties: false,
 };
 
+const paneSchema = {
+  type: "object",
+  properties: {
+    label: { type: "string" },
+    lines: {
+      type: "array",
+      maxItems: PANE_LINES_MAX,
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          mark: {
+            enum: ["add", "del", null],
+            description: "supplied by the agent — the canvas never diffs",
+          },
+        },
+        required: ["text", "mark"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["label", "lines"],
+  additionalProperties: false,
+};
+
 const contentVariants = [
   {
     type: "object",
@@ -178,6 +207,21 @@ const contentVariants = [
       charts: { type: "array", maxItems: CHARTS_MAX, items: chartSchema },
     },
     required: ["type", "title", "tiles", "charts"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "compare" },
+      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+      panes: {
+        type: "array",
+        minItems: PANES_EXACT,
+        maxItems: PANES_EXACT,
+        items: paneSchema,
+      },
+    },
+    required: ["type", "title", "panes"],
     additionalProperties: false,
   },
   {
@@ -387,6 +431,36 @@ function validateChart(v: unknown, path: string): DashboardChart {
   return v as unknown as DashboardChart;
 }
 
+function validatePane(v: unknown, path: string): ComparePane {
+  if (!isRecord(v)) throw new ValidationError(path, "expected an object");
+  rejectUnknownFields(v, ["label", "lines"], path);
+  requireString(v.label, `${path}/label`);
+  if (!Array.isArray(v.lines)) {
+    throw new ValidationError(`${path}/lines`, "expected an array");
+  }
+  if (v.lines.length > PANE_LINES_MAX) {
+    throw new ValidationError(
+      `${path}/lines`,
+      `must have at most ${PANE_LINES_MAX} lines`,
+    );
+  }
+  v.lines.forEach((line, i) => {
+    const linePath = `${path}/lines/${i}`;
+    if (!isRecord(line)) {
+      throw new ValidationError(linePath, "expected an object");
+    }
+    rejectUnknownFields(line, ["text", "mark"], linePath);
+    requireString(line.text, `${linePath}/text`);
+    if (line.mark !== "add" && line.mark !== "del" && line.mark !== null) {
+      throw new ValidationError(
+        `${linePath}/mark`,
+        'expected "add", "del", or null',
+      );
+    }
+  });
+  return v as unknown as ComparePane;
+}
+
 /** Validate publish_artifact input; throws ValidationError with a JSON path. */
 export function validateArtifactContent(input: unknown): ArtifactContent {
   if (!isRecord(input)) throw new ValidationError("/", "expected an object");
@@ -431,6 +505,21 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
       input.charts.forEach((chart, i) => validateChart(chart, `/charts/${i}`));
       return input as unknown as ArtifactContent;
     }
+    case "compare": {
+      rejectUnknownFields(input, ["type", "title", "panes"], "");
+      requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
+      if (!Array.isArray(input.panes)) {
+        throw new ValidationError("/panes", "expected an array");
+      }
+      if (input.panes.length !== PANES_EXACT) {
+        throw new ValidationError(
+          "/panes",
+          `must have exactly ${PANES_EXACT} panes`,
+        );
+      }
+      input.panes.forEach((pane, i) => validatePane(pane, `/panes/${i}`));
+      return input as unknown as ArtifactContent;
+    }
     case "absence": {
       rejectUnknownFields(input, ["type", "title", "reason"], "");
       requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
@@ -440,7 +529,7 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
     default:
       throw new ValidationError(
         "/type",
-        `expected "document", "dashboard", or "absence", ` +
+        `expected "document", "dashboard", "compare", or "absence", ` +
           `got ${JSON.stringify(input.type)}`,
       );
   }
