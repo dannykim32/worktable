@@ -6,6 +6,7 @@
 // textContent / createElement — never innerHTML.
 import type { ArtifactContent, ArtifactType } from "../../shared/artifacts.js";
 import { renderAbsence } from "./absence.js";
+import { renderDashboard } from "./dashboard.js";
 import { renderDocument } from "./document.js";
 
 export type ComponentRenderer = (
@@ -15,5 +16,6 @@ export type ComponentRenderer = (
 
 export const componentRegistry: Record<ArtifactType, ComponentRenderer> = {
   document: renderDocument,
+  dashboard: renderDashboard,
   absence: renderAbsence,
 };

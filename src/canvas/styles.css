@@ -13,6 +13,11 @@
   --border: rgba(11, 11, 11, 0.1);
   --series-1: #2a78d6;
   --series-2: #1baf7a;
+  /* Slots 3–4 extend the prototype's categorical order; validated with the
+     dataviz six-checks script against --surface-1 (light run: PASS, series-2
+     contrast WARN relieved by the mandatory direct value labels). */
+  --series-3: #9a5bd2;
+  --series-4: #c85c8e;
   --delta-good: #006300;
   --callout-bg: #f0efec;
   --code-bg: #f0efec;
@@ -33,6 +38,10 @@
     --border: rgba(255, 255, 255, 0.1);
     --series-1: #3987e5;
     --series-2: #199e70;
+    /* Dark steps selected separately and validated against the dark
+       surface (all six checks PASS) — not an automatic flip. */
+    --series-3: #a97ae0;
+    --series-4: #cf6690;
     --delta-good: #0ca30c;
     --callout-bg: #26261f;
     --code-bg: #111110;
@@ -234,6 +243,150 @@ header.canvas-chrome .live {
 }
 .doc li {
   margin: 2px 0;
+}
+
+/* ── Dashboard component ────────────────────────────────────────────── */
+/* Categorical palette slots, assigned in fixed order (never cycled). */
+.dash .s1 {
+  --series: var(--series-1);
+}
+.dash .s2 {
+  --series: var(--series-2);
+}
+.dash .s3 {
+  --series: var(--series-3);
+}
+.dash .s4 {
+  --series: var(--series-4);
+}
+.dash .tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.dash .tile {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.dash .tile .label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.dash .tile .value {
+  font-size: 26px;
+  font-weight: 650;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.dash .tile .delta {
+  font-size: 12px;
+}
+.dash .tile .delta.tone-good {
+  color: var(--delta-good);
+}
+.dash .tile .delta.tone-bad {
+  color: var(--accent-warm);
+}
+.dash .tile .delta.tone-neutral {
+  color: var(--muted);
+}
+.dash .chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 6px 0 8px;
+}
+.dash .chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+.dash .chart-legend .key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dash .chart-legend .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--series);
+}
+.dash .chart-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+.dash .chart-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.dash .tooltip {
+  position: absolute;
+  pointer-events: none;
+  display: none;
+  background: var(--text-primary);
+  color: var(--page);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transform: translate(-50%, -130%);
+  z-index: 10;
+}
+/* Chart internals: recessive hairline grid, one ink baseline at zero. */
+.dash svg .grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+.dash svg .baseline {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+/* Values and labels wear ink colors, never series colors. */
+.dash svg .tick {
+  font-size: 11px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.dash svg .cat-label {
+  font-size: 12px;
+  fill: var(--text-secondary);
+}
+.dash svg .value-label {
+  font-size: 12px;
+  fill: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dash svg .series-label {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text-secondary);
+}
+/* Marks: thin, rounded data ends (bar paths), 2px sparkline-style lines. */
+.dash svg .bar-mark {
+  fill: var(--series);
+}
+.dash svg .line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dash svg .dot {
+  fill: var(--series);
+  stroke: var(--surface-1);
+  stroke-width: 1.5;
+}
+.dash svg .mark:focus {
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
 }
 
 /* ── Ask-back pill + composer (prototype pattern) ───────────────────── */
