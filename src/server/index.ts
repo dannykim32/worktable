@@ -15,7 +15,7 @@ import {
 } from "./http.js";
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { sanitizeSvg } from "../sanitizer/index.js";
-import { runGate } from "../gate/index.js";
+import { runGateSafe } from "../gate/index.js";
 import { CalibrationLedger, InvalidRulingError } from "./calibration.js";
 import { openInBrowser } from "./open.js";
 import {
@@ -236,7 +236,17 @@ async function main(): Promise<void> {
           `retry, or publish an "absence" artifact instead:\n${lines}`,
       );
     }
-    return { content: { ...content, svg: result.svg }, findings: runGate(result.root) };
+    // Fail-open: the gate NEVER decides whether the artifact publishes — not by
+    // its findings, and not by throwing. A gate exception degrades to zero
+    // findings and is logged to stderr (stdout is the MCP transport).
+    const gate = runGateSafe(result.root);
+    if (gate.error !== null) {
+      console.error(
+        `visual-chat: legibility gate errored (report-only, publishing ` +
+          `anyway): ${gate.error}`,
+      );
+    }
+    return { content: { ...content, svg: result.svg }, findings: gate.findings };
   };
 
   const mapErrors = <T>(fn: () => T): T => {

@@ -172,3 +172,20 @@ rule each correct / false-positive and watch the per-check precision update.
   diagrams (e.g. a numbered badge poking 2.6px past a box corner) — expected,
   and exactly what the report-only calibration pass exists to measure before
   issue 12 turns any of this into enforcement.
+
+### Review fix — report-only made structural against gate exceptions
+Review finding: `runGate` was called in `prepareContent` before `store.publish`
+with no try/catch, so a hypothetical geometry bug (pathological path `d`,
+degenerate transform) would propagate and block the publish — making the
+report-only guarantee incidental on `runGate` being total rather than
+structural. Fixed with `runGateSafe(root)` (new export in `src/gate/index.ts`):
+it wraps `runGate` in try/catch and, on any throw, degrades to zero findings +
+an error string. The server calls `runGateSafe` and logs any error to stderr
+(stdout is the MCP transport), then publishes regardless — so the gate can now
+affect a publish neither by its findings NOR by throwing. Added a unit test that
+feeds `runGate` a structurally broken AST (children not iterable) proving the
+raw gate throws while `runGateSafe` returns `{ findings: [], error }` — a real
+throw, not a mock. (An integration test forcing a throw through the real MCP
+path would need a fault-injection seam in production code; the wrapper is the
+exact seam the server uses, so the unit test covers the guarantee honestly.)
+`bun test` green: 201 pass.

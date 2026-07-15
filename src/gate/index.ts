@@ -71,6 +71,24 @@ export function runGate(root: SvgElement): Finding[] {
   ];
 }
 
+/**
+ * Fail-open wrapper for the publish path. The gate is REPORT-ONLY (ADR-0007):
+ * it must NEVER decide whether an artifact publishes — not by its findings, and
+ * not by throwing. `runGate` is intended to be total, but a geometry bug on a
+ * pathological input must not become a publish-blocking exception. So any throw
+ * is swallowed here and degrades to zero findings; the caller publishes anyway.
+ */
+export function runGateSafe(root: SvgElement): {
+  findings: Finding[];
+  error: string | null;
+} {
+  try {
+    return { findings: runGate(root), error: null };
+  } catch (err) {
+    return { findings: [], error: String(err) };
+  }
+}
+
 /** The root viewBox as a user-space box, or a width/height fallback, or null
  *  when neither is declared (the clip check then has no frame and is skipped). */
 export function parseViewBox(root: SvgElement): Bbox | null {

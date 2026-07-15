@@ -10,7 +10,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { sanitizeSvg } from "../src/sanitizer/index.js";
-import { runGate } from "../src/gate/index.js";
+import { runGate, runGateSafe } from "../src/gate/index.js";
+import type { SvgElement } from "../src/sanitizer/ast.js";
 import type { Bbox, CheckName, Finding } from "../src/gate/index.js";
 import {
   applyToPoint,
@@ -213,6 +214,35 @@ describe("fixture suite — known-good SVGs produce zero findings (AC1)", () => 
       expect(gate(fx.svg)).toEqual([]);
     });
   }
+});
+
+// ── Report-only is structural: the gate cannot block a publish (AC3) ────────
+
+describe("runGateSafe fails open — a gate exception degrades to zero findings", () => {
+  test("a clean root gates normally through the safe wrapper", () => {
+    const result = sanitizeSvg(GOOD[0]!.svg);
+    if (!result.ok) throw new Error("fixture did not sanitize");
+    const safe = runGateSafe(result.root);
+    expect(safe.error).toBeNull();
+    expect(safe.findings).toEqual([]);
+  });
+
+  test("a root that makes runGate throw returns [] + an error, never propagates", () => {
+    // A structurally broken AST (children not iterable) makes the real runGate
+    // throw — proving the wrapper catches an ACTUAL throw, not a mocked one.
+    const broken = {
+      kind: "element",
+      name: "svg",
+      attributes: [],
+      children: undefined,
+      path: "/svg",
+      line: 1,
+    } as unknown as SvgElement;
+    expect(() => runGate(broken)).toThrow(); // the raw gate does throw
+    const safe = runGateSafe(broken); // the wrapper does not
+    expect(safe.findings).toEqual([]);
+    expect(safe.error).not.toBeNull();
+  });
 });
 
 // ── Geometry units (bbox math incl. transforms + anchors) ───────────────────
