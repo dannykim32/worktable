@@ -3,11 +3,19 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deriveWorkspaceId } from "../src/server/workspace.js";
 
 export const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 export const serverEntry = join(repoRoot, "src", "server", "index.ts");
@@ -77,11 +85,28 @@ export interface SpawnedServer {
 }
 
 /** Spawn the Canvas Server as a real subprocess with an isolated HOME.
- *  Pass `home` to reuse existing workspace state (restart scenarios). */
+ *  Pass `home` to reuse existing workspace state (restart scenarios). Pass
+ *  `gate` to pre-seed `<stateDir>/config.json` BEFORE startup, since the gate
+ *  mode is read once at boot (issue 12). */
 export async function spawnServer(
-  opts: { env?: Record<string, string>; home?: string } = {},
+  opts: {
+    env?: Record<string, string>;
+    home?: string;
+    gate?: "report" | "enforce";
+  } = {},
 ): Promise<SpawnedServer> {
   const home = opts.home ?? mkdtempSync(join(tmpdir(), "visual-chat-test-"));
+  if (opts.gate) {
+    // The workspace id derives from cwd (the repo root the server runs in), so
+    // it is deterministic here — pre-create the state dir and drop config.json.
+    const stateDir = join(home, ".visual-chat", deriveWorkspaceId(repoRoot));
+    mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+    writeFileSync(
+      join(stateDir, "config.json"),
+      JSON.stringify({ gate: opts.gate }, null, 2),
+      { mode: 0o600 },
+    );
+  }
   const transport = new StdioClientTransport({
     command: "bun",
     args: [serverEntry],

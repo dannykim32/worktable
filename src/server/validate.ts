@@ -258,15 +258,33 @@ const contentVariants = [
         maxLength: SVG_MAX,
         description: "SVG source (≤256KB); sanitized + re-serialized on publish",
       },
+      repair_token: {
+        type: "string",
+        description:
+          "Only when resubmitting an SVG the Legibility Gate just failed under " +
+          "enforcement: echo the repair_token from that failure so the server " +
+          "correlates this retry with it. Omit on a first publish.",
+      },
     },
     required: ["type", "title", "svg"],
     additionalProperties: false,
   },
 ];
 
-export const publishArtifactSchema = { oneOf: contentVariants };
+// MCP requires a tool inputSchema to be a JSON Schema whose TOP LEVEL is an
+// object (`type: "object"`) — a spec-compliant host (and the SDK's own
+// ListTools result parser) rejects a bare top-level `oneOf`/union, and can then
+// enumerate none of our tools. So the per-artifact-type object schemas stay as
+// `oneOf` branches (each is already `type: "object"`) but hang under a
+// top-level object wrapper. The hand-validator below is the authoritative gate;
+// this shape is only what hosts read.
+export const publishArtifactSchema = {
+  type: "object",
+  oneOf: contentVariants,
+};
 
 export const updateArtifactSchema = {
+  type: "object",
   oneOf: contentVariants.map((variant) => ({
     ...variant,
     properties: {
