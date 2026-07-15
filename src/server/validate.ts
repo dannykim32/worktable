@@ -5,6 +5,7 @@ import type {
   ArtifactContent,
   DocumentBlock,
 } from "../shared/artifacts.js";
+import { ARTIFACT_ID_PATTERN, isArtifactId } from "../shared/constraints.js";
 
 export class ValidationError extends Error {
   constructor(
@@ -123,7 +124,7 @@ export const updateArtifactSchema = {
   oneOf: contentVariants.map((variant) => ({
     ...variant,
     properties: {
-      artifact_id: { type: "string", pattern: "^a_[0-9a-f]{8}$" },
+      artifact_id: { type: "string", pattern: ARTIFACT_ID_PATTERN.source },
       ...variant.properties,
     },
     required: ["artifact_id", ...variant.required],
@@ -276,7 +277,7 @@ export function validateUpdateInput(input: unknown): {
 } {
   if (!isRecord(input)) throw new ValidationError("/", "expected an object");
   const { artifact_id: artifactId, ...content } = input;
-  if (typeof artifactId !== "string" || !/^a_[0-9a-f]{8}$/.test(artifactId)) {
+  if (!isArtifactId(artifactId)) {
     throw new ValidationError(
       "/artifact_id",
       'expected an id of the form "a_" + 8 hex chars',

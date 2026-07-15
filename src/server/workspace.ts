@@ -1,16 +1,10 @@
 // Workspace identity + capability-token state (ADR-0005).
 // All state lives under ~/.visual-chat/<workspaceId>/ — dirs 0700, files 0600.
 import { createHash, randomBytes } from "node:crypto";
-import {
-  chmodSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { atomicWriteFile } from "./atomicWrite.js";
 
 /** workspaceId = sha256(realpath(cwd)) truncated to 12 hex chars. */
 export function deriveWorkspaceId(cwd: string = process.cwd()): string {
@@ -22,13 +16,6 @@ export function deriveWorkspaceId(cwd: string = process.cwd()): string {
 
 export function mintToken(): string {
   return randomBytes(32).toString("base64url");
-}
-
-/** Write a workspace state file atomically (tmp + rename), always 0600. */
-export function writeStateFile(path: string, contents: string): void {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, contents, { mode: 0o600 });
-  renameSync(tmp, path);
 }
 
 export interface Workspace {
@@ -70,7 +57,7 @@ export function openWorkspace(opts: OpenWorkspaceOptions = {}): Workspace {
     if (token.length === 0) throw new Error("empty token file");
   } catch {
     token = mintToken();
-    writeStateFile(tokenPath, token);
+    atomicWriteFile(tokenPath, token);
   }
   chmodSync(tokenPath, 0o600);
 
@@ -82,11 +69,11 @@ export function openWorkspace(opts: OpenWorkspaceOptions = {}): Workspace {
     },
     rotateToken() {
       token = mintToken();
-      writeStateFile(tokenPath, token);
+      atomicWriteFile(tokenPath, token);
       return token;
     },
     recordPort(port: number) {
-      writeStateFile(join(dir, "port"), String(port));
+      atomicWriteFile(join(dir, "port"), String(port));
     },
   };
 }

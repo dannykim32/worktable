@@ -2,18 +2,15 @@
 // Persistence: <stateDir>/askbacks.jsonl (0600), append-only for new items,
 // atomic tmp+rename rewrite when marking delivery.
 import { randomBytes } from "node:crypto";
-import {
-  appendFileSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Anchor, Askback } from "../shared/artifacts.js";
-
-export const QUESTION_MAX = 2000;
-export const QUOTE_MAX = 300;
+import {
+  isArtifactId,
+  QUESTION_MAX,
+  QUOTE_MAX,
+} from "../shared/constraints.js";
+import { atomicWriteFile } from "./atomicWrite.js";
 
 export class AskbackValidationError extends Error {}
 
@@ -59,10 +56,7 @@ export function validateAskbackBody(body: unknown): {
       throw new AskbackValidationError(`unexpected anchor field "${key}"`);
     }
   }
-  if (
-    typeof anchor.artifact_id !== "string" ||
-    !/^a_[0-9a-f]{8}$/.test(anchor.artifact_id)
-  ) {
+  if (!isArtifactId(anchor.artifact_id)) {
     throw new AskbackValidationError("anchor.artifact_id must be an artifact id");
   }
   if (!Number.isInteger(anchor.version) || (anchor.version as number) < 1) {
@@ -148,13 +142,10 @@ export class AskbackQueue {
       return { ...a, state: "delivered" as const };
     });
     if (drained.length > 0) {
-      const tmp = `${this.path}.tmp-${process.pid}-${Date.now()}`;
-      writeFileSync(
-        tmp,
+      atomicWriteFile(
+        this.path,
         rewritten.map((a) => JSON.stringify(a)).join("\n") + "\n",
-        { mode: 0o600 },
       );
-      renameSync(tmp, this.path);
     }
     return drained;
   }

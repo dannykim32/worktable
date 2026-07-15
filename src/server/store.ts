@@ -8,11 +8,10 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
-  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import type { ArtifactContent, ArtifactMeta } from "../shared/artifacts.js";
+import { atomicWriteFile, type AtomicWriteHooks } from "./atomicWrite.js";
 
 export class UnknownArtifactError extends Error {
   constructor(id: string) {
@@ -34,22 +33,15 @@ export function mintArtifactId(): string {
   return `a_${randomBytes(4).toString("hex")}`;
 }
 
-export interface AtomicWriteHooks {
-  /** Test seam: runs between the tmp write and the rename (the commit point). */
-  beforeRename?: () => void;
-}
-
-/** Write JSON atomically: tmp file (0600) + rename. A crash before the rename
- *  leaves the previous state fully intact — never a torn v<N>.json. */
+/** JSON flavor of the single atomic tmp+rename helper (atomicWrite.ts).
+ *  A crash before the rename leaves prior state intact — never a torn
+ *  v<N>.json. */
 export function atomicWriteJson(
   path: string,
   value: unknown,
   hooks: AtomicWriteHooks = {},
 ): void {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, JSON.stringify(value, null, 2), { mode: 0o600 });
-  hooks.beforeRename?.();
-  renameSync(tmp, path);
+  atomicWriteFile(path, JSON.stringify(value, null, 2), hooks);
 }
 
 export class ArtifactStore {

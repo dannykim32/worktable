@@ -3,10 +3,9 @@
 // The Anchor pins artifact + the Version being viewed + block/char span,
 // with the quote always carried so it survives content drift (ADR-0006).
 import type { Anchor } from "../shared/artifacts.js";
+import { QUOTE_MAX } from "../shared/constraints.js";
 import type { CanvasApi } from "./api.js";
 import type { Gallery } from "./gallery.js";
-
-export const QUOTE_MAX = 300;
 
 /** Absolute character offset of (node, offsetInNode) within root's text. */
 export function textOffsetWithin(
