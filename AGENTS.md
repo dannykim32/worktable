@@ -20,3 +20,23 @@ wontfix. See `docs/agents/triage-labels.md`.
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root.
 See `docs/agents/domain.md`.
+
+## Visual Chat
+
+A companion canvas is available via the visual-chat MCP tools (register per
+`docs/setup.md`). The terminal stays the conversation driver; the canvas
+renders artifacts.
+
+- Call `check_askbacks` at the START of every turn. It returns questions the
+  human anchored to specific artifacts, versions, and text spans — answer
+  them with the anchor's context, and prefer updating the same artifact.
+- Publish an artifact (`publish_artifact`) when structure beats prose:
+  design notes, comparisons, tabular data, multi-section explanations.
+  Answer in plain text when a sentence or two suffices.
+- Update artifacts in place (`update_artifact`) rather than republishing:
+  the artifact keeps its identity and readers keep version history.
+- Honest absence: if you cannot render something truthfully (too large, not
+  enough data, would require guessing), publish `type: "absence"` with the
+  reason. Never fabricate a visual.
+- Bound large inputs: render a truthful subset and say so in the artifact
+  itself ("showing 20 of 5,471"), or decline with an absence artifact.

@@ -1,6 +1,6 @@
 # 06 — Walking-skeleton E2E + Claude Code registration
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M1
 Blocked by: 05
@@ -56,3 +56,14 @@ No headless browser in v1 tests (DOM covered by 04's jsdom tests; visual QA manu
 ## Out of Scope
 
 Hook installation (13), any new server/canvas features.
+
+## Comments
+
+Criterion 1 (E2E test) and 4 (scripts/demo.ts, verified exit 0 unattended with a
+short VISUAL_CHAT_DEMO_TIMEOUT_MS) are implemented and green. Criteria 2 and 3 are
+manual walkthroughs an agent cannot perform — docs/setup.md carries the verbatim
+checklist; manual verification is PENDING THE HUMAN. Mitigation: the same loop was
+exercised programmatically (E2E over real stdio MCP + loopback HTTP) and once in
+headless Chromium during issue 05 (real selection → pill → composer →
+check_askbacks). AGENTS.md gained the ## Visual Chat guidance section; the demo
+script prefers dist/ and falls back to bun + src for unbuilt checkouts.
