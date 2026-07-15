@@ -1,6 +1,6 @@
 # 16 — Fix the sub-legible check to judge rendered pixels (calibration-driven)
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M4.5 (blocks M5 enforcement of the sub-legible check)
 Blocked by: 11
@@ -67,3 +67,52 @@ M5 (issue 12) is unblocked to enforce all four checks.
 Enforcement / repair round (issue 12). Changing the other three checks. Making
 CANVAS_CONTENT_WIDTH dynamic (a documented constant is the v1 contract; the gate
 runs at publish time with no client viewport).
+
+## Comments
+
+Done. The sub-legible check now judges ON-SCREEN pixels, not raw user-space size.
+
+What changed (src/gate/):
+- `checks.ts`: added `CANVAS_CONTENT_WIDTH = 836` (documented derivation from
+  styles.css: `.artifact` 880 − 2×22 `.body` padding; `.svg-holder img` is
+  max-width:100%) and a pure `displayScaleFor(viewBoxWidth)` helper. `checkSubLegible`
+  now takes the root viewBox width, computes `displayScale = 836 / vbW`, and judges
+  `renderedPx = transformedFontSize × displayScale` against the 9px floor. The
+  finding message now states the estimated rendered px and the display scale used.
+  Renamed the `TextRun.renderedFontSize` field to `transformedFontSize` — it only
+  ever held the post-transform user-space size, and the display scale is applied
+  later, so the old name was a lie.
+- `index.ts`: passes `viewBox ? viewBox.w : null` into `checkSubLegible`; sets
+  `transformedFontSize`. Report-only wiring and `runGateSafe` unchanged.
+
+Degenerate contract (AC4): `displayScaleFor` returns 1 for a null / zero /
+negative / non-finite viewBox width — no divide-by-zero, no throw. The fallback
+judges the user-space size as-is (the old behavior), which is the honest thing to
+do when no display scale is knowable; a normal font does not false-positive.
+
+Acceptance criteria — all met, verified:
+- AC1: round-1 6px & 7px in a 400 viewBox → 0 sub-legible findings (render ~12.5 /
+  ~14.6px).
+- AC2: 6px in a 1600 viewBox → still flags, "renders at ~3.1px (display scale 0.5×)".
+- AC3: boundary in a 1672 viewBox (display scale exactly 0.5×): 16px → 8px flags,
+  18px → exactly 9px clean (floor inclusive). Fixtures assert coordinates.
+- AC4: zero-width viewBox does not throw and does not false-positive a 16px font;
+  displayScaleFor degenerate cases unit-tested.
+- AC5: the other three checks (text-overlap, edge-straddle, clipped) are untouched;
+  their fixtures pass identically.
+- AC6: `bun test` green (210 pass); zero new deps in src/gate/.
+
+Tests: legibility-gate.test.ts 32 → 41 pass (+5 display-scale units, +3 GOOD /
+net +1 BAD fixtures). The integration `ILLEGIBLE` fixture was retuned (8px in a
+1600-wide viewBox) so it still exercises the multi-finding report-only path
+(sub-legible + clipped) under the render-aware logic.
+
+Assumption on the display-scale model: it estimates the canvas render width as a
+fixed 836px content box for every card, applying a uniform `836 / viewBoxWidth`
+scale to font sizes. This assumes the SVG fills the card content width (true given
+`.svg-holder img { max-width:100% }` and typical wide diagrams) and ignores the
+narrower-viewport (mobile / very tall or portrait SVG) case where the image may be
+height-constrained and render narrower than 836px — there the true display scale
+is smaller, so the check could under-report on portrait SVGs. That is acceptable
+for the report-only v1 contract (issue 16 Out of Scope: no dynamic width); if it
+proves lossy in re-calibration, the constant is the single place to revisit.

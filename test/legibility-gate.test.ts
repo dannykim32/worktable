@@ -12,7 +12,12 @@ import { join } from "node:path";
 import { sanitizeSvg } from "../src/sanitizer/index.js";
 import { runGate, runGateSafe } from "../src/gate/index.js";
 import type { SvgElement } from "../src/sanitizer/ast.js";
-import type { Bbox, CheckName, Finding } from "../src/gate/index.js";
+import type { Bbox, CheckName, Finding, TextRun } from "../src/gate/index.js";
+import {
+  CANVAS_CONTENT_WIDTH,
+  checkSubLegible,
+  displayScaleFor,
+} from "../src/gate/checks.js";
 import {
   applyToPoint,
   bboxOfPoints,
@@ -52,6 +57,12 @@ function near(a: Bbox, b: Bbox, tol = 5): boolean {
 }
 
 const S = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">';
+// A WIDE viewBox: the canvas shrinks it to 836px, so display scale is 836/1600 =
+// 0.5225× — small user-space fonts render genuinely sub-legible here (issue 16).
+const W = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 800">';
+// A viewBox exactly twice the render width → display scale 836/1672 = 0.5×
+// exactly, which makes the rendered-9px boundary land on round font sizes.
+const B = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 400">';
 
 // ── The ±5px fixture suite ──────────────────────────────────────────────────
 
@@ -120,18 +131,28 @@ const BAD: BadFixture[] = [
     bbox: { x: 250, y: 80, w: 420, h: 24 },
   },
   {
-    name: "6px sub-legible caption",
-    svg: S + '<text x="30" y="100" font-size="6">microscopic caption</text></svg>',
+    // 10px user-space font in a 1600-wide viewBox renders at ~5.2px (issue 16).
+    name: "tiny text in a wide viewBox renders sub-legible",
+    svg: W + '<text x="100" y="400" font-size="10">tiny in a wide canvas</text></svg>',
     check: "sub-legible",
-    bbox: { x: 30, y: 94, w: 68.4, h: 7.2 },
+    bbox: { x: 100, y: 390, w: 126, h: 12 },
   },
   {
-    name: "text shrunk sub-legible by a transform",
+    // Combined: transform scale 0.2 → 4px user space, then display scale 2.09×
+    // in a 400-wide viewBox → ~8.36px rendered, still under the floor.
+    name: "text sub-legible by combined transform and display scale",
     svg:
       S +
-      '<g transform="scale(0.4)"><text x="100" y="200" font-size="20">shrunk by transform</text></g></svg>',
+      '<g transform="scale(0.2)"><text x="100" y="200" font-size="20">shrunk small</text></g></svg>',
     check: "sub-legible",
-    bbox: { x: 40, y: 72, w: 91.2, h: 9.6 },
+    bbox: { x: 20, y: 36, w: 28.8, h: 4.8 },
+  },
+  {
+    // Boundary just under: display scale 0.5×, 16px user → 8.0px rendered (< 9).
+    name: "text just below the rendered 9px floor",
+    svg: B + '<text x="200" y="200" font-size="16">boundary just under</text></svg>',
+    check: "sub-legible",
+    bbox: { x: 200, y: 184, w: 182.4, h: 19.2 },
   },
 ];
 
@@ -176,6 +197,23 @@ const GOOD: Array<{ name: string; svg: string }> = [
   {
     name: "text at exactly the 9px legibility floor",
     svg: S + '<text x="30" y="100" font-size="9">just legible enough</text></svg>',
+  },
+  {
+    // Calibration round-1 false positive #1: a 6px caption in a 400-wide viewBox
+    // renders at ~12.5px on the 836px canvas — legible (issue 16, AC1).
+    name: "round-1 6px caption in a 400 viewBox renders legibly",
+    svg: S + '<text x="30" y="100" font-size="6">microscopic caption</text></svg>',
+  },
+  {
+    // Calibration round-1 false positive #2: a 7px note renders at ~14.6px.
+    name: "round-1 7px note in a 400 viewBox renders legibly",
+    svg: S + '<text x="30" y="120" font-size="7">tiny note that still reads</text></svg>',
+  },
+  {
+    // Boundary just above: display scale 0.5×, 18px user → 9.0px rendered — the
+    // floor is inclusive, so this is legible (issue 16, AC3).
+    name: "text at exactly the rendered 9px floor in a wide viewBox",
+    svg: B + '<text x="200" y="200" font-size="18">boundary exactly nine</text></svg>',
   },
 ];
 
@@ -242,6 +280,56 @@ describe("runGateSafe fails open — a gate exception degrades to zero findings"
     const safe = runGateSafe(broken); // the wrapper does not
     expect(safe.findings).toEqual([]);
     expect(safe.error).not.toBeNull();
+  });
+});
+
+// ── Sub-legible display-scale model (issue 16) ──────────────────────────────
+
+describe("sub-legible judges rendered px via display scale (issue 16)", () => {
+  test("displayScaleFor divides the render width by the viewBox width", () => {
+    expect(displayScaleFor(400)).toBeCloseTo(836 / 400, 6); // ~2.09×
+    expect(displayScaleFor(1600)).toBeCloseTo(836 / 1600, 6); // ~0.52×
+    expect(displayScaleFor(CANVAS_CONTENT_WIDTH)).toBe(1); // 1:1 at the render width
+  });
+
+  test("degenerate viewBox width falls back to scale 1 (never divides by zero)", () => {
+    expect(displayScaleFor(null)).toBe(1); // no viewBox declared
+    expect(displayScaleFor(0)).toBe(1); // zero width
+    expect(displayScaleFor(-400)).toBe(1); // negative width
+    expect(displayScaleFor(Number.NaN)).toBe(1);
+    expect(displayScaleFor(Number.POSITIVE_INFINITY)).toBe(1);
+  });
+
+  const run = (transformedFontSize: number): TextRun => ({
+    ref: "#t",
+    text: "sample",
+    bbox: { x: 0, y: 0, w: 10, h: 10 },
+    transformedFontSize,
+  });
+
+  test("judges the display-scaled px, not the raw user-space px", () => {
+    // The same 6px user-space font: legible in a 400 viewBox (~12.5px), NOT in a
+    // 1600 viewBox (~3px). This is the whole point of issue 16.
+    expect(checkSubLegible([run(6)], 400)).toEqual([]);
+    expect(checkSubLegible([run(6)], 1600)).toHaveLength(1);
+  });
+
+  test("combines transform scale and display scale multiplicatively", () => {
+    // transformedFontSize already carries the transform scale; the 2.09× display
+    // scale of a 400 viewBox pushes 4px → ~8.4px, still under the 9px floor.
+    const findings = checkSubLegible([run(4)], 400);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.message).toContain("8.4px"); // rendered px, reported
+    expect(findings[0]!.message).toContain("2.1×"); // display scale, reported
+  });
+
+  test("degenerate viewBox does not throw and does not false-positive a normal font", () => {
+    // No usable width → scale 1; a 12px user-space font is still ≥ 9 → clean.
+    expect(checkSubLegible([run(12)], null)).toEqual([]);
+    expect(checkSubLegible([run(12)], 0)).toEqual([]);
+    // The fallback still judges honestly: a genuinely tiny 6px font at scale 1
+    // is caught, not silently passed.
+    expect(checkSubLegible([run(6)], 0)).toHaveLength(1);
   });
 });
 

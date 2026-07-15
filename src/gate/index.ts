@@ -63,11 +63,14 @@ export function runGate(root: SvgElement): Finding[] {
   const viewBox = parseViewBox(root);
   walk(root, { matrix: IDENTITY, fontSize: DEFAULT_FONT_SIZE, anchor: "start", textX: 0, textY: 0 }, collected);
 
+  // The sub-legible check judges ON-SCREEN pixels, so it needs the display
+  // scale, which comes from the root viewBox width (issue 16). A null viewBox
+  // (no frame declared) passes null through — the check falls back to scale 1.
   return [
     ...checkTextOverlap(collected.runs),
     ...checkEdgeStraddle(collected.runs, collected.shapes),
     ...checkClipped(collected.boxed, viewBox),
-    ...checkSubLegible(collected.runs),
+    ...checkSubLegible(collected.runs, viewBox ? viewBox.w : null),
   ];
 }
 
@@ -123,7 +126,7 @@ function walk(el: SvgElement, ctx: Ctx, out: Collected): void {
         ref,
         text: directText,
         bbox,
-        renderedFontSize: fontSize * scaleOf(matrix),
+        transformedFontSize: fontSize * scaleOf(matrix),
       });
       out.boxed.push({ ref, name: el.name, bbox });
     }

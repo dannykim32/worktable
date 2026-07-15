@@ -28,12 +28,13 @@ afterAll(async () => {
   await server?.close();
 });
 
-// A deliberately illegible SVG: a 6px label (sub-legible) that also runs off
-// the right edge of the viewBox (clipped). Sanitizes fine — the gate's job is
-// readability, not safety.
+// A deliberately illegible SVG: an 8px label in a 1600-wide viewBox, which the
+// canvas shrinks to 836px (~0.52× display scale) → ~4px rendered (sub-legible,
+// issue 16), and it also runs off the right edge of the viewBox (clipped).
+// Sanitizes fine — the gate's job is readability, not safety.
 const ILLEGIBLE =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">' +
-  '<text x="90" y="30" font-size="6">this caption is far too small and also overruns</text>' +
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 200">' +
+  '<text x="1450" y="100" font-size="8">this caption is far too small and also overruns</text>' +
   "</svg>";
 
 const CLEAN =
