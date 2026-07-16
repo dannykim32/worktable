@@ -18,44 +18,44 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const distEntry = join(repoRoot, "dist", "server", "index.js");
 const S = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">';
 
-// ROUND 2 (2026-07-15): re-calibrating the display-scale-aware sub-legible check
-// (issue 16). Includes the exact "small but fine" cases the owner already ruled
-// legible — they should now produce ZERO sub-legible findings — plus genuinely
-// render-illegible cases (small font in a WIDE viewBox that renders ~3px) that
-// SHOULD still flag, and one each of the trusted checks as a regression guard.
+// ROUND 4 (2026-07-16): re-calibrating edge-straddle after the owning-shape fix
+// (issue 17). Built to test the fix from both sides — a GENUINE straddle that must
+// still flag, the exact dogfood on-arrow pattern that must now be silent, plus the
+// other three checks as a regression guard.
 //
 // Each: a title the human sees + an SVG. "expect" is a note for the operator —
-// the gate decides what actually fires. `vb` picks the viewBox (wide viewBoxes
-// shrink the on-screen render, so small fonts there really are illegible).
-const W = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400">'; // wide → 0.52× display
-const B = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 400">'; // 0.50× display (boundary)
+// the gate decides what actually fires.
 const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
   {
-    title: "The 6px caption you ruled fine (normal-width diagram)",
-    expect: "NO sub-legible now — renders ~12.5px after display scale",
-    svg: S + '<text x="40" y="110" font-size="6">a small but perfectly readable caption</text></svg>',
-  },
-  {
-    title: "A 7px note in a normal-width diagram",
-    expect: "NO sub-legible now — renders ~14.6px",
-    svg: S + '<text x="40" y="110" font-size="7">small note, still legible on screen</text></svg>',
-  },
-  {
-    title: "Dense schematic: 6px labels in a very wide diagram",
-    expect: "sub-legible — renders ~3px, genuinely unreadable",
+    title: "A label that genuinely runs off the right edge of its own box",
+    expect: "edge-straddle SHOULD flag — center is inside the box, text pokes ~56px past the right wall",
     svg:
-      W +
-      '<rect x="40" y="120" width="300" height="120" fill="none" stroke="navy"/>' +
-      '<text x="60" y="185" font-size="6">this label is far too small to read at render size</text></svg>',
+      S +
+      '<rect x="40" y="70" width="160" height="44" fill="none" stroke="navy"/>' +
+      '<text x="100" y="97" font-size="13">label runs off right</text></svg>',
   },
   {
-    title: "Just under the line: 16px in a wide diagram",
-    expect: "sub-legible — renders exactly ~8px (floor is 9px)",
-    svg: B + '<text x="60" y="200" font-size="16">right at the boundary of legibility</text></svg>',
+    title: "A label sitting on a connector arrow between two boxes",
+    expect: "NO edge-straddle now — on-arrow label, center outside both boxes",
+    svg:
+      S +
+      '<rect x="30" y="70" width="90" height="50" fill="none" stroke="navy"/>' +
+      '<rect x="280" y="70" width="90" height="50" fill="none" stroke="navy"/>' +
+      '<line x1="120" y1="95" x2="280" y2="95" stroke="navy" stroke-width="2"/>' +
+      '<text x="200" y="90" font-size="12" text-anchor="middle">on the arrow</text></svg>',
+  },
+  {
+    title: "The dogfood pattern: an edge-label whose bbox grazes a container edge",
+    expect: "NO edge-straddle now — this is exactly what over-fired at 0% in round 3",
+    svg:
+      S +
+      '<rect x="40" y="40" width="140" height="120" fill="none" stroke="navy"/>' +
+      '<line x1="180" y1="100" x2="340" y2="100" stroke="navy" stroke-width="2"/>' +
+      '<text x="170" y="95" font-size="11">leaves the box here</text></svg>',
   },
   {
     title: "Two labels stacked on top of each other",
-    expect: "text-overlap (regression guard — was 100%)",
+    expect: "text-overlap (regression guard)",
     svg:
       S +
       '<text x="40" y="96" font-size="14">First label sits here</text>' +
@@ -63,7 +63,7 @@ const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
   },
   {
     title: "A node pushed off the right edge",
-    expect: "clipped (regression guard — was 100%)",
+    expect: "clipped (regression guard)",
     svg: S + '<rect x="360" y="60" width="70" height="40" rx="4" fill="teal"/></svg>',
   },
   {

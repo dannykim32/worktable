@@ -73,14 +73,14 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ## ▶ RESUME HERE (next session)
 
-**Open thread — edge-straddle calibration fix (issue 17), ready-for-agent.** The
-dogfood's live calibration (round 3) found the `edge-straddle` check at 0% precision:
-it over-fires on on-arrow edge-labels and double-counts one label as multiple
-findings (owner ruled all 8 false positive). The other three checks are 100%.
-Evidence: `docs/qa/calibration-round-3.md`; fix spec: issue 17. This is the last
-thing gating full-enforcement trust. **Coordinator plan:** dispatch a worktree agent
-on issue 17 → two-axis review → merge → re-seed → owner re-calibrates, exactly the
-loop that took sub-legible 0%→100% (issue 16). `gate` stays `report` until then.
+**Open thread — re-calibrate the fixed edge-straddle check (round 4), owner action.**
+Issue 17 is merged (edge-straddle now judges the owning shape, dedupes, excludes
+on-arrow labels; review verdict: ship). Round 3 found it 0%; the fix is in but NOT
+yet human-confirmed. Next: `bun scripts/seed-calibration.ts` seeds a round-4 set (a
+real straddle + legit on-arrow labels + regression cases), then the owner rules
+edge-straddle in `/calibration`. When its precision is acceptable, all four checks
+are trustworthy and `gate: enforce` is safe to flip — the last thing gating full
+enforcement. `gate` stays `report` until then.
 
 Everything else is done and merged; v1 is feature-complete. Naming the project (still
 a placeholder) is also open.
