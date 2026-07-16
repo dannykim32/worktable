@@ -1,6 +1,6 @@
 # 19 — edge-straddle: flag "box too small" (2+ sides), not overhang magnitude
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M4.5 (blocks enforcing the edge-straddle check)
 Blocked by: 18
@@ -65,3 +65,58 @@ Re-seed (a 2-sided burst + a 1-sided tail + on-arrow + fully-inside) and re-rule
 ## Out of Scope
 
 Enforcement/repair (issue 12). Changing the other three checks. Real font metrics.
+
+## Comments
+
+Changed ONLY the flag condition in `checkEdgeStraddle` (src/gate/checks.ts). The
+issue-17 owning-shape selection (center-in-box, innermost tie-break, on-arrow
+exclusion) and the issue-18 conservative `straddleBbox` (0.45 em) poke geometry
+are byte-for-byte intact; the reported finding bbox stays the 0.6-em `bbox`.
+
+**The new flag condition (gestalt, not magnitude):** count how many of the four
+sides of the conservative box poke past the owning shape by MORE than
+`STRADDLE_TOLERANCE` (2px) — `left` (`s.x - p.x`), `right`
+(`p.x + p.w - (s.x + s.w)`), `top` (`s.y - p.y`), `bottom`
+(`p.y + p.h - (s.y + s.h)`) — and flag ONLY when `sides.length >= 2`. A
+single-side poke is a positioned tail, not a straddle. The poke is a STRICT `>`
+tolerance, so a 2px graze does not count. Two-sided works on either axis.
+
+**Message:** `text "…" bursts out of <rect> #id on left+right — the box is too
+small to contain the label` (names the poking sides; coordinates carried by the
+finding bbox, which stays the 0.6-em box).
+
+**Validated against every calibration ruling:**
+- Round-5 ladder (centred label bursting BOTH sides, ~5px each): `left`/`right`
+  each poke 4.65px → 2 sides → **FLAG**. Before this fix the old check flagged
+  it too (worst poke 4.65 > 2), but a magnitude threshold could not have
+  separated it from the round-4 tail; the side-count does.
+- Round-4 "label runs off right" (box x=100 w=160, 20 chars @13px start-anchored
+  at x=120): the 0.45 box lands at x=237, **0 sides** poke → clean (and even at
+  the wide 0.6 width it pokes only the ONE right side → still clean). Before/
+  after: NO flag, correctly.
+- On-arrow labels (center outside every shape): owner stays null → excluded,
+  unchanged from issue 17.
+- Vertically-too-short box (top+bottom poke): 2 sides → **FLAG** (AC3).
+- Fully-inside label: 0 sides → no flag (AC4).
+
+**Fixtures reworked:** the two edge-straddle BAD fixtures were 1-sided pokes
+(a right-edge and a top-edge tail) that the old magnitude check flagged but the
+2-sided model correctly does not; replaced with genuine 2-sided bursts — a
+~5px horizontal burst (round-5 ladder, AC1) and a vertically-too-short-box
+top+bottom burst (AC3). The issue-17/18 unit + AC tests that asserted findings on
+1-sided geometry were re-cast as 2-sided bursts, preserving the mechanism each
+tests (ownership/innermost/dedupe/on-arrow exclusion; conservative-width poke,
+reported-bbox-stays-wide, absent-straddleBbox fallback).
+
+**Other three checks:** untouched — `checkTextOverlap`, `checkClipped`,
+`checkSubLegible` bodies are byte-identical; only the `checkEdgeStraddle` doc
+comment and body changed. Report-only preserved (`runGateSafe` untouched, no
+throw path). Zero new deps in `src/gate/`.
+
+**Tests** (`test/legibility-gate.test.ts`): new 8-test issue-19 `describe` —
+unit 1-sided→clean, 2-sided horizontal→flag+names left+right, vertical burst→
+flag+names top+bottom (AC3), fully-inside→clean (AC4), strict-tolerance boundary
+(2px graze vs just-past); fixtures round-5 ~5px burst→flag (AC1), round-4 tail→
+clean (AC2), fully-inside→clean (AC4). This file: **63 pass** (was 55). Full
+suite: **257 pass, 0 fail** across 20 files (was 249 at issue 18); `tsc -p
+tsconfig.json --noEmit` clean.

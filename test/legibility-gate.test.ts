@@ -93,22 +93,27 @@ const BAD: BadFixture[] = [
     bbox: { x: 38.2, y: 86, w: 22.8, h: 16.8 },
   },
   {
-    name: "label straddling a box right edge",
+    // Round-5 ladder: a centred label bursts BOTH sides of a too-narrow box,
+    // ~5px past each edge. A 2-sided burst is a straddle at any magnitude — the
+    // box is genuinely too small to contain the label (issue 19).
+    name: "label bursting both sides of a too-narrow box (~5px each)",
     svg:
       S +
-      '<rect x="40" y="40" width="80" height="50" fill="none" stroke="black"/>' +
-      '<text x="120" y="70" font-size="13" text-anchor="middle">Overhang</text></svg>',
+      '<rect x="100" y="60" width="60" height="60" fill="none" stroke="black"/>' +
+      '<text x="130" y="95" font-size="14" text-anchor="middle">Overflowing</text></svg>',
     check: "edge-straddle",
-    bbox: { x: 88.8, y: 57, w: 62.4, h: 15.6 },
+    bbox: { x: 83.8, y: 81, w: 92.4, h: 16.8 },
   },
   {
-    name: "label straddling a box top edge",
+    // A vertically-too-short box: the label bursts past its TOP and BOTTOM. The
+    // 2-sided model works on either axis, not just horizontal (issue 19, AC3).
+    name: "label bursting the top and bottom of a too-short box",
     svg:
       S +
-      '<rect x="60" y="80" width="120" height="60" fill="none" stroke="black"/>' +
-      '<text x="120" y="84" font-size="13" text-anchor="middle">On The Edge</text></svg>',
+      '<rect x="60" y="90" width="140" height="8" fill="none" stroke="black"/>' +
+      '<text x="130" y="98" font-size="14" text-anchor="middle">Short</text></svg>',
     check: "edge-straddle",
-    bbox: { x: 77.1, y: 71, w: 85.8, h: 15.6 },
+    bbox: { x: 109, y: 84, w: 42, h: 16.8 },
   },
   {
     name: "node clipped off the right edge",
@@ -303,32 +308,32 @@ describe("edge-straddle associates a label with one box (issue 17)", () => {
     expect(gate(svg).filter((f) => f.check === "edge-straddle")).toEqual([]);
   });
 
-  test("AC2: a real straddle — center inside its OWN box, poking out a side → flagged with coords (fixture)", () => {
-    // "Overflowing label" centred at (130,90) inside box A (40..140 × 60..120),
-    // its bbox pokes past A's right edge. B sits just to the right; the bbox
-    // also grazes B, but the label belongs to A.
+  test("AC2: a real straddle — center inside its OWN box, bursting both sides → flagged with coords (fixture)", () => {
+    // "Overflowing label" centred at (120,89) inside box A (90..150 × 60..120),
+    // its box bursts past BOTH of A's side edges (a too-small box). B sits to
+    // the right; the wide bbox also grazes B, but the label belongs to A.
     const svg =
       S +
-      '<rect id="A" x="40" y="60" width="100" height="60" fill="none" stroke="black"/>' +
-      '<rect id="B" x="150" y="60" width="100" height="60" fill="none" stroke="black"/>' +
-      '<text x="130" y="95" font-size="12" text-anchor="middle">Overflowing label</text></svg>';
+      '<rect id="A" x="90" y="60" width="60" height="60" fill="none" stroke="black"/>' +
+      '<rect id="B" x="160" y="60" width="100" height="60" fill="none" stroke="black"/>' +
+      '<text x="120" y="95" font-size="12" text-anchor="middle">Overflowing label</text></svg>';
     const straddles = gate(svg).filter((f) => f.check === "edge-straddle");
     expect(straddles).toHaveLength(1);
     expect(straddles[0]!.elements).toContain("#A");
     expect(straddles[0]!.elements).not.toContain("#B");
-    // Coordinate-bearing: the label bbox is reported.
-    expect(near(straddles[0]!.bbox, { x: 68.8, y: 83, w: 122.4, h: 14.4 })).toBe(true);
+    // Coordinate-bearing: the (wide 0.6-em) label bbox is reported.
+    expect(near(straddles[0]!.bbox, { x: 58.8, y: 83, w: 122.4, h: 14.4 })).toBe(true);
     expect(straddles[0]!.message).toContain("#A");
   });
 
   test("AC3: a label grazing two rects yields exactly ONE finding (no double-count)", () => {
-    // Same fixture as AC2: bbox overlaps both A and B. The old check produced
-    // two findings (one per rect); the fix produces one, for the owning box.
+    // Same fixture as AC2: the wide bbox overlaps both A and B. The old check
+    // produced two findings (one per rect); the fix produces one, for box A.
     const svg =
       S +
-      '<rect id="A" x="40" y="60" width="100" height="60" fill="none" stroke="black"/>' +
-      '<rect id="B" x="150" y="60" width="100" height="60" fill="none" stroke="black"/>' +
-      '<text x="130" y="95" font-size="12" text-anchor="middle">Overflowing label</text></svg>';
+      '<rect id="A" x="90" y="60" width="60" height="60" fill="none" stroke="black"/>' +
+      '<rect id="B" x="160" y="60" width="100" height="60" fill="none" stroke="black"/>' +
+      '<text x="120" y="95" font-size="12" text-anchor="middle">Overflowing label</text></svg>';
     expect(gate(svg).filter((f) => f.check === "edge-straddle")).toHaveLength(1);
   });
 
@@ -358,8 +363,9 @@ describe("edge-straddle associates a label with one box (issue 17)", () => {
   });
 
   test("unit: dedupe — one run over adjacent boxes gives at most one finding", () => {
-    // Center (110,60) is inside A only; the bbox also grazes B. One finding.
-    const runs = [textRun("#label", { x: 60, y: 52, w: 100, h: 16 })]; // 60..160
+    // Center (90,60) is inside A only; the box bursts both of A's sides and the
+    // wide bbox also grazes B. Still exactly one finding, owned by A.
+    const runs = [textRun("#label", { x: 20, y: 52, w: 140, h: 16 })]; // 20..160
     const shapes = [
       shape("#A", { x: 40, y: 40, w: 100, h: 40 }), // 40..140
       shape("#B", { x: 150, y: 40, w: 100, h: 40 }), // 150..250
@@ -371,8 +377,8 @@ describe("edge-straddle associates a label with one box (issue 17)", () => {
 
   test("unit: a label centred right on an edge (gap ≤ tolerance) still counts", () => {
     // Center x sits exactly on the box's right edge — within tolerance, so the
-    // box still owns the label and the poke is flagged.
-    const runs = [textRun("#label", { x: 60, y: 52, w: 80, h: 16 })]; // center (100,60)
+    // box still owns the label. The box bursts both sides → flagged.
+    const runs = [textRun("#label", { x: 15, y: 52, w: 170, h: 16 })]; // center (100,60)
     const shapes = [shape("#box", { x: 20, y: 40, w: 80, h: 40 })]; // 20..100
     const findings = checkEdgeStraddle(runs, shapes);
     expect(findings).toHaveLength(1);
@@ -408,15 +414,15 @@ describe("edge-straddle uses a conservative width for the poke (issue 18)", () =
   });
 
   test("AC1 (mechanism): the SAME geometry at the 0.6 width DID flag — the fix is the narrower poke box", () => {
-    // Prove the round-4 case genuinely reproduced the bug: with only the wide
-    // 0.6-em bbox (no straddleBbox) the old poke fires; adding the narrow
-    // straddleBbox silences it. Box x 100..260; text start-anchored at x=120.
-    const wide = { x: 120, y: 62, w: 156, h: 15.6 }; // 0.6 em → pokes 16px past 260
-    const narrow = { x: 120, y: 62, w: 117, h: 15.6 }; // 0.45 em → fits (right 237)
+    // The wide 0.6-em box bursts BOTH sides of the box (a 2-sided straddle);
+    // the narrow 0.45-em box fits inside, so no side pokes. Box x 100..260,
+    // label centred at 180. Proves the poke reads the narrow box (issues 18+19).
+    const wide = { x: 90, y: 62, w: 180, h: 15.6 }; // 90..270 → bursts left+right
+    const narrow = { x: 110, y: 62, w: 140, h: 15.6 }; // 110..250 → fits inside
     const owner = [shape("#box", { x: 100, y: 40, w: 160, h: 60 })];
-    // Old behavior (bbox only): flags.
+    // Reading the wide box (no straddleBbox): 2-sided burst → flags.
     expect(checkEdgeStraddle([textRun("#label", wide)], owner)).toHaveLength(1);
-    // New behavior (narrow straddleBbox present): clean.
+    // Reading the narrow straddleBbox: fits → clean.
     expect(
       checkEdgeStraddle([textRunWithStraddle("#label", wide, narrow)], owner),
     ).toEqual([]);
@@ -448,33 +454,116 @@ describe("edge-straddle uses a conservative width for the poke (issue 18)", () =
   });
 
   test("unit: fits-vs-pokes boundary — the poke reads straddleBbox, not the wide bbox", () => {
-    const owner = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // right edge 120
-    // Wide bbox pokes 30px past; narrow straddleBbox ends at 118 → fits (≤ tol).
+    const owner = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // 40..120
+    // Wide bbox bursts both sides (would flag); narrow straddleBbox fits inside.
     const fits = textRunWithStraddle(
       "#label",
-      { x: 60, y: 44, w: 90, h: 16 }, // 0.6: right 150, pokes 30
-      { x: 60, y: 44, w: 58, h: 16 }, // narrow: right 118, within box
+      { x: 20, y: 44, w: 110, h: 16 }, // 0.6: 20..130, bursts left+right
+      { x: 60, y: 44, w: 58, h: 16 }, // narrow: 60..118, within box → 0 sides
     );
     expect(checkEdgeStraddle([fits], owner)).toEqual([]);
-    // Same wide bbox, but a narrow box that still clearly pokes → flags.
+    // Same wide bbox, but a narrow box that still bursts both sides → flags.
     const pokes = textRunWithStraddle(
       "#label",
-      { x: 60, y: 44, w: 90, h: 16 },
-      { x: 60, y: 44, w: 80, h: 16 }, // narrow: right 140, pokes 20
+      { x: 20, y: 44, w: 120, h: 16 }, // 20..140
+      { x: 35, y: 44, w: 90, h: 16 }, // narrow: 35..125, bursts left+right
     );
     const found = checkEdgeStraddle([pokes], owner);
     expect(found).toHaveLength(1);
     expect(found[0]!.elements).toEqual(["#label", "#box"]);
     // The reported bbox is the WIDE box, unchanged (issue-17 contract).
-    expect(found[0]!.bbox).toEqual({ x: 60, y: 44, w: 90, h: 16 });
+    expect(found[0]!.bbox).toEqual({ x: 20, y: 44, w: 120, h: 16 });
   });
 
   test("unit: absent straddleBbox falls back to bbox (hand-built runs unaffected)", () => {
     // A run with no straddleBbox keeps the old poke semantics — the issue-17
     // unit tests (which build runs this way) must be untouched.
-    const owner = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // right 120
-    const runs = [textRun("#label", { x: 60, y: 44, w: 90, h: 16 })]; // right 150
+    const owner = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // 40..120
+    const runs = [textRun("#label", { x: 20, y: 44, w: 120, h: 16 })]; // 20..140, bursts both sides
     expect(checkEdgeStraddle(runs, owner)).toHaveLength(1);
+  });
+});
+
+// ── edge-straddle two-sided model (issue 19) ────────────────────────────────
+//
+// Calibration round 5 (the overhang ladder) proved the owner's judgment is
+// gestalt, not magnitude: "does the box actually contain the label." A label
+// bursting BOTH sides of a too-small box is a straddle at any size (even ~5px);
+// a one-sided tail is a merely positioned label, fine even at 17px. So the flag
+// condition counts how many of the four sides poke past the owning shape and
+// fires ONLY at 2+ — on either axis. Ownership (issue 17) and the conservative
+// straddleBbox (issue 18) are unchanged; only the flag condition moved.
+
+describe("edge-straddle flags a 2-sided burst, not a 1-sided tail (issue 19)", () => {
+  test("unit: a one-sided poke (a positioned tail) is NOT a straddle", () => {
+    // Center (110,60) inside the box; the box pokes past the RIGHT edge only.
+    const runs = [textRun("#label", { x: 60, y: 52, w: 100, h: 16 })]; // 60..160
+    const shapes = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // 40..120
+    expect(checkEdgeStraddle(runs, shapes)).toEqual([]);
+  });
+
+  test("unit: a 2-sided horizontal burst is flagged and names left+right", () => {
+    const runs = [textRun("#label", { x: 20, y: 52, w: 140, h: 16 })]; // 20..160
+    const shapes = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // 40..120
+    const found = checkEdgeStraddle(runs, shapes);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.elements).toEqual(["#label", "#box"]);
+    expect(found[0]!.message).toContain("left+right");
+    expect(found[0]!.message).toContain("too small to contain");
+  });
+
+  test("unit: AC3 — a vertically-too-short box (top+bottom burst) is flagged", () => {
+    // A wide, SHORT box: the label bursts past its top and bottom, not its
+    // sides. Two-sided works on the vertical axis too.
+    const runs = [textRun("#label", { x: 100, y: 50, w: 60, h: 40 })]; // y 50..90
+    const shapes = [shape("#box", { x: 40, y: 60, w: 200, h: 10 })]; // y 60..70
+    const found = checkEdgeStraddle(runs, shapes);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.message).toContain("top+bottom");
+  });
+
+  test("unit: AC4 — a label fully inside its box is not flagged", () => {
+    const runs = [textRun("#label", { x: 80, y: 60, w: 60, h: 16 })]; // 80..140 × 60..76
+    const shapes = [shape("#box", { x: 40, y: 40, w: 200, h: 120 })]; // 40..240 × 40..160
+    expect(checkEdgeStraddle(runs, shapes)).toEqual([]);
+  });
+
+  test("unit: the side count is a STRICT poke past tolerance (2px exactly does not count)", () => {
+    const shapes = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // 40..120
+    // Left and right each poke EXACTLY 2px (= tolerance, not >): 0 sides → clean.
+    const grazes = [textRun("#label", { x: 38, y: 52, w: 84, h: 16 })]; // 38..122
+    expect(checkEdgeStraddle(grazes, shapes)).toEqual([]);
+    // Nudge each side just past 2px → 2 sides → flagged.
+    const bursts = [textRun("#label", { x: 37, y: 52, w: 86, h: 16 })]; // 37..123
+    expect(checkEdgeStraddle(bursts, shapes)).toHaveLength(1);
+  });
+
+  test("AC1: round-5 ladder — a ~5px 2-sided burst is flagged (fixture)", () => {
+    const svg =
+      S +
+      '<rect x="100" y="60" width="60" height="60" fill="none" stroke="black"/>' +
+      '<text x="130" y="95" font-size="14" text-anchor="middle">Overflowing</text></svg>';
+    const straddles = gate(svg).filter((f) => f.check === "edge-straddle");
+    expect(straddles).toHaveLength(1);
+    expect(straddles[0]!.message).toContain("left+right");
+  });
+
+  test("AC2: round-4 — a one-sided tail off the right edge reads clean (fixture)", () => {
+    // 20 chars @13px in a 160px box (x 100..260), left-anchored at x=120: even
+    // the wide render only pokes ONE side → a positioned tail, not a straddle.
+    const svg =
+      S +
+      '<rect x="100" y="40" width="160" height="60" fill="none" stroke="black"/>' +
+      '<text x="120" y="75" font-size="13">label runs off right</text></svg>';
+    expect(gate(svg).filter((f) => f.check === "edge-straddle")).toEqual([]);
+  });
+
+  test("AC4: a label fully inside its box reads clean (fixture)", () => {
+    const svg =
+      S +
+      '<rect x="40" y="40" width="160" height="60" fill="none" stroke="black"/>' +
+      '<text x="120" y="76" font-size="14" text-anchor="middle">Inside</text></svg>';
+    expect(gate(svg).filter((f) => f.check === "edge-straddle")).toEqual([]);
   });
 });
 
