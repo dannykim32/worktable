@@ -4,6 +4,7 @@ import "./styles.css";
 import { connectEvents, createApi } from "./api.js";
 import { AskbackUi, wholeArtifactAnchor } from "./askback.js";
 import { Gallery } from "./gallery.js";
+import { SettingsPanel } from "./settings.js";
 import type { ArtifactEvent } from "../shared/artifacts.js";
 
 function boot(): void {
@@ -43,7 +44,10 @@ function boot(): void {
   calLink.className = "cal-back";
   calLink.href = `/calibration?token=${encodeURIComponent(token)}`;
   calLink.textContent = "calibration gallery →";
-  header.append(h1, ws, live, calLink);
+  // Gate settings gear (issue 20): the human's live toggle for report/enforce.
+  const settings = new SettingsPanel(document, api);
+  header.append(h1, ws, live, calLink, settings.mount());
+  void settings.load();
 
   const galleryRoot = document.createElement("main");
   galleryRoot.id = "gallery";

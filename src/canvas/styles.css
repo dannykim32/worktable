@@ -784,3 +784,104 @@ header.canvas-chrome .live {
   cursor: default;
   opacity: 0.7;
 }
+
+/* ── Gate settings panel (issue 20, ADR-0011) ──────────────────────── */
+.settings-wrap {
+  position: relative;
+  display: inline-flex;
+  align-self: center;
+}
+.settings-gear {
+  all: unset;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+.settings-gear:hover {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+/* First-run nudge: no mode set anywhere yet — draw the human's eye once. */
+.settings-gear.first-run {
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 2px var(--accent-warm);
+}
+.settings-popover[hidden] {
+  display: none;
+}
+.settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 300px;
+  padding: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(74, 45, 20, 0.18);
+  text-align: left;
+}
+.settings-title {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.settings-effective {
+  font-size: 13px;
+  color: var(--accent-ink);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.settings-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.settings-mode {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.settings-mode + .settings-mode {
+  border-left: 1px solid var(--border);
+}
+.settings-mode.active {
+  background: var(--accent-warm);
+  color: #fff;
+}
+.settings-microcopy {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.settings-scope {
+  border: none;
+  padding: 0;
+  margin: 0 0 10px;
+}
+.settings-scope legend {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.settings-scope-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+.settings-status {
+  font-size: 12px;
+  color: var(--delta-good);
+  min-height: 1em;
+}

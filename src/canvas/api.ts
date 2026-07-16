@@ -10,6 +10,15 @@ export interface ArtifactWithContent extends ArtifactMeta {
   content: ArtifactContent;
 }
 
+export type GateMode = "report" | "enforce";
+export type GateScope = "workspace" | "user";
+export type GateSource = GateScope | "default";
+
+/** The effective gate mode + where it was resolved from (issue 20). */
+export interface GateSettings {
+  gate: { effective: GateMode; source: GateSource };
+}
+
 export interface CanvasApi {
   health(): Promise<{ workspaceId: string; version: string }>;
   listArtifacts(): Promise<ArtifactMeta[]>;
@@ -20,6 +29,8 @@ export interface CanvasApi {
     question: string;
     kind?: "question" | "approval";
   }): Promise<void>;
+  getSettings(): Promise<GateSettings>;
+  postSettings(body: { gate: GateMode; scope: GateScope }): Promise<GateSettings>;
 }
 
 export function createApi(token: string): CanvasApi {
@@ -42,6 +53,16 @@ export function createApi(token: string): CanvasApi {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`POST /api/askbacks failed: ${res.status}`);
+    },
+    getSettings: () => getJson("/api/settings"),
+    postSettings: async (body) => {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`POST /api/settings failed: ${res.status}`);
+      return (await res.json()) as GateSettings;
     },
   };
 }
