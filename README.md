@@ -73,19 +73,17 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ## ▶ RESUME HERE (next session)
 
-**All four legibility checks are calibrated and trustworthy (round 6, 2026-07-16).**
-edge-straddle took three fixes (17: owning-shape + on-arrow; 18: conservative width;
-19: the 2-sided "box too small" model derived from the round-5 ladder) and six
-calibration rounds, but it now matches the owner's eye — confirmed round 6 (burst =
-correct, contained = fine). text-overlap, clipped, sub-legible were all clean.
-Evidence: `docs/qa/calibration-round-6.md`.
+**Everything builds. v1 complete + calibrated + ergonomic to configure.** All four
+legibility checks are calibrated and trustworthy (round 6); edge-straddle took three
+fixes and six rounds to match the owner's eye (the 2-sided "box too small" model,
+issue 19). Gate mode is now a live human setting (issue 20 / ADR-0011): a gear panel
+in the canvas toggles Report↔Enforce, scoped per-workspace or as a user-level
+default, applied with no restart — and no MCP tool can change it. 282 tests green.
 
-**Open decision — flip `gate: enforce`?** The gate is calibrated, so per ADR-0007
-enforcement is now SAFE to enable (fail → one repair round → honest absence). It's
-still `report` by default (informational, never blocks). Flipping is the owner's
-call: edit `~/.visual-chat/<workspaceId>/config.json` to `{"gate":"enforce"}` and
-restart. That's the only open thread. Naming the project (still a placeholder) is
-also open.
+**No open build threads.** Two things left, both the owner's:
+- **Flip enforce (or not)** — now a click in the canvas gear panel. Report is the
+  default; enforcing is safe (all checks calibrated, ADR-0007 satisfied).
+- **Name the project** — still the "visual-chat" placeholder.
 
 Everything else is done and merged; v1 is feature-complete. Naming the project (still
 a placeholder) is also open.
