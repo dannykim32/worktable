@@ -80,10 +80,16 @@ issue 19). Gate mode is now a live human setting (issue 20 / ADR-0011): a gear p
 in the canvas toggles Report↔Enforce, scoped per-workspace or as a user-level
 default, applied with no restart — and no MCP tool can change it. 282 tests green.
 
-**No open build threads.** Two things left, both the owner's:
-- **Flip enforce (or not)** — now a click in the canvas gear panel. Report is the
-  default; enforcing is safe (all checks calibrated, ADR-0007 satisfied).
+**No open build threads.** v1 complete + calibrated + ergonomic + installable
+behind a firewall (issue 21: `bun run build:standalone` → a `node`-only
+self-contained bundle; `node scripts/register.mjs <repo> --guidance [--hook]`
+wires it into any project with no network — see `docs/install.md`). 293 tests.
+
+Left, both the owner's:
+- **Flip enforce (or not)** — a click in the canvas gear panel (issue 20). Report
+  is the default; enforcing is safe (all checks calibrated, ADR-0007 satisfied).
 - **Name the project** — still the "visual-chat" placeholder.
+- **Dogfood** — install into a real work repo per `docs/install.md` and use it.
 
 Everything else is done and merged; v1 is feature-complete. Naming the project (still
 a placeholder) is also open.
