@@ -1,6 +1,6 @@
 # 20 — Gate mode as a live, user-level human setting + canvas settings panel
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: post-v1 (UX + config)
 Blocked by: 12
@@ -90,3 +90,64 @@ config files); note the precedence and that no MCP tool can change it.
 Changing the four checks or enforcement mechanics (issue 12). Per-artifact gate
 settings. A general settings framework beyond gate mode (keep the panel focused; it
 can grow later).
+
+## Comments
+
+Implemented 2026-07-16. All nine acceptance criteria pass; `bun test` green
+(282 pass, +58 over the issue-12 baseline of 224). `tsc` clean (server + canvas).
+
+**What shipped**
+- `src/server/config.ts` — `readGateMode` generalized to
+  `resolveGateMode(workspaceDir) → { mode, source }` with precedence workspace
+  `config.json` > `~/.visual-chat/config.json` (derived as `dirname(workspaceDir)/
+  config.json`) > `report`/`default`. `readGateSetting` returns a value only for an
+  EXPLICIT `"enforce"`/`"report"` (so a workspace `"report"` overrides a user
+  `"enforce"`; anything else degrades to the next level). Added
+  `validateSettingsBody` (strict, throws `SettingsValidationError`) and
+  `writeGateSetting` (atomic 0600, ensures the dir 0700, preserves other keys,
+  returns the new resolution). `shouldEnforce` untouched — the fail-open invariant
+  is unchanged.
+- `src/server/index.ts` — boot-time `readGateMode(...)` replaced with a per-publish
+  `currentGateMode = () => resolveGateMode(workspace.dir).mode`, called inside both
+  `publish_artifact` and `update_artifact` enforcement branches, so a flip is LIVE
+  with no restart. Two new bearer-gated routes: `GET /api/settings` →
+  `{ gate:{ effective, source } }` and `POST /api/settings` ({ gate, scope }) with
+  strict validation (400) and atomic scoped writes. `runGateSafe` untouched.
+- `src/canvas/settings.ts` (new) — `SettingsPanel`: a gear in the header opens a
+  popover showing effective mode + source, a Report↔Enforce toggle, a scope
+  selector (This workspace default / All my workspaces), microcopy, and a live
+  POST + re-render. Every node is `createElement`/`textContent` — NO `innerHTML`.
+  On first run (`source === "default"`) it auto-opens once and flags the gear.
+- `src/canvas/api.ts` — `getSettings`/`postSettings` + gate types.
+  `src/canvas/main.ts` — mounts the panel in the header next to the calibration
+  link. `src/canvas/styles.css` — panel/gear styling in the existing register.
+- `docs/setup.md` — the gate section now leads with the canvas panel, documents the
+  two-file precedence and the live (no-restart) behavior, and restates that no MCP
+  tool can change the mode.
+
+**Security invariant (AC6) — preserved + extended.** `listTools()` still returns
+exactly the six tools; no tool name matches `gate|config|mode|enforce|setting`. The
+issue-12 no-self-grant test still passes and gains a new case proving the
+`/api/settings` write path is reachable ONLY via the capability token: an
+unauthenticated POST 401s and writes nothing, while the token-bearing (human) POST
+arms it. `test/settings.integration.test.ts` re-asserts the same invariant against
+the endpoint directly. NO MCP tool was added — the gate mode stays a
+browser/human-only surface (ADR-0011).
+
+**Tests** — `test/config.test.ts` (+12: precedence/degrade/source, body validation,
+scoped writes + 0600 + key preservation), `test/settings.integration.test.ts` (+9:
+live report→enforce→report flip, both scopes to the right file, 401s, 400
+validation, token-only write path), `test/settings-panel.test.ts` (+3: renders
+effective mode as text, toggle POSTs the chosen scope + live re-render, first-run
+surfaces), plus +1 extension in `test/gate-enforcement.integration.test.ts`.
+
+**Judgment calls**
+- The user-level config path is derived as `dirname(workspaceDir)/config.json`
+  rather than reading `os.homedir()` again, so it honours a test's isolated `HOME`
+  with no extra parameter and stays a true sibling of the workspace dirs.
+- An explicit workspace `"report"` is treated as a real value that overrides a
+  user-level `"enforce"` (not conflated with "absent"), which is the only way a
+  per-workspace opt-OUT of a user default can work.
+- First-run does both the auto-open and the subtle gear highlight (the spec allowed
+  either); a click-outside-to-dismiss was left out as scope creep — the gear toggles
+  it and any change dismisses the first-run flag.

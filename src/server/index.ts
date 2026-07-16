@@ -22,7 +22,13 @@ import {
 import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
 import { sanitizeSvg } from "../sanitizer/index.js";
 import { runGateSafe } from "../gate/index.js";
-import { readGateMode, shouldEnforce } from "./config.js";
+import {
+  resolveGateMode,
+  shouldEnforce,
+  validateSettingsBody,
+  writeGateSetting,
+  SettingsValidationError,
+} from "./config.js";
 import { mintRepairToken, RepairRegistry } from "./repair.js";
 import { CalibrationLedger, InvalidRulingError } from "./calibration.js";
 import { openInBrowser } from "./open.js";
@@ -55,9 +61,11 @@ async function main(): Promise<void> {
 
   const store = new ArtifactStore(workspace.dir);
   const calibration = new CalibrationLedger(workspace.dir);
-  // The gate mode is a human-only decision read once at startup (issue 12): no
-  // MCP tool can change it, and a flip takes effect on the next restart.
-  const gateMode = readGateMode(workspace.dir);
+  // The gate mode is a human-only decision (issue 12 / ADR-0011): no MCP tool
+  // can change it. It is resolved PER PUBLISH now (workspace override > user
+  // default > "report"), so a flip via the token-gated settings panel takes
+  // effect on the very next artifact with NO restart.
+  const currentGateMode = () => resolveGateMode(workspace.dir).mode;
   const repairs = new RepairRegistry(workspace.dir);
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
@@ -262,6 +270,43 @@ async function main(): Promise<void> {
         }
       },
     },
+    // ── Gate mode settings (issue 20, ADR-0011) ─────────────────────────
+    // The HUMAN's surface for the gate mode. Bearer-gated like every /api
+    // route (the http.ts middleware 401s without the token), so this write
+    // path is reachable ONLY via the capability token, NEVER via any MCP tool.
+    // The agent's tool set stays closed; no tool can arm or disarm enforcement.
+    {
+      method: "GET",
+      template: "/api/settings",
+      handler: ({ res }) => {
+        const { mode, source } = resolveGateMode(workspace.dir);
+        sendJson(res, 200, { gate: { effective: mode, source } });
+      },
+    },
+    {
+      method: "POST",
+      template: "/api/settings",
+      handler: async ({ req, res }) => {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch (err) {
+          sendJson(res, 400, { error: String((err as Error).message) });
+          return;
+        }
+        try {
+          const update = validateSettingsBody(body);
+          const { mode, source } = writeGateSetting(workspace.dir, update);
+          sendJson(res, 200, { gate: { effective: mode, source } });
+        } catch (err) {
+          if (err instanceof SettingsValidationError) {
+            sendJson(res, 400, { error: err.message });
+            return;
+          }
+          throw err;
+        }
+      },
+    },
   ];
 
   const running = await startCanvasHttpServer({
@@ -419,7 +464,13 @@ async function main(): Promise<void> {
             validateArtifactContent(contentArgs),
           );
 
-          if (shouldEnforce({ mode: gateMode, type: content.type, findings })) {
+          if (
+            shouldEnforce({
+              mode: currentGateMode(),
+              type: content.type,
+              findings,
+            })
+          ) {
             // A resubmission under a KNOWN, still-live token is the second
             // failure of this repair round → convert to Honest Absence.
             if (repairToken !== undefined && repairs.has(`pub:${repairToken}`)) {
@@ -476,7 +527,13 @@ async function main(): Promise<void> {
           const { artifactId, content: input } = validateUpdateInput(rest);
           const { content, findings } = prepareContent(input);
 
-          if (shouldEnforce({ mode: gateMode, type: content.type, findings })) {
+          if (
+            shouldEnforce({
+              mode: currentGateMode(),
+              type: content.type,
+              findings,
+            })
+          ) {
             const key = `upd:${artifactId}`;
             const { secondFailure } = repairs.recordFailure(key);
             if (secondFailure) {

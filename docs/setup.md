@@ -93,26 +93,45 @@ the call returns `{ timed_out: true }` (a normal result, not an error) and any
 feedback you send later still arrives via `check_askbacks`. Pressing **Esc** in
 the terminal interrupts the call safely — the queue keeps your feedback.
 
-## Legibility gate: report vs. enforce (human-only switch)
+## Legibility gate: report vs. enforce (human-only, live setting)
 
 The Legibility Gate ships **report-only**: it records coordinate findings next
 to every free-form SVG version but never blocks or alters a publish. Arming
-enforcement is a one-way trust decision you make **by hand** — there is no MCP
-tool to change it, so the agent can neither grant itself enforcement nor remove
-it (ADR-0007: calibrate before you enforce).
+enforcement is a trust decision **only the human makes** — there is no MCP tool
+to change it, so the agent can neither grant itself enforcement nor remove it
+(ADR-0007: calibrate before you enforce; ADR-0011: it stays human-owned).
 
-To arm it, first review calibration precision (open `/calibration?token=…` on
-the canvas, or `GET /api/calibration`) and satisfy yourself the checks are
-trustworthy. Then edit `~/.visual-chat/<workspaceId>/config.json`:
+**The canvas settings panel is the easy way.** Open the canvas and click the
+gear (⚙) in the header. The popover shows the effective mode and where it came
+from, and lets you flip Report↔Enforce for **this workspace** or **all my
+workspaces**. Changes apply **live** — no restart — because the server resolves
+the gate mode on every publish. On first run, with no mode set anywhere, the
+panel surfaces itself once so you make the call. (First review calibration
+precision — open `/calibration?token=…` or `GET /api/calibration` — and satisfy
+yourself the checks are trustworthy before enforcing.)
+
+The panel writes the same two config files you can also edit by hand. Precedence:
+
+    <workspaceDir>/config.json .gate   >   ~/.visual-chat/config.json .gate   >   "report"
+
+- **Per-workspace override** — `~/.visual-chat/<workspaceId>/config.json` wins
+  for that one workspace.
+- **User-level default** — `~/.visual-chat/config.json` (the sibling of the
+  workspace dirs) applies to every workspace with no override.
 
 ```json
 { "gate": "enforce" }
 ```
 
-The mode is read once at startup, so **restart the server** to apply the change.
-Anything other than an explicit `"enforce"` (missing file, malformed, unknown
-value) stays in the safe `report` default. Delete the key or set `"report"` to
-disarm.
+Anything other than an explicit `"enforce"`/`"report"` (missing file, malformed,
+unknown value) degrades to the next level, and to the safe `report` default when
+nothing is set anywhere. An explicit workspace `"report"` deliberately overrides
+a user-level `"enforce"`. Edits by hand take effect on the next publish too (the
+mode is no longer cached at startup).
+
+Under the hood, both surfaces are equivalent: the panel POSTs to the bearer-gated
+`POST /api/settings` (`{ gate, scope }`), a browser/human endpoint the agent's
+tool surface can never reach. **No MCP tool can change the gate mode.**
 
 Under `enforce`, a free-form SVG that trips the gate is **not stored**. The tool
 returns the verbatim coordinate findings and a `repair_token`; the agent gets

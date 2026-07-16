@@ -324,6 +324,10 @@ describe("no MCP tool can change the gate mode (AC6, security invariant)", () =>
     // ListTools result parser rejects an inputSchema without a top-level
     // type:"object" (was latent since M1 — publish/update used a bare oneOf).
     const { tools } = await server.client.listTools();
+    // Pin the EXACT count too (defense in depth on the closed-set contract): a
+    // future drift to a 7th tool — even a harmless-named one that slips past the
+    // name pattern below — trips this immediately.
+    expect(tools).toHaveLength(6);
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         "check_askbacks",
@@ -364,6 +368,45 @@ describe("no MCP tool can change the gate mode (AC6, security invariant)", () =>
       .catch(() => {});
 
     expect(existsSync(configPath)).toBe(false);
+  });
+
+  test("the /api/settings write path (issue 20) is reachable ONLY via the token, never a tool", async () => {
+    // The gate mode became human-settable via GET/POST /api/settings (ADR-0011),
+    // but the invariant holds: that write path is bearer-gated (a browser/human
+    // surface), and NO MCP tool can reach it.
+    const configPath = join(server.stateDir, "config.json");
+    expect(existsSync(configPath)).toBe(false);
+
+    // No advertised tool is a settings/gate mutator.
+    const { tools } = await server.client.listTools();
+    for (const t of tools) {
+      expect(t.name).not.toMatch(/gate|config|mode|enforce|setting/i);
+    }
+
+    // An UNAUTHENTICATED POST to the endpoint is rejected and writes nothing.
+    const unauthed = await httpRequest({
+      port: server.port,
+      path: "/api/settings",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gate: "enforce", scope: "workspace" }),
+    });
+    expect(unauthed.status).toBe(401);
+    expect(existsSync(configPath)).toBe(false);
+
+    // Only the token-bearing (human) POST arms it.
+    const authed = await httpRequest({
+      port: server.port,
+      path: "/api/settings",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...bearer(server.token()),
+      },
+      body: JSON.stringify({ gate: "enforce", scope: "workspace" }),
+    });
+    expect(authed.status).toBe(200);
+    expect(existsSync(configPath)).toBe(true);
   });
 });
 
