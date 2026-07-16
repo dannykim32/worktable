@@ -1,6 +1,6 @@
 # 17 — Fix the edge-straddle check over-firing (calibration-driven)
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M4.5 (blocks enforcing the edge-straddle check)
 Blocked by: 11
@@ -59,3 +59,34 @@ Re-seed calibration (real straddle + legit edge-labels) and re-rule edge-straddl
 ## Out of Scope
 
 Enforcement/repair (issue 12, already merged). Changing the other three checks.
+
+## Comments
+
+Fixed in `src/gate/checks.ts` — `checkEdgeStraddle` rewritten to associate each
+text run with ONE owning shape instead of iterating every grazed rect. Added a
+`centerGap(cx, cy, box)` helper (Chebyshev distance from a point to a box, 0 when
+inside/on an edge). The other three checks and all geometry helpers are untouched;
+`runGateSafe` and the report-only contract are preserved. Zero new deps.
+
+**The rule for "the shape a label belongs to":** the nearest closed shape whose
+interior the text's CENTER sits in — or within `STRADDLE_TOLERANCE` (2px) of an
+edge, so a label centred exactly on the boundary still counts. Ties break to the
+smaller (innermost) box, so a label nested in an inner box is judged against that
+box, not the outer container. A text whose center is more than the tolerance
+outside every shape is an on-arrow edge-label (sitting on a connector between
+boxes) and is excluded entirely — its bbox may clip a distant container's edge,
+but that is not a straddle. This yields at most one finding per run (dedupe).
+
+**Before → after (same fixtures):**
+- Round-3 on-arrow label grazing two container rects: **2 findings → 0**.
+- Real straddle whose bbox also grazes a neighbouring box: **2 findings
+  (double-count, one per rect) → 1**, referencing only the owning box.
+- Existing genuine straddles (right-edge, top-edge fixtures): still flagged with
+  identical coordinates (their centers sit on/within 2px of the box edge).
+
+**Tests:** `test/legibility-gate.test.ts` — added one on-arrow GOOD fixture plus a
+7-test `describe` block (AC1 on-arrow→zero, AC2 real straddle flagged with coords,
+AC3 double-graze→exactly one; unit tests for on-arrow exclusion, nearest/innermost
+association, dedupe, and center-on-edge). All AC verified. Full suite: **243 pass,
+0 fail** across 20 files; `tsc -p tsconfig.json --noEmit` clean. The other three
+checks' fixtures pass identically (regression guard).

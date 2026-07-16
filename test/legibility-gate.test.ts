@@ -215,6 +215,19 @@ const GOOD: Array<{ name: string; svg: string }> = [
     name: "text at exactly the rendered 9px floor in a wide viewBox",
     svg: B + '<text x="200" y="200" font-size="18">boundary exactly nine</text></svg>',
   },
+  {
+    // Calibration round-3 false positive: an on-arrow edge-label sitting on the
+    // connector between two container rects. Its wide bbox grazes BOTH container
+    // edges, but its center is in the gap — outside every box — so it is NOT a
+    // straddle. The old check flagged this twice (issue 17, AC1).
+    name: "round-3 on-arrow edge-label grazing two container rects reads clean",
+    svg:
+      S +
+      '<rect x="20" y="40" width="120" height="120" fill="none" stroke="black"/>' +
+      '<rect x="240" y="40" width="120" height="120" fill="none" stroke="black"/>' +
+      '<line x1="140" y1="100" x2="240" y2="100" stroke="black"/>' +
+      '<text x="190" y="96" font-size="11" text-anchor="middle">SSE push, token fetch</text></svg>',
+  },
 ];
 
 describe("fixture suite — known-bad SVGs (AC1)", () => {
@@ -252,6 +265,119 @@ describe("fixture suite — known-good SVGs produce zero findings (AC1)", () => 
       expect(gate(fx.svg)).toEqual([]);
     });
   }
+});
+
+// ── edge-straddle over-fire fix (issue 17) ──────────────────────────────────
+//
+// The check must associate a label with the ONE box it belongs to (nearest
+// containing shape), dedupe to at most one finding per run, and exclude
+// on-arrow edge-labels whose center sits outside every shape.
+
+import {
+  checkEdgeStraddle,
+  type Shape,
+  type TextRun as GateTextRun,
+} from "../src/gate/checks.js";
+
+const shape = (ref: string, bbox: Bbox): Shape => ({
+  ref,
+  name: "rect",
+  bbox,
+  closed: true,
+});
+const textRun = (ref: string, bbox: Bbox): GateTextRun => ({
+  ref,
+  text: ref,
+  bbox,
+  transformedFontSize: 14,
+});
+
+describe("edge-straddle associates a label with one box (issue 17)", () => {
+  test("AC1: on-arrow edge-label grazing two containers → zero findings (fixture)", () => {
+    const svg =
+      S +
+      '<rect x="20" y="40" width="120" height="120" fill="none" stroke="black"/>' +
+      '<rect x="240" y="40" width="120" height="120" fill="none" stroke="black"/>' +
+      '<line x1="140" y1="100" x2="240" y2="100" stroke="black"/>' +
+      '<text x="190" y="96" font-size="11" text-anchor="middle">SSE push, token fetch</text></svg>';
+    expect(gate(svg).filter((f) => f.check === "edge-straddle")).toEqual([]);
+  });
+
+  test("AC2: a real straddle — center inside its OWN box, poking out a side → flagged with coords (fixture)", () => {
+    // "Overflowing label" centred at (130,90) inside box A (40..140 × 60..120),
+    // its bbox pokes past A's right edge. B sits just to the right; the bbox
+    // also grazes B, but the label belongs to A.
+    const svg =
+      S +
+      '<rect id="A" x="40" y="60" width="100" height="60" fill="none" stroke="black"/>' +
+      '<rect id="B" x="150" y="60" width="100" height="60" fill="none" stroke="black"/>' +
+      '<text x="130" y="95" font-size="12" text-anchor="middle">Overflowing label</text></svg>';
+    const straddles = gate(svg).filter((f) => f.check === "edge-straddle");
+    expect(straddles).toHaveLength(1);
+    expect(straddles[0]!.elements).toContain("#A");
+    expect(straddles[0]!.elements).not.toContain("#B");
+    // Coordinate-bearing: the label bbox is reported.
+    expect(near(straddles[0]!.bbox, { x: 68.8, y: 83, w: 122.4, h: 14.4 })).toBe(true);
+    expect(straddles[0]!.message).toContain("#A");
+  });
+
+  test("AC3: a label grazing two rects yields exactly ONE finding (no double-count)", () => {
+    // Same fixture as AC2: bbox overlaps both A and B. The old check produced
+    // two findings (one per rect); the fix produces one, for the owning box.
+    const svg =
+      S +
+      '<rect id="A" x="40" y="60" width="100" height="60" fill="none" stroke="black"/>' +
+      '<rect id="B" x="150" y="60" width="100" height="60" fill="none" stroke="black"/>' +
+      '<text x="130" y="95" font-size="12" text-anchor="middle">Overflowing label</text></svg>';
+    expect(gate(svg).filter((f) => f.check === "edge-straddle")).toHaveLength(1);
+  });
+
+  test("unit: on-arrow exclusion — a center outside every shape is never a straddle", () => {
+    // Label bbox spans the gap and clips both boxes, but its center (100,50) is
+    // in neither box → not straddling.
+    const runs = [textRun("#label", { x: 30, y: 44, w: 140, h: 12 })];
+    const shapes = [
+      shape("#left", { x: 0, y: 0, w: 60, h: 100 }),
+      shape("#right", { x: 140, y: 0, w: 60, h: 100 }),
+    ];
+    expect(checkEdgeStraddle(runs, shapes)).toEqual([]);
+  });
+
+  test("unit: association-to-nearest-shape — a label in nested boxes flags the innermost", () => {
+    // Center (80,60) sits inside both boxes; the inner box is smaller, so the
+    // label belongs to it. The bbox pokes past BOTH right edges — the old check
+    // flagged both; the fix flags only the inner one.
+    const runs = [textRun("#label", { x: 30, y: 52, w: 100, h: 16 })]; // 30..130 × 52..68
+    const shapes = [
+      shape("#outer", { x: 20, y: 20, w: 80, h: 80 }), // 20..100
+      shape("#inner", { x: 40, y: 40, w: 40, h: 40 }), // 40..80
+    ];
+    const findings = checkEdgeStraddle(runs, shapes);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.elements).toEqual(["#label", "#inner"]);
+  });
+
+  test("unit: dedupe — one run over adjacent boxes gives at most one finding", () => {
+    // Center (110,60) is inside A only; the bbox also grazes B. One finding.
+    const runs = [textRun("#label", { x: 60, y: 52, w: 100, h: 16 })]; // 60..160
+    const shapes = [
+      shape("#A", { x: 40, y: 40, w: 100, h: 40 }), // 40..140
+      shape("#B", { x: 150, y: 40, w: 100, h: 40 }), // 150..250
+    ];
+    const findings = checkEdgeStraddle(runs, shapes);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.elements).toEqual(["#label", "#A"]);
+  });
+
+  test("unit: a label centred right on an edge (gap ≤ tolerance) still counts", () => {
+    // Center x sits exactly on the box's right edge — within tolerance, so the
+    // box still owns the label and the poke is flagged.
+    const runs = [textRun("#label", { x: 60, y: 52, w: 80, h: 16 })]; // center (100,60)
+    const shapes = [shape("#box", { x: 20, y: 40, w: 80, h: 40 })]; // 20..100
+    const findings = checkEdgeStraddle(runs, shapes);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.elements).toEqual(["#label", "#box"]);
+  });
 });
 
 // ── Report-only is structural: the gate cannot block a publish (AC3) ────────
