@@ -1,6 +1,6 @@
 # 18 — edge-straddle: stop the char-width over-estimate manufacturing straddles
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M4.5 (blocks enforcing the edge-straddle check)
 Blocked by: 17
@@ -67,3 +67,51 @@ and `gate: enforce` is safe to flip.
 Enforcement/repair (issue 12). Changing the other three checks' behavior. Pixel-exact
 font metrics (the gate has no font engine server-side; a conservative heuristic is the
 v1 contract).
+
+## Comments
+
+Fixed by giving the edge-straddle poke its OWN conservative width, leaving the shared
+0.6-em box the other three checks read untouched.
+
+**The rule (ratio, not margin):** `STRADDLE_WIDTH_PER_EM = 0.45` (new constant in
+`src/gate/geometry.ts`, next to the existing `TEXT_WIDTH_PER_EM = 0.6`). At layout time
+`src/gate/index.ts` now lays each text run out TWICE: the usual 0.6-em `bbox` (unchanged
+— overlap, clip, and the reported finding bbox all still read it) and a second, narrower
+`straddleBbox` at 0.45 em (same anchor, same height, only the width shrinks). The new
+optional `TextRun.straddleBbox` field carries it. `checkEdgeStraddle` measures its poke
+against `straddleBbox` (falling back to `bbox` when absent, so hand-built unit-test runs
+keep the old semantics); ownership and the reported bbox stay on the 0.6-em `bbox`, so
+issue-17's owning-shape association, dedupe, and on-arrow exclusion are byte-for-byte
+intact.
+
+**Why 0.45:** dense, lowercase-heavy strings in system-ui render around 0.45–0.5 em/char,
+so 0.45 is a defensible LOWER bound on real width — if a box that narrow still pokes past
+a shape edge, the straddle is real, not an artefact of the generous 0.6 estimate. Dropping
+0.6 → 0.45 already absorbs ~25% of width-estimate error, so no extra poke margin is stacked
+on top (that would risk missing genuine straddles). `STRADDLE_TOLERANCE` stays 2px.
+
+**Before → after:**
+- Round-4 fixture ("label runs off right", 20 chars @13px, box x=100 w=160): 0.6 width =
+  156px poked **16px** past the right edge (false straddle); 0.45 width = 117px lands at
+  x=237, **20px inside** the 260 edge → **0 findings** (AC1).
+- Clear straddle ("Overflowing Wide Label", 22 chars centred on a 40px box): pokes **72px**
+  at 0.6 and **49px** at 0.45 → still **flagged** with coords, reported bbox unchanged (AC2).
+- The two round-11 edge-straddle BAD fixtures: narrow pokes 23.4px and 9.0px — still flag,
+  identical coords (AC3 regression).
+
+**Other three checks:** byte-identical. `checkTextOverlap`, `checkClipped`, and
+`checkSubLegible` bodies are untouched; the only shared-code edit is `textLocalBbox` gaining
+an optional `widthPerEm` param that DEFAULTS to `TEXT_WIDTH_PER_EM`, so every existing caller
+still gets the 0.6 box. Proven: the full BAD/GOOD fixture suite (both overlap + both clip +
+all sub-legible fixtures) passes with identical assertions.
+
+**Report-only preserved:** `runGateSafe` untouched, no throw path, zero new deps in
+`src/gate/`.
+
+**Tests** (`test/legibility-gate.test.ts`): +6 in a new issue-18 `describe` — AC1 round-4→
+clean (fixture) + a mechanism unit proving the same geometry flagged at 0.6 and is silenced
+at 0.45; AC2 clear straddle→flagged with coords (fixture); AC3 both existing straddles still
+flag (regression fixture); a fits-vs-pokes boundary unit (poke reads `straddleBbox`, reported
+bbox stays the wide box); a fallback unit (absent `straddleBbox` → old semantics). Full suite:
+**249 pass, 0 fail** across 20 files (was 243 at issue 17); `tsc -p tsconfig.json --noEmit`
+clean.

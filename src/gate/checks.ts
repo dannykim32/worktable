@@ -37,8 +37,15 @@ export interface Finding {
 export interface TextRun {
   ref: string;
   text: string;
-  /** AABB in user space (post-transform). */
+  /** AABB in user space (post-transform), at the generous 0.6-em width. This is
+   *  the box the overlap and clip checks read, and the one reported in findings. */
   bbox: Bbox;
+  /** A NARROWER AABB (lower-bound em width, STRADDLE_WIDTH_PER_EM) used ONLY by
+   *  the edge-straddle poke test, so a label whose real render fits its box is
+   *  not judged a straddle by the 0.6 over-estimate (issue 18). Same anchor and
+   *  height as `bbox`; only the width differs. Optional: when absent (e.g. a
+   *  hand-built run in a unit test) the poke falls back to `bbox`. */
+  straddleBbox?: Bbox;
   /** Font size in user space, AFTER transform scale only. This is NOT the
    *  on-screen pixel size: the viewBox→viewport display scale is applied later,
    *  by the sub-legible check, which alone knows the render width. */
@@ -140,7 +147,13 @@ export function checkTextOverlap(runs: TextRun[]): Finding[] {
  *  A text whose center is outside EVERY shape is an on-arrow edge-label sitting
  *  on a connector between boxes — its bbox may clip a distant container's edge,
  *  but that is not a straddle, so it is excluded. Each run yields at most one
- *  finding (issue 17). */
+ *  finding (issue 17).
+ *
+ *  The poke test uses the run's NARROWER `straddleBbox` (a lower-bound width),
+ *  not its 0.6-em `bbox`: the generous width over-estimates and manufactured a
+ *  straddle for a label that really fit its box (calibration round 4, issue 18).
+ *  Ownership still keys off the (wider) `bbox` center — unchanged from issue 17 —
+ *  and the reported finding bbox stays the `bbox`; only the poke geometry narrows. */
 export function checkEdgeStraddle(runs: TextRun[], shapes: Shape[]): Finding[] {
   const findings: Finding[] = [];
   for (const run of runs) {
@@ -167,13 +180,17 @@ export function checkEdgeStraddle(runs: TextRun[], shapes: Shape[]): Finding[] {
     }
     if (!owner) continue; // on-arrow edge-label — belongs to no box, not a straddle
 
+    // Measure the poke against the CONSERVATIVE box (lower-bound width), so a
+    // label whose real render fits is not flagged by the 0.6 over-estimate
+    // (issue 18). Same anchor/height as `bbox`; only the width is narrower.
     const s = owner.bbox;
-    const pokeLeft = s.x - r.x;
-    const pokeRight = r.x + r.w - (s.x + s.w);
-    const pokeTop = s.y - r.y;
-    const pokeBottom = r.y + r.h - (s.y + s.h);
+    const p = run.straddleBbox ?? run.bbox;
+    const pokeLeft = s.x - p.x;
+    const pokeRight = p.x + p.w - (s.x + s.w);
+    const pokeTop = s.y - p.y;
+    const pokeBottom = p.y + p.h - (s.y + s.h);
     const worstPoke = Math.max(pokeLeft, pokeRight, pokeTop, pokeBottom);
-    if (worstPoke <= STRADDLE_TOLERANCE) continue; // fully inside its box — fine
+    if (worstPoke <= STRADDLE_TOLERANCE) continue; // fits its box (conservative) — fine
 
     findings.push({
       check: "edge-straddle",
