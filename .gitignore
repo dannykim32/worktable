@@ -5,3 +5,6 @@ dist/
 
 # agent worktrees — never track
 .claude/worktrees/
+
+# local MCP registration (machine-specific abs path; recreate per docs/setup.md)
+.mcp.json

@@ -66,8 +66,24 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
   that never drains the queue); `request_review` is an agent-opt-in blocking Review
   Moment (long-poll, canvas banner + approve button, approvals travel as ask-backs
   per ADR-0010). 235 tests green.
-- **Next:** dogfood it (register in a real Claude Code session per `docs/setup.md`),
-  and pick up the deferred slots if/when the pilot gallery proves the need.
+- **Dogfooded (2026-07-15):** a real Claude Code session (server registered via
+  `.mcp.json`) published a design doc, a dashboard, and an SVG architecture diagram;
+  ask-backs landed anchored to the exact selection; the gate + calibration gallery
+  ran live. Concept proven end-to-end.
+
+## ▶ RESUME HERE (next session)
+
+**Open thread — edge-straddle calibration fix (issue 17), ready-for-agent.** The
+dogfood's live calibration (round 3) found the `edge-straddle` check at 0% precision:
+it over-fires on on-arrow edge-labels and double-counts one label as multiple
+findings (owner ruled all 8 false positive). The other three checks are 100%.
+Evidence: `docs/qa/calibration-round-3.md`; fix spec: issue 17. This is the last
+thing gating full-enforcement trust. **Coordinator plan:** dispatch a worktree agent
+on issue 17 → two-axis review → merge → re-seed → owner re-calibrates, exactly the
+loop that took sub-legible 0%→100% (issue 16). `gate` stays `report` until then.
+
+Everything else is done and merged; v1 is feature-complete. Naming the project (still
+a placeholder) is also open.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.
