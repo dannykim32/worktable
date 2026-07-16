@@ -157,8 +157,26 @@ export function roundBbox(b: Bbox): Bbox {
 // below it (sum = 1.2·fontSize = height). Horizontally the box is placed by
 // text-anchor: start → x is the left edge, middle → x is the centre, end → x
 // is the right edge.
+//
+// The 0.6 em is a GENEROUS upper bound: it errs toward a wider box, which is the
+// safe side for the overlap and clip checks (they should over-warn, not miss).
+// For the edge-straddle poke, though, an over-wide box MANUFACTURES straddles a
+// label does not actually have (calibration round 4, issue 18): a 20-char label
+// that renders well under 0.6 em/char fit its box, yet the 0.6 estimate poked it
+// past the edge. So the straddle check alone re-lays the box at a narrower
+// LOWER-bound em ratio (STRADDLE_WIDTH_PER_EM) and only flags when even that
+// conservative width clearly pokes out — giving a might-or-might-not-fit label
+// the benefit of the doubt. This ratio feeds ONLY the straddle poke; the shared
+// 0.6 box the other three checks read is untouched.
 
 export const TEXT_WIDTH_PER_EM = 0.6;
+/** Lower-bound em ratio for the edge-straddle poke only (issue 18). Dense,
+ *  lowercase-heavy strings in system-ui render around 0.45–0.5 em/char, so 0.45
+ *  is a defensible floor on real width: if a box this narrow still pokes past a
+ *  shape edge, the straddle is real, not an artefact of the 0.6 over-estimate.
+ *  Dropping 0.6 → 0.45 already absorbs ~25% of width-estimate error, so no extra
+ *  poke margin is stacked on top (that would risk missing genuine straddles). */
+export const STRADDLE_WIDTH_PER_EM = 0.45;
 export const TEXT_LINE_HEIGHT = 1.2;
 
 export function textLocalBbox(
@@ -167,8 +185,9 @@ export function textLocalBbox(
   x: number,
   y: number,
   anchor: string,
+  widthPerEm: number = TEXT_WIDTH_PER_EM,
 ): Bbox {
-  const w = charCount * fontSize * TEXT_WIDTH_PER_EM;
+  const w = charCount * fontSize * widthPerEm;
   const h = fontSize * TEXT_LINE_HEIGHT;
   const left =
     anchor === "middle" ? x - w / 2 : anchor === "end" ? x - w : x;

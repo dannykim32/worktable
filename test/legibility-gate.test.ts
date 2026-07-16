@@ -380,6 +380,104 @@ describe("edge-straddle associates a label with one box (issue 17)", () => {
   });
 });
 
+// ── edge-straddle conservative-width poke (issue 18) ────────────────────────
+//
+// The 0.6-em text box is a generous UPPER bound. Safe for overlap/clip (they
+// should over-warn), but for the straddle poke it manufactured a straddle a
+// label did not have — calibration round 4: a 20-char label that really fit its
+// box was ruled a false positive. The poke now measures the run's NARROWER
+// `straddleBbox` (lower-bound width), flagging only when even that clearly pokes
+// out. Ownership and the reported bbox stay on the 0.6-em `bbox` (issue-17
+// behavior unchanged).
+
+const textRunWithStraddle = (
+  ref: string,
+  bbox: Bbox,
+  straddleBbox: Bbox,
+): GateTextRun => ({ ref, text: ref, bbox, straddleBbox, transformedFontSize: 14 });
+
+describe("edge-straddle uses a conservative width for the poke (issue 18)", () => {
+  test("AC1: round-4 'label runs off right' — real render fits its box → ZERO edge-straddle", () => {
+    // 20 chars @13px in a 160px box (x 100..260). The 0.6 estimate (156px) poked
+    // 16px past the right edge and manufactured a straddle; the label really fit.
+    const svg =
+      S +
+      '<rect x="100" y="40" width="160" height="60" fill="none" stroke="black"/>' +
+      '<text x="120" y="75" font-size="13">label runs off right</text></svg>';
+    expect(gate(svg).filter((f) => f.check === "edge-straddle")).toEqual([]);
+  });
+
+  test("AC1 (mechanism): the SAME geometry at the 0.6 width DID flag — the fix is the narrower poke box", () => {
+    // Prove the round-4 case genuinely reproduced the bug: with only the wide
+    // 0.6-em bbox (no straddleBbox) the old poke fires; adding the narrow
+    // straddleBbox silences it. Box x 100..260; text start-anchored at x=120.
+    const wide = { x: 120, y: 62, w: 156, h: 15.6 }; // 0.6 em → pokes 16px past 260
+    const narrow = { x: 120, y: 62, w: 117, h: 15.6 }; // 0.45 em → fits (right 237)
+    const owner = [shape("#box", { x: 100, y: 40, w: 160, h: 60 })];
+    // Old behavior (bbox only): flags.
+    expect(checkEdgeStraddle([textRun("#label", wide)], owner)).toHaveLength(1);
+    // New behavior (narrow straddleBbox present): clean.
+    expect(
+      checkEdgeStraddle([textRunWithStraddle("#label", wide, narrow)], owner),
+    ).toEqual([]);
+  });
+
+  test("AC2: a CLEARLY visible straddle — label far wider than its box → still flagged with coords", () => {
+    // 22-char label centred on a 40px box (x 140..180): it pokes ~49px past the
+    // edge even at the conservative 0.45-em width — unambiguous.
+    const svg =
+      S +
+      '<rect id="box" x="140" y="50" width="40" height="40" fill="none" stroke="black"/>' +
+      '<text x="160" y="75" font-size="14" text-anchor="middle">Overflowing Wide Label</text></svg>';
+    const straddles = gate(svg).filter((f) => f.check === "edge-straddle");
+    expect(straddles).toHaveLength(1);
+    expect(straddles[0]!.elements).toContain("#box");
+    // Coordinate-bearing: the reported bbox is the wide 0.6-em label box.
+    expect(near(straddles[0]!.bbox, { x: 67.6, y: 61, w: 184.8, h: 16.8 })).toBe(true);
+    expect(straddles[0]!.message).toContain("#box");
+  });
+
+  test("AC3 (regression): both existing straddle fixtures still flag with identical coords", () => {
+    // The narrower poke must not silence GENUINE straddles. Re-run the two
+    // round-11 edge-straddle BAD fixtures through the full pipeline.
+    for (const fx of BAD.filter((b) => b.check === "edge-straddle")) {
+      const match = gate(fx.svg).find((f) => f.check === "edge-straddle");
+      expect(match, `no edge-straddle for ${fx.name}`).toBeDefined();
+      expect(near(match!.bbox, fx.bbox)).toBe(true);
+    }
+  });
+
+  test("unit: fits-vs-pokes boundary — the poke reads straddleBbox, not the wide bbox", () => {
+    const owner = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // right edge 120
+    // Wide bbox pokes 30px past; narrow straddleBbox ends at 118 → fits (≤ tol).
+    const fits = textRunWithStraddle(
+      "#label",
+      { x: 60, y: 44, w: 90, h: 16 }, // 0.6: right 150, pokes 30
+      { x: 60, y: 44, w: 58, h: 16 }, // narrow: right 118, within box
+    );
+    expect(checkEdgeStraddle([fits], owner)).toEqual([]);
+    // Same wide bbox, but a narrow box that still clearly pokes → flags.
+    const pokes = textRunWithStraddle(
+      "#label",
+      { x: 60, y: 44, w: 90, h: 16 },
+      { x: 60, y: 44, w: 80, h: 16 }, // narrow: right 140, pokes 20
+    );
+    const found = checkEdgeStraddle([pokes], owner);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.elements).toEqual(["#label", "#box"]);
+    // The reported bbox is the WIDE box, unchanged (issue-17 contract).
+    expect(found[0]!.bbox).toEqual({ x: 60, y: 44, w: 90, h: 16 });
+  });
+
+  test("unit: absent straddleBbox falls back to bbox (hand-built runs unaffected)", () => {
+    // A run with no straddleBbox keeps the old poke semantics — the issue-17
+    // unit tests (which build runs this way) must be untouched.
+    const owner = [shape("#box", { x: 40, y: 40, w: 80, h: 40 })]; // right 120
+    const runs = [textRun("#label", { x: 60, y: 44, w: 90, h: 16 })]; // right 150
+    expect(checkEdgeStraddle(runs, owner)).toHaveLength(1);
+  });
+});
+
 // ── Report-only is structural: the gate cannot block a publish (AC3) ────────
 
 describe("runGateSafe fails open — a gate exception degrades to zero findings", () => {

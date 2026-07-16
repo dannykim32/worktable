@@ -27,6 +27,7 @@ import {
   parseTransform,
   pathPoints,
   scaleOf,
+  STRADDLE_WIDTH_PER_EM,
   textLocalBbox,
   transformBbox,
 } from "./geometry.js";
@@ -120,12 +121,20 @@ function walk(el: SvgElement, ctx: Ctx, out: Collected): void {
     const child: Ctx = { matrix, fontSize, anchor, textX: x, textY: y };
     const directText = directTextOf(el);
     if (directText !== "") {
-      const local2 = textLocalBbox([...directText].length, fontSize, x, y, anchor);
+      const chars = [...directText].length;
+      const local2 = textLocalBbox(chars, fontSize, x, y, anchor);
       const bbox = transformBbox(matrix, local2);
+      // A second, NARROWER box (lower-bound width) for the edge-straddle poke
+      // only — see STRADDLE_WIDTH_PER_EM (issue 18). Same anchor/height as bbox.
+      const straddleLocal = textLocalBbox(
+        chars, fontSize, x, y, anchor, STRADDLE_WIDTH_PER_EM,
+      );
+      const straddleBbox = transformBbox(matrix, straddleLocal);
       out.runs.push({
         ref,
         text: directText,
         bbox,
+        straddleBbox,
         transformedFontSize: fontSize * scaleOf(matrix),
       });
       out.boxed.push({ ref, name: el.name, bbox });
