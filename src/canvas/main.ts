@@ -62,6 +62,15 @@ function boot(): void {
     onAskArtifact: (meta, viewing) => {
       askbackUi.openComposer(wholeArtifactAnchor(meta.id, viewing, meta.title));
     },
+    // Review Moment approval (issue 14): travels the single ask-back channel
+    // as a kind:"approval" item (ADR-0010) — no new browser→agent surface.
+    onApproveReview: (meta, viewing) => {
+      void api.postAskback({
+        anchor: wholeArtifactAnchor(meta.id, viewing, meta.title),
+        question: "",
+        kind: "approval",
+      });
+    },
   });
   const askbackUi = new AskbackUi(document, { api, gallery });
   void gallery.init().catch((err: unknown) => {
@@ -75,6 +84,10 @@ function boot(): void {
     onEvent: (event, data) => {
       if (event === "artifact") {
         void gallery.handleArtifactEvent(data as ArtifactEvent);
+      } else if (event === "review_requested") {
+        gallery.showReviewBanner((data as { artifact_id: string }).artifact_id);
+      } else if (event === "review_resolved") {
+        gallery.clearReviewBanner((data as { artifact_id: string }).artifact_id);
       }
     },
     onState: (connected) => {

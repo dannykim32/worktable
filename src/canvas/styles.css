@@ -748,3 +748,39 @@ header.canvas-chrome .live {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* ── Review Moment banner (issue 14) ─────────────────────────────────────
+   Shown on a card while the agent blocks in request_review; the approve
+   button posts a kind:"approval" ask-back (ADR-0010). */
+.review-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--accent-warm);
+  border-bottom: 1px solid var(--accent-warm);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-size: 14px;
+}
+.review-msg {
+  flex: 1;
+}
+.review-approve {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-warm);
+  background: var(--accent-warm);
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.review-approve:hover {
+  filter: brightness(0.95);
+}
+.review-approve:disabled {
+  cursor: default;
+  opacity: 0.7;
+}

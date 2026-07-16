@@ -325,7 +325,14 @@ describe("no MCP tool can change the gate mode (AC6, security invariant)", () =>
     // type:"object" (was latent since M1 — publish/update used a bare oneOf).
     const { tools } = await server.client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["check_askbacks", "open_canvas", "publish_artifact", "rotate_token", "update_artifact"].sort(),
+      [
+        "check_askbacks",
+        "open_canvas",
+        "publish_artifact",
+        "request_review",
+        "rotate_token",
+        "update_artifact",
+      ].sort(),
     );
   });
 

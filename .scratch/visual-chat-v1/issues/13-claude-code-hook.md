@@ -1,6 +1,6 @@
 # 13 — Claude Code UserPromptSubmit hook
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M6
 Blocked by: 05
@@ -53,3 +53,27 @@ uninstall note.
 
 Hooks for other MCP hosts, auto-installation of settings.json (documented, not
 performed — user edits their own settings).
+
+## Comments
+
+Done. `hooks/askback-hook.ts` derives the workspace id via the shared
+`deriveWorkspaceId` (extracted to `src/shared/workspaceId.ts`, re-exported from
+`server/workspace.ts` — one hash, no fork), reads `~/.visual-chat/<id>/{port,
+token}`, and does a 300ms read-only peek at the new `GET /api/askbacks/pending`
+route, which returns pending items enriched with artifact titles WITHOUT marking
+delivery. Any failure (missing files, server down, timeout) exits 0 silently.
+
+The peek route calls `askbacks.pending()` (pure filter) — delivery marking stays
+exclusively with `check_askbacks`/`drainPending`. The regression test runs the
+hook subprocess 10× against a live server and asserts the item is still pending
+after every run, then that `check_askbacks` finally drains it — proof the hook
+is non-destructive.
+
+Build: `hooks/tsconfig.json` typechecks the hook; `bun build --target=node`
+bundles it to `dist/hooks/askback-hook.js` (both wired into `bun run build`).
+Tests (5, all green): pending → additionalContext with question+quote+title;
+read-only 10× peek; empty → no output; server-down → exit 0, empty, <400ms;
+missing files → exit 0. docs/setup.md gains the settings.json hook block, a
+manual verify step, and an uninstall note.
+
+AC1–5 satisfied. Committed as feat(13).

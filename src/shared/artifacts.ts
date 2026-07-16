@@ -165,10 +165,16 @@ export interface Anchor {
   quote: string;
 }
 
+/** "question" is an anchored ask-back; "approval" is a Review Moment approval
+ *  (issue 14) — an empty-question ask-back that resolves a blocking
+ *  request_review. Both travel the single ask-back channel (ADR-0010). */
+export type AskbackKind = "question" | "approval";
+
 export interface Askback {
   id: string;
   anchor: Anchor;
   question: string;
+  kind: AskbackKind;
   state: "pending" | "delivered";
   created_at: string;
 }
