@@ -135,7 +135,8 @@ export function checkTextOverlap(runs: TextRun[]): Finding[] {
   return findings;
 }
 
-/** edge-straddle: a label sits half-inside / half-outside the box it labels.
+/** edge-straddle: the box a label belongs to is too small to CONTAIN the label,
+ *  so the label bursts out of it on two or more sides.
  *
  *  A straddle is judged against ONE shape — the box the label BELONGS TO — not
  *  every rect its bounding box grazes (calibration round 3: that over-fired,
@@ -153,7 +154,18 @@ export function checkTextOverlap(runs: TextRun[]): Finding[] {
  *  not its 0.6-em `bbox`: the generous width over-estimates and manufactured a
  *  straddle for a label that really fit its box (calibration round 4, issue 18).
  *  Ownership still keys off the (wider) `bbox` center — unchanged from issue 17 —
- *  and the reported finding bbox stays the `bbox`; only the poke geometry narrows. */
+ *  and the reported finding bbox stays the `bbox`; only the poke geometry narrows.
+ *
+ *  THE FLAG CONDITION is gestalt, not magnitude (calibration round 5, issue 19):
+ *  the overhang ladder proved the owner's judgment is "does the box actually
+ *  contain the label," never overhang size. A label bursting BOTH sides of a
+ *  too-small box is wrong even at ~5px; a one-sided tail is a merely positioned
+ *  label, fine even at 17px. A magnitude threshold cannot separate the two, so we
+ *  count how many of the four sides (left/right/top/bottom) the conservative box
+ *  pokes past the owning shape beyond STRADDLE_TOLERANCE, and flag ONLY when TWO
+ *  OR MORE sides poke — the box cannot contain the label. A single-side poke is
+ *  never a straddle. Two-sided works on either axis: a vertically-too-short box
+ *  (top + bottom) flags just as a horizontally-too-narrow one (left + right). */
 export function checkEdgeStraddle(runs: TextRun[], shapes: Shape[]): Finding[] {
   const findings: Finding[] = [];
   for (const run of runs) {
@@ -180,26 +192,28 @@ export function checkEdgeStraddle(runs: TextRun[], shapes: Shape[]): Finding[] {
     }
     if (!owner) continue; // on-arrow edge-label — belongs to no box, not a straddle
 
-    // Measure the poke against the CONSERVATIVE box (lower-bound width), so a
-    // label whose real render fits is not flagged by the 0.6 over-estimate
-    // (issue 18). Same anchor/height as `bbox`; only the width is narrower.
+    // Poke each side of the CONSERVATIVE box (lower-bound width) past the owning
+    // shape, so a label whose real render fits is not flagged by the 0.6
+    // over-estimate (issue 18). Same anchor/height as `bbox`; only width narrows.
     const s = owner.bbox;
     const p = run.straddleBbox ?? run.bbox;
-    const pokeLeft = s.x - p.x;
-    const pokeRight = p.x + p.w - (s.x + s.w);
-    const pokeTop = s.y - p.y;
-    const pokeBottom = p.y + p.h - (s.y + s.h);
-    const worstPoke = Math.max(pokeLeft, pokeRight, pokeTop, pokeBottom);
-    if (worstPoke <= STRADDLE_TOLERANCE) continue; // fits its box (conservative) — fine
+    const sides: string[] = [];
+    if (s.x - p.x > STRADDLE_TOLERANCE) sides.push("left");
+    if (p.x + p.w - (s.x + s.w) > STRADDLE_TOLERANCE) sides.push("right");
+    if (s.y - p.y > STRADDLE_TOLERANCE) sides.push("top");
+    if (p.y + p.h - (s.y + s.h) > STRADDLE_TOLERANCE) sides.push("bottom");
+
+    // Flag ONLY a 2+-sided burst — the box cannot contain the label. A single
+    // side poking out is a positioned tail, not a straddle (issue 19).
+    if (sides.length < 2) continue;
 
     findings.push({
       check: "edge-straddle",
       elements: [run.ref, owner.ref],
       bbox: roundBbox(run.bbox),
       message:
-        `text "${clip(run.text)}" crosses the edge of <${owner.name}> ` +
-        `${owner.ref} (extends ${fmt(worstPoke)}px past it) — it sits half ` +
-        "on, half off the shape",
+        `text "${clip(run.text)}" bursts out of <${owner.name}> ${owner.ref} ` +
+        `on ${sides.join("+")} — the box is too small to contain the label`,
     });
   }
   return findings;
