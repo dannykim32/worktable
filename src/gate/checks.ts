@@ -7,6 +7,17 @@
 // therefore look at overlap/straddle/clipping/size — never at meaning.
 import { area, type Bbox, intersect, roundBbox } from "./geometry.js";
 
+/** How far a point sits OUTSIDE a box, as a Chebyshev distance: 0 when the
+ *  point is inside (or on an edge), otherwise the larger of the two axis gaps
+ *  by which it overshoots the box. Used to find the shape a label belongs to —
+ *  a label whose center is well outside every box is an on-arrow edge-label,
+ *  not a straddle (issue 17). */
+function centerGap(cx: number, cy: number, s: Bbox): number {
+  const dx = Math.max(s.x - cx, cx - (s.x + s.w), 0);
+  const dy = Math.max(s.y - cy, cy - (s.y + s.h), 0);
+  return Math.max(dx, dy);
+}
+
 export type CheckName =
   | "text-overlap"
   | "edge-straddle"
@@ -117,34 +128,62 @@ export function checkTextOverlap(runs: TextRun[]): Finding[] {
   return findings;
 }
 
-/** edge-straddle: a label overlaps a closed shape yet pokes past one of its
- *  edges by more than the tolerance — i.e. it is neither fully inside nor
- *  fully outside the shape it sits on. */
+/** edge-straddle: a label sits half-inside / half-outside the box it labels.
+ *
+ *  A straddle is judged against ONE shape — the box the label BELONGS TO — not
+ *  every rect its bounding box grazes (calibration round 3: that over-fired,
+ *  0% precision, and double-counted one label against multiple containers). The
+ *  owning shape is the nearest closed shape whose interior the text's center
+ *  sits in (or within STRADDLE_TOLERANCE of an edge, so a label centred right on
+ *  the boundary still counts); ties break to the smaller, innermost box.
+ *
+ *  A text whose center is outside EVERY shape is an on-arrow edge-label sitting
+ *  on a connector between boxes — its bbox may clip a distant container's edge,
+ *  but that is not a straddle, so it is excluded. Each run yields at most one
+ *  finding (issue 17). */
 export function checkEdgeStraddle(runs: TextRun[], shapes: Shape[]): Finding[] {
   const findings: Finding[] = [];
   for (const run of runs) {
+    const r = run.bbox;
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+
+    // The box this label belongs to: nearest closed shape the center is in/on,
+    // tie-broken to the innermost (smallest-area) one. A center outside all
+    // shapes means an on-arrow edge-label — leaves owner null, so we skip it.
+    let owner: Shape | null = null;
+    let ownerGap = Infinity;
+    let ownerArea = Infinity;
     for (const shape of shapes) {
       if (!shape.closed) continue;
-      const overlap = intersect(run.bbox, shape.bbox);
-      if (!overlap) continue; // fully outside — fine
-      const s = shape.bbox;
-      const r = run.bbox;
-      const pokeLeft = s.x - r.x;
-      const pokeRight = r.x + r.w - (s.x + s.w);
-      const pokeTop = s.y - r.y;
-      const pokeBottom = r.y + r.h - (s.y + s.h);
-      const worstPoke = Math.max(pokeLeft, pokeRight, pokeTop, pokeBottom);
-      if (worstPoke <= STRADDLE_TOLERANCE) continue; // fully inside — fine
-      findings.push({
-        check: "edge-straddle",
-        elements: [run.ref, shape.ref],
-        bbox: roundBbox(run.bbox),
-        message:
-          `text "${clip(run.text)}" crosses the edge of <${shape.name}> ` +
-          `${shape.ref} (extends ${fmt(worstPoke)}px past it) — it sits half ` +
-          "on, half off the shape",
-      });
+      const gap = centerGap(cx, cy, shape.bbox);
+      if (gap > STRADDLE_TOLERANCE) continue; // center not on/in this box
+      const a = area(shape.bbox);
+      if (gap < ownerGap || (gap === ownerGap && a < ownerArea)) {
+        owner = shape;
+        ownerGap = gap;
+        ownerArea = a;
+      }
     }
+    if (!owner) continue; // on-arrow edge-label — belongs to no box, not a straddle
+
+    const s = owner.bbox;
+    const pokeLeft = s.x - r.x;
+    const pokeRight = r.x + r.w - (s.x + s.w);
+    const pokeTop = s.y - r.y;
+    const pokeBottom = r.y + r.h - (s.y + s.h);
+    const worstPoke = Math.max(pokeLeft, pokeRight, pokeTop, pokeBottom);
+    if (worstPoke <= STRADDLE_TOLERANCE) continue; // fully inside its box — fine
+
+    findings.push({
+      check: "edge-straddle",
+      elements: [run.ref, owner.ref],
+      bbox: roundBbox(run.bbox),
+      message:
+        `text "${clip(run.text)}" crosses the edge of <${owner.name}> ` +
+        `${owner.ref} (extends ${fmt(worstPoke)}px past it) — it sits half ` +
+        "on, half off the shape",
+    });
   }
   return findings;
 }
