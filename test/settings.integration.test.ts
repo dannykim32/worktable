@@ -199,8 +199,10 @@ describe("no-self-grant EXTENDED: the write path is token-only (AC6)", () => {
     server = await spawnServer(); // report, no config.json
     const configPath = join(server.stateDir, "config.json");
 
-    // The full advertised tool set — no gate/config/mode mutator among them.
+    // The full advertised tool set stays closed at exactly six — no
+    // gate/config/mode mutator, and no drift to a 7th tool.
     const { tools } = await server.client.listTools();
+    expect(tools).toHaveLength(6);
     for (const t of tools) {
       expect(t.name).not.toMatch(/gate|config|mode|enforce|setting/i);
       await server.client

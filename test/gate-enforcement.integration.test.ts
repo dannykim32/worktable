@@ -324,6 +324,10 @@ describe("no MCP tool can change the gate mode (AC6, security invariant)", () =>
     // ListTools result parser rejects an inputSchema without a top-level
     // type:"object" (was latent since M1 — publish/update used a bare oneOf).
     const { tools } = await server.client.listTools();
+    // Pin the EXACT count too (defense in depth on the closed-set contract): a
+    // future drift to a 7th tool — even a harmless-named one that slips past the
+    // name pattern below — trips this immediately.
+    expect(tools).toHaveLength(6);
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         "check_askbacks",
