@@ -1,33 +1,34 @@
-// Issue 21, AC-1: the firewall proof. Build the self-contained bundle, move
-// node_modules ASIDE, run `node dist/server/index.js`, and hit /api/health with
-// the capability token — a 200 proves the server needs only `node` at runtime.
+// Issue 21, AC-1: the firewall proof, done the truly-self-contained way. Build
+// the standalone bundle, then copy ONLY dist/ into a scratch dir that has NO
+// package.json, NO node_modules and NO source — the exact firewalled-transfer
+// shape — and run `node dist/server/index.js` there. A /api/health 200 proves
+// the bundle needs nothing but `node`: not node_modules, not package.json.
 //
-// node_modules is ALWAYS restored (finally), even on failure — the rest of the
-// suite depends on it. bun runs test files sequentially, so the brief window
-// where node_modules is renamed never overlaps another test file.
-import { afterAll, expect, test } from "bun:test";
+// This catches the regression class where the server reads package.json (or any
+// repo file) at runtime — from a dist-only copy that file is absent, so such a
+// read would ENOENT before serving. The repo's own node_modules is never touched.
+import { expect, test } from "bun:test";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
-  renameSync,
+  rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-const serverJs = join(repoRoot, "dist", "server", "index.js");
-const canvasIndex = join(repoRoot, "dist", "canvas", "index.html");
-const nmPath = join(repoRoot, "node_modules");
-const asidePath = join(repoRoot, "node_modules.smoke-aside");
+const distDir = join(repoRoot, "dist");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function ensureStandaloneBuilt(): void {
-  if (existsSync(serverJs) && existsSync(canvasIndex)) return;
+// Always rebuild the bundle so the test proves THIS commit's dist, never a stale
+// pre-fix bundle sitting on disk.
+function buildStandalone(): void {
   const r = spawnSync("bun", ["run", "build:standalone"], {
     cwd: repoRoot,
     stdio: "ignore",
@@ -35,32 +36,33 @@ function ensureStandaloneBuilt(): void {
   if (r.status !== 0) throw new Error("build:standalone failed in test setup");
 }
 
-// Safety net: if the process dies mid-test, put node_modules back.
-afterAll(() => {
-  if (existsSync(asidePath) && !existsSync(nmPath)) renameSync(asidePath, nmPath);
-});
-
 test(
-  "bundled server runs under plain node with node_modules absent",
+  "bundle runs from a dist-only copy — no package.json, no node_modules",
   async () => {
-    ensureStandaloneBuilt();
-    const home = mkdtempSync(join(tmpdir(), "vc-smoke-"));
-    let child: ChildProcess | undefined;
-    let moved = false;
-    try {
-      renameSync(nmPath, asidePath);
-      moved = true;
-      expect(existsSync(nmPath)).toBe(false); // truly absent
+    buildStandalone();
 
-      // stdin is a live pipe we never close — the server ties its lifecycle to
-      // stdin (MCP transport), so an EOF would shut it down immediately.
-      child = spawn("node", [serverJs], {
-        cwd: repoRoot,
+    // The firewalled transfer: a scratch dir containing ONLY dist/.
+    const scratch = mkdtempSync(join(tmpdir(), "vc-distonly-"));
+    const home = mkdtempSync(join(tmpdir(), "vc-smoke-home-"));
+    cpSync(distDir, join(scratch, "dist"), { recursive: true });
+
+    // Prove the scratch really lacks the things a firewalled machine won't have.
+    expect(existsSync(join(scratch, "package.json"))).toBe(false);
+    expect(existsSync(join(scratch, "node_modules"))).toBe(false);
+    expect(existsSync(join(scratch, "src"))).toBe(false);
+    expect(existsSync(join(scratch, "dist", "server", "index.js"))).toBe(true);
+
+    let child: ChildProcess | undefined;
+    try {
+      // cwd = scratch: node resolves module lookups from here, where no
+      // node_modules exists (nor in any parent within the temp tree). stdin is a
+      // live pipe we never close — an EOF would trip the server's shutdown.
+      child = spawn("node", ["dist/server/index.js"], {
+        cwd: scratch,
         env: { ...process.env, HOME: home, VISUAL_CHAT_NO_OPEN: "1" },
         stdio: ["pipe", "ignore", "pipe"],
       });
 
-      // Wait for the workspace state (port + token) to land on disk.
       const wsRoot = join(home, ".visual-chat");
       let port = "";
       let token = "";
@@ -81,7 +83,6 @@ test(
       }
       expect(port).toBeTruthy();
 
-      // Hit /api/health with the bearer; retry while the listener comes up.
       let status = 0;
       let body = "";
       for (let i = 0; i < 40 && status !== 200; i++) {
@@ -97,12 +98,15 @@ test(
         if (status !== 200) await sleep(50);
       }
       expect(status).toBe(200);
-      expect(JSON.parse(body).version).toBeTruthy();
+      // Version came from the build-time define, not a package.json read.
+      const parsed = JSON.parse(body) as { version?: string };
+      expect(parsed.version).toBe(
+        JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")).version,
+      );
     } finally {
       child?.kill();
-      if (moved && existsSync(asidePath) && !existsSync(nmPath)) {
-        renameSync(asidePath, nmPath);
-      }
+      rmSync(scratch, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
     }
   },
   120000,

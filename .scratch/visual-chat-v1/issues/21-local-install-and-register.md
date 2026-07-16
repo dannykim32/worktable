@@ -130,3 +130,23 @@ Done. Packaging + tooling only — no server/canvas behavior changed.
   markers as whole lines. Caught before commit.
 - Kept `"private": true`, the placeholder name, and did not prepare an npm
   publish, per the spec's hard rules.
+
+### Review fix (self-containment)
+
+Review caught that the bundle wasn't truly self-contained: `src/server/version.ts`
+did a runtime `readFileSync(../../package.json)`, so a dist-only copy (no
+package.json — the firewalled case) would ENOENT before serving.
+
+- version.ts now resolves to a build-time constant: `scripts/build-standalone.mjs`
+  passes `bun build --define VISUAL_CHAT_VERSION='"<pkg.version>"'`; a `typeof`
+  guard falls back to reading package.json only on the dev/tsc path (where it's
+  always present). The standalone bundle reads no repo file at runtime.
+- `build:standalone` now runs `node scripts/build-standalone.mjs` (reads the
+  version from package.json, passes it to `--define` as a clean argv element).
+- Smoke test hardened: copies ONLY dist/ into a scratch dir with no package.json,
+  no node_modules, no src, then runs `node dist/server/index.js` there → 200. This
+  catches the runtime-file-read regression class by construction.
+- docs/install.md invariant corrected to the now-true statement: package.json is
+  optional at runtime too.
+
+`bun test`: 293 pass / 0 fail.

@@ -18,7 +18,9 @@ network-free helper. The only runtime requirement on the firewalled machine is
 
 - `dist/server/index.js` — the Canvas Server, bundled with `bun build --target=node`
   so `@modelcontextprotocol/sdk` and every import are inlined; only `node:*`
-  builtins stay external. It runs with `node_modules` completely absent.
+  builtins stay external. The version is inlined at build time too, so the bundle
+  reads no repo files at runtime — it runs with `node_modules` AND `package.json`
+  completely absent (a dist-only copy is enough).
 - `dist/hooks/askback-hook.js` — the Claude Code ask-back hook, bundled the same way.
 - `dist/canvas/` — the built canvas static assets (vite).
 
@@ -56,8 +58,10 @@ git bundle create visual-chat.bundle --all      # source only — dist/ is gitig
 ```
 
 The essential invariant: on the firewalled machine, `dist/server/index.js` and
-`dist/canvas/` must exist. Everything else (source, `node_modules`) is optional at
-runtime.
+`dist/canvas/` must exist (plus `dist/hooks/askback-hook.js` if you use the Claude
+Code hook). Everything else — source, `node_modules`, even `package.json` — is
+optional at runtime; the bundle inlines its dependencies and its version, so a
+dist-only copy runs.
 
 ## Step 3 — register into your project (firewalled machine, no network)
 
