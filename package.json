@@ -6,7 +6,7 @@
   "description": "Companion browser canvas for terminal LLM agents (placeholder name - never publish)",
   "scripts": {
     "dev": "vite --config src/canvas/vite.config.ts",
-    "build": "tsc -p tsconfig.json && tsc -p src/canvas/tsconfig.json && vite build --config src/canvas/vite.config.ts",
+    "build": "tsc -p tsconfig.json && tsc -p src/canvas/tsconfig.json && tsc -p hooks/tsconfig.json && vite build --config src/canvas/vite.config.ts && bun build hooks/askback-hook.ts --target=node --outfile=dist/hooks/askback-hook.js",
     "test": "bun test",
     "start": "node dist/server/index.js"
   },

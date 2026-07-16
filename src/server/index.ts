@@ -1,7 +1,11 @@
 // Canvas Server entry: one MCP stdio server that owns the local HTTP canvas
 // service (ADR-0003). Log to stderr only — stdout is the MCP transport.
 import { fileURLToPath } from "node:url";
-import type { ArtifactContent, ArtifactEvent } from "../shared/artifacts.js";
+import type {
+  ArtifactContent,
+  ArtifactEvent,
+  Askback,
+} from "../shared/artifacts.js";
 import {
   AskbackQueue,
   AskbackValidationError,
@@ -59,6 +63,18 @@ async function main(): Promise<void> {
     ASKBACK_RATE_LIMIT,
     ASKBACK_RATE_WINDOW_MS,
   );
+
+  // The canvas item shape shared by check_askbacks, the read-only /pending peek
+  // (issue 13), and request_review resolutions (issue 14). Enriches the stored
+  // ask-back with its artifact's current title.
+  const enrichAskback = (a: Askback) => ({
+    id: a.id,
+    question: a.question,
+    quote: a.anchor.quote,
+    anchor: a.anchor,
+    artifact_title: store.getMeta(a.anchor.artifact_id)?.title ?? null,
+    created_at: a.created_at,
+  });
 
   const apiRoutes: ApiRoute[] = [
     {
@@ -158,6 +174,15 @@ async function main(): Promise<void> {
           throw err;
         }
       },
+    },
+    {
+      // Read-only peek for the Claude Code hook (issue 13): returns pending
+      // ask-backs WITHOUT marking them delivered, so the hook and check_askbacks
+      // never race destructively. Delivery marking stays with check_askbacks.
+      method: "GET",
+      template: "/api/askbacks/pending",
+      handler: ({ res }) =>
+        sendJson(res, 200, { askbacks: askbacks.pending().map(enrichAskback) }),
     },
     {
       method: "POST",
@@ -466,16 +491,7 @@ async function main(): Promise<void> {
             hint: "no pending questions from the canvas",
           };
         }
-        return {
-          askbacks: drained.map((a) => ({
-            id: a.id,
-            question: a.question,
-            quote: a.anchor.quote,
-            anchor: a.anchor,
-            artifact_title: store.getMeta(a.anchor.artifact_id)?.title ?? null,
-            created_at: a.created_at,
-          })),
-        };
+        return { askbacks: drained.map(enrichAskback) };
       },
     },
     {

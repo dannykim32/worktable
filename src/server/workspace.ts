@@ -1,18 +1,15 @@
 // Workspace identity + capability-token state (ADR-0005).
 // All state lives under ~/.visual-chat/<workspaceId>/ — dirs 0700, files 0600.
-import { createHash, randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { chmodSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { atomicWriteFile } from "./atomicWrite.js";
+import { deriveWorkspaceId } from "../shared/workspaceId.js";
 
-/** workspaceId = sha256(realpath(cwd)) truncated to 12 hex chars. */
-export function deriveWorkspaceId(cwd: string = process.cwd()): string {
-  return createHash("sha256")
-    .update(realpathSync(cwd))
-    .digest("hex")
-    .slice(0, 12);
-}
+// The workspace id derivation is shared with the Claude Code hook (issue 13);
+// re-exported here so existing `./workspace.js` importers keep working.
+export { deriveWorkspaceId };
 
 export function mintToken(): string {
   return randomBytes(32).toString("base64url");

@@ -33,6 +33,53 @@ The canvas URL carries the per-workspace capability token
 (`http://127.0.0.1:<port>/?token=…`). Every browser-facing endpoint requires
 it; treat the URL like a credential and use `rotate_token` if it leaks.
 
+## Optional: the Claude Code ask-back hook (seamless delivery)
+
+The portable loop works everywhere: the agent calls `check_askbacks` at the
+start of a turn and you nudge the terminal to trigger it. On Claude Code, an
+optional `UserPromptSubmit` hook removes that ritual — pending canvas ask-backs
+are auto-appended to whatever you type next, so the agent sees them without
+being told to check.
+
+Build first (`bun run build` emits `dist/hooks/askback-hook.js`), then add to
+your Claude Code `settings.json` (`~/.claude/settings.json`, or the project's
+`.claude/settings.json`; replace `<abs path>` with this repo's absolute path):
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node <abs path>/dist/hooks/askback-hook.js",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook derives the workspace from its working directory (the same hash the
+server uses), reads `~/.visual-chat/<id>/{port,token}`, and does a **read-only**
+peek at `GET /api/askbacks/pending` (300ms timeout). It never marks anything
+delivered — only `check_askbacks` does — so it can run on every prompt without
+racing the tool or losing a queued ask-back. If the server is not running, the
+state files are missing, or the request times out, the hook exits 0 with no
+output and your prompt is untouched.
+
+**Verify (manual):** with the hook installed and the server running, select
+text on the canvas and ask a question, then type *anything* in Claude Code
+(e.g. "ok"). The agent should answer the canvas ask-back — citing the quoted
+anchor — without you telling it to check.
+
+**Uninstall:** delete the `UserPromptSubmit` block above from `settings.json`.
+Nothing else is installed — no daemon, no global state — and the portable
+`check_askbacks` loop keeps working without it.
+
 ## Legibility gate: report vs. enforce (human-only switch)
 
 The Legibility Gate ships **report-only**: it records coordinate findings next
