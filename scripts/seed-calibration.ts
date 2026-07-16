@@ -18,33 +18,38 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const distEntry = join(repoRoot, "dist", "server", "index.js");
 const S = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">';
 
-// ROUND 5 (2026-07-16): re-calibrating edge-straddle after the width fix (issue 18).
-// The poke test now uses a conservative 0.45em/char width, so a label that visually
-// FITS its box no longer manufactures a straddle. This set tests both directions: a
-// clearly-overflowing label that MUST still flag, and the round-4 fits-fine label
-// that must now be silent — plus regression guards.
-//
-// Each: a title the human sees + an SVG. "expect" is a note for the operator.
+// ROUND 6 (2026-07-16): confirm the 2-sided edge-straddle model (issue 19). Flag
+// fires only when a label bursts its owning box on 2+ sides (box too small). This set
+// probes both directions plus the reviewer's adversarial case (extreme 1-sided
+// overhang with center barely inside — should stay clean per the owner's gestalt).
 const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
   {
-    title: "A label that clearly overflows its box on both sides",
-    expect: "edge-straddle SHOULD flag — text pokes ~50px past a narrow box, unmistakable",
+    title: "Label bursts BOTH sides of a too-small box",
+    expect: "edge-straddle SHOULD flag — box can't contain the label (left+right)",
     svg:
       S +
-      '<rect x="180" y="76" width="40" height="32" fill="none" stroke="navy"/>' +
-      '<text x="200" y="97" font-size="14" text-anchor="middle">Overflowing Wide Label</text></svg>',
+      '<rect x="150" y="80" width="70" height="30" fill="none" stroke="navy"/>' +
+      '<text x="185" y="99" font-size="14" text-anchor="middle">Overflowing Wide Label</text></svg>',
   },
   {
-    title: "The round-4 label you said fit fine",
-    expect: "NO edge-straddle now — 0.45em width fits inside the box (was falsely flagged before)",
+    title: "Label with a small one-sided tail off the right",
+    expect: "NO flag — one-sided tail, box still contains most of it (the round-4 'fine' case)",
     svg:
       S +
       '<rect x="40" y="70" width="160" height="44" fill="none" stroke="navy"/>' +
       '<text x="100" y="97" font-size="13">label runs off right</text></svg>',
   },
   {
-    title: "A label sitting on a connector arrow",
-    expect: "NO edge-straddle — on-arrow label (issue-17 exclusion still holds)",
+    title: "Reviewer probe: label runs WAY off one side, center barely inside",
+    expect: "NO flag by the 2-sided model — but rule by eye: does an extreme 1-sided overhang bother you?",
+    svg:
+      S +
+      '<rect x="60" y="80" width="120" height="30" fill="none" stroke="navy"/>' +
+      '<text x="118" y="99" font-size="13">this label runs far past the right edge</text></svg>',
+  },
+  {
+    title: "Label sitting on a connector arrow",
+    expect: "NO flag — on-arrow label, no owning box (issue-17 exclusion)",
     svg:
       S +
       '<rect x="30" y="70" width="90" height="50" fill="none" stroke="navy"/>' +
@@ -53,30 +58,14 @@ const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
       '<text x="200" y="90" font-size="12" text-anchor="middle">on the arrow</text></svg>',
   },
   {
-    title: "Two labels stacked on top of each other",
-    expect: "text-overlap (regression guard)",
+    title: "Label comfortably inside its box",
+    expect: "NO flag — fully contained",
     svg:
       S +
-      '<text x="40" y="96" font-size="14">First label sits here</text>' +
-      '<text x="40" y="102" font-size="14">Second label lands on it</text></svg>',
+      '<rect x="60" y="70" width="280" height="50" fill="none" stroke="navy"/>' +
+      '<text x="200" y="100" font-size="14" text-anchor="middle">Contained Label</text></svg>',
   },
-  {
-    title: "A node pushed off the right edge",
-    expect: "clipped (regression guard)",
-    svg: S + '<rect x="360" y="60" width="70" height="40" rx="4" fill="teal"/></svg>',
-  },
-  {
-    title: "Clean two-step flow",
-    expect: "no findings",
-    svg:
-      S +
-      '<rect x="40" y="70" width="120" height="50" rx="6" fill="none" stroke="navy"/>' +
-      '<text x="100" y="100" font-size="14" text-anchor="middle">Collect</text>' +
-      '<rect x="240" y="70" width="120" height="50" rx="6" fill="none" stroke="navy"/>' +
-      '<text x="300" y="100" font-size="14" text-anchor="middle">Render</text>' +
-      '<line x1="160" y1="95" x2="240" y2="95" stroke="navy" stroke-width="2"/></svg>',
-  },
-];
+]
 
 function toolJson(result: unknown): Record<string, unknown> {
   const r = result as {

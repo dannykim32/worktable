@@ -73,16 +73,16 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ## ▶ RESUME HERE (next session)
 
-**Open thread — re-calibrate edge-straddle (round 5), owner action.** Two fixes have
-landed: issue 17 (owning-shape + on-arrow exclusion) and issue 18 (conservative
-0.45em width for the poke, so a label that visually fits no longer manufactures a
-straddle). Rounds 3–4 both found it 0%; the width fix is merged but NOT yet
-human-confirmed. Next: re-seed (a clearly-visible straddle + a fits-fine label +
-regression), then the owner rules edge-straddle in `/calibration`. When precision is
-acceptable, all four checks are trustworthy and `gate: enforce` is safe to flip — the
-last thing gating full enforcement. `gate` stays `report` until then. Known
-limitation (accepted): 0.45 trades recall for precision — a straddle poking only
-~10-18px past its true edge may not flag.
+**Open thread — re-calibrate edge-straddle (round 6), owner action.** THREE fixes
+have landed: issue 17 (owning-shape + on-arrow exclusion), 18 (conservative 0.45em
+width), and 19 (the model change: flag "box too small" = label pokes 2+ sides, NOT
+overhang magnitude — derived from the round-5 ladder, which showed the owner's
+judgment is gestalt not magnitude). The 2-sided model matches every ruling to date;
+merged, review verdict ship, but NOT yet confirmed on a fresh set. Next: re-seed
+(a 2-sided burst + a 1-sided tail + an EXTREME 1-sided overhang [reviewer probe] +
+on-arrow + fully-inside), then the owner rules in `/calibration`. If it holds, all
+four checks are trustworthy and `gate: enforce` is finally safe to flip. `gate`
+stays `report` until then.
 
 Everything else is done and merged; v1 is feature-complete. Naming the project (still
 a placeholder) is also open.
