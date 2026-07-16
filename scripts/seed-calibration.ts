@@ -18,40 +18,39 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const distEntry = join(repoRoot, "dist", "server", "index.js");
 const S = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">';
 
-// ROUND 4 (2026-07-16): re-calibrating edge-straddle after the owning-shape fix
-// (issue 17). Built to test the fix from both sides — a GENUINE straddle that must
-// still flag, the exact dogfood on-arrow pattern that must now be silent, plus the
-// other three checks as a regression guard.
+// ROUND 5 (2026-07-16): re-calibrating edge-straddle after the width fix (issue 18).
+// The poke test now uses a conservative 0.45em/char width, so a label that visually
+// FITS its box no longer manufactures a straddle. This set tests both directions: a
+// clearly-overflowing label that MUST still flag, and the round-4 fits-fine label
+// that must now be silent — plus regression guards.
 //
-// Each: a title the human sees + an SVG. "expect" is a note for the operator —
-// the gate decides what actually fires.
+// Each: a title the human sees + an SVG. "expect" is a note for the operator.
 const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
   {
-    title: "A label that genuinely runs off the right edge of its own box",
-    expect: "edge-straddle SHOULD flag — center is inside the box, text pokes ~56px past the right wall",
+    title: "A label that clearly overflows its box on both sides",
+    expect: "edge-straddle SHOULD flag — text pokes ~50px past a narrow box, unmistakable",
+    svg:
+      S +
+      '<rect x="180" y="76" width="40" height="32" fill="none" stroke="navy"/>' +
+      '<text x="200" y="97" font-size="14" text-anchor="middle">Overflowing Wide Label</text></svg>',
+  },
+  {
+    title: "The round-4 label you said fit fine",
+    expect: "NO edge-straddle now — 0.45em width fits inside the box (was falsely flagged before)",
     svg:
       S +
       '<rect x="40" y="70" width="160" height="44" fill="none" stroke="navy"/>' +
       '<text x="100" y="97" font-size="13">label runs off right</text></svg>',
   },
   {
-    title: "A label sitting on a connector arrow between two boxes",
-    expect: "NO edge-straddle now — on-arrow label, center outside both boxes",
+    title: "A label sitting on a connector arrow",
+    expect: "NO edge-straddle — on-arrow label (issue-17 exclusion still holds)",
     svg:
       S +
       '<rect x="30" y="70" width="90" height="50" fill="none" stroke="navy"/>' +
       '<rect x="280" y="70" width="90" height="50" fill="none" stroke="navy"/>' +
       '<line x1="120" y1="95" x2="280" y2="95" stroke="navy" stroke-width="2"/>' +
       '<text x="200" y="90" font-size="12" text-anchor="middle">on the arrow</text></svg>',
-  },
-  {
-    title: "The dogfood pattern: an edge-label whose bbox grazes a container edge",
-    expect: "NO edge-straddle now — this is exactly what over-fired at 0% in round 3",
-    svg:
-      S +
-      '<rect x="40" y="40" width="140" height="120" fill="none" stroke="navy"/>' +
-      '<line x1="180" y1="100" x2="340" y2="100" stroke="navy" stroke-width="2"/>' +
-      '<text x="170" y="95" font-size="11">leaves the box here</text></svg>',
   },
   {
     title: "Two labels stacked on top of each other",
@@ -68,7 +67,7 @@ const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
   },
   {
     title: "Clean two-step flow",
-    expect: "no findings — false-positive check",
+    expect: "no findings",
     svg:
       S +
       '<rect x="40" y="70" width="120" height="50" rx="6" fill="none" stroke="navy"/>' +

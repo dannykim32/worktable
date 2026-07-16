@@ -73,14 +73,16 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ## ▶ RESUME HERE (next session)
 
-**Open thread — re-calibrate the fixed edge-straddle check (round 4), owner action.**
-Issue 17 is merged (edge-straddle now judges the owning shape, dedupes, excludes
-on-arrow labels; review verdict: ship). Round 3 found it 0%; the fix is in but NOT
-yet human-confirmed. Next: `bun scripts/seed-calibration.ts` seeds a round-4 set (a
-real straddle + legit on-arrow labels + regression cases), then the owner rules
-edge-straddle in `/calibration`. When its precision is acceptable, all four checks
-are trustworthy and `gate: enforce` is safe to flip — the last thing gating full
-enforcement. `gate` stays `report` until then.
+**Open thread — re-calibrate edge-straddle (round 5), owner action.** Two fixes have
+landed: issue 17 (owning-shape + on-arrow exclusion) and issue 18 (conservative
+0.45em width for the poke, so a label that visually fits no longer manufactures a
+straddle). Rounds 3–4 both found it 0%; the width fix is merged but NOT yet
+human-confirmed. Next: re-seed (a clearly-visible straddle + a fits-fine label +
+regression), then the owner rules edge-straddle in `/calibration`. When precision is
+acceptable, all four checks are trustworthy and `gate: enforce` is safe to flip — the
+last thing gating full enforcement. `gate` stays `report` until then. Known
+limitation (accepted): 0.45 trades recall for precision — a straddle poking only
+~10-18px past its true edge may not flag.
 
 Everything else is done and merged; v1 is feature-complete. Naming the project (still
 a placeholder) is also open.
