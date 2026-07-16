@@ -25,9 +25,10 @@ this repo's absolute path):
 ```
 
 Restart Claude Code in the workspace. The server exposes the tools
-`publish_artifact`, `update_artifact`, `check_askbacks`, `open_canvas`, and
-`rotate_token`. Workspace state (capability token, artifacts, ask-back queue)
-lives under `~/.visual-chat/<workspaceId>/` (0700 dirs, 0600 files).
+`publish_artifact`, `update_artifact`, `check_askbacks`, `request_review`,
+`open_canvas`, and `rotate_token`. Workspace state (capability token, artifacts,
+ask-back queue) lives under `~/.visual-chat/<workspaceId>/` (0700 dirs, 0600
+files).
 
 The canvas URL carries the per-workspace capability token
 (`http://127.0.0.1:<port>/?token=…`). Every browser-facing endpoint requires
@@ -79,6 +80,18 @@ anchor — without you telling it to check.
 **Uninstall:** delete the `UserPromptSubmit` block above from `settings.json`.
 Nothing else is installed — no daemon, no global state — and the portable
 `check_askbacks` loop keeps working without it.
+
+## Optional: request_review (blocking Review Moment)
+
+`request_review({ artifact_id, timeout_s? })` lets the agent deliberately block
+awaiting your feedback on one artifact (timeout clamped to 30–600s, default
+180). The canvas shows a banner on that artifact — "agent is waiting for your
+review" with a **Looks good — continue** button. Clicking approve, or sending an
+anchored ask-back on that artifact, resolves the wait; the approval travels as
+an ordinary `kind:"approval"` ask-back (ADR-0010 — no new channel). On timeout
+the call returns `{ timed_out: true }` (a normal result, not an error) and any
+feedback you send later still arrives via `check_askbacks`. Pressing **Esc** in
+the terminal interrupts the call safely — the queue keeps your feedback.
 
 ## Legibility gate: report vs. enforce (human-only switch)
 

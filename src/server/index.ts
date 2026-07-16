@@ -6,11 +6,13 @@ import type {
   ArtifactEvent,
   Askback,
 } from "../shared/artifacts.js";
+import { isArtifactId } from "../shared/constraints.js";
 import {
   AskbackQueue,
   AskbackValidationError,
   validateAskbackBody,
 } from "./askbacks.js";
+import { ReviewCoordinator } from "./reviews.js";
 import {
   readJsonBody,
   sendJson,
@@ -59,6 +61,7 @@ async function main(): Promise<void> {
   const repairs = new RepairRegistry(workspace.dir);
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
+  const reviews = new ReviewCoordinator();
   const askbackLimiter = new RateLimiter(
     ASKBACK_RATE_LIMIT,
     ASKBACK_RATE_WINDOW_MS,
@@ -73,8 +76,46 @@ async function main(): Promise<void> {
     quote: a.anchor.quote,
     anchor: a.anchor,
     artifact_title: store.getMeta(a.anchor.artifact_id)?.title ?? null,
+    kind: a.kind ?? "question",
     created_at: a.created_at,
   });
+
+  // Block a request_review call until an ask-back anchored to `artifactId`
+  // arrives or `ms` elapses. Resolves with the ask-back (marked delivered) or
+  // null on timeout. No busy-spin: a single waiter + a single unref'd timer,
+  // both torn down on whichever fires first.
+  const awaitReviewFeedback = (
+    artifactId: string,
+    ms: number,
+  ): Promise<Askback | null> => {
+    const alreadyQueued = askbacks.pendingForArtifact(artifactId)[0];
+    if (alreadyQueued) {
+      askbacks.markDelivered(alreadyQueued.id);
+      return Promise.resolve(alreadyQueued);
+    }
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout;
+      const waiter = reviews.register(artifactId, (a) => {
+        clearTimeout(timer);
+        // Mark delivered synchronously (still inside the POST handler stack)
+        // so a concurrent check_askbacks can never also drain this item.
+        askbacks.markDelivered(a.id);
+        resolve(a);
+      });
+      timer = setTimeout(() => {
+        reviews.unregister(waiter);
+        resolve(null);
+      }, ms);
+      timer.unref?.();
+    });
+  };
+
+  // request_review timeout floor: 30s in production. A test seam lets the
+  // suite exercise the timeout path in ~1s without a 30s wall.
+  const reviewTimeoutFloor = (): number => {
+    const override = Number(process.env.VISUAL_CHAT_REVIEW_MIN_S);
+    return Number.isFinite(override) && override > 0 ? override : 30;
+  };
 
   const apiRoutes: ApiRoute[] = [
     {
@@ -208,6 +249,9 @@ async function main(): Promise<void> {
         try {
           const validated = validateAskbackBody(body);
           const askback = askbacks.append(validated);
+          // Wake any request_review blocked on this artifact (issue 14). The
+          // item is already on disk; the waiter marks it delivered.
+          reviews.onAskback(askback);
           sendJson(res, 201, { id: askback.id, state: askback.state });
         } catch (err) {
           if (err instanceof AskbackValidationError) {
@@ -492,6 +536,66 @@ async function main(): Promise<void> {
           };
         }
         return { askbacks: drained.map(enrichAskback) };
+      },
+    },
+    {
+      name: "request_review",
+      description:
+        "Block awaiting the human's review of ONE artifact on the canvas — call " +
+        "it only when their feedback on a visual is the explicit next step. " +
+        'Before calling, tell them in your text: "review on the canvas — ' +
+        'waiting there." A banner appears on that artifact with an approve ' +
+        "button. Returns the human's anchored feedback (same shape as " +
+        "check_askbacks), or { approved: true } if they click approve, or " +
+        "{ timed_out: true } after timeout_s (default 180, clamped 30–600) — a " +
+        "normal result, not an error: the feedback is not lost, it simply " +
+        "arrives via check_askbacks next turn. Esc interrupts the call safely; " +
+        "the queue keeps any feedback for the next check_askbacks.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          artifact_id: {
+            type: "string",
+            description: "The artifact to wait for review on.",
+          },
+          timeout_s: {
+            type: "number",
+            description: "Seconds to block; clamped to [30, 600]. Default 180.",
+          },
+        },
+        required: ["artifact_id"],
+        additionalProperties: false,
+      },
+      handler: async (args) => {
+        const artifactId = args.artifact_id;
+        if (!isArtifactId(artifactId)) {
+          throw new ToolInputError("artifact_id must be a valid artifact id");
+        }
+        if (!store.getMeta(artifactId)) {
+          throw new ToolInputError(`unknown artifact ${artifactId}`);
+        }
+        const requested =
+          typeof args.timeout_s === "number" ? args.timeout_s : 180;
+        const timeoutS = Math.min(
+          600,
+          Math.max(reviewTimeoutFloor(), requested),
+        );
+        // Tell the canvas to show the review banner on this artifact.
+        sse.broadcast("review_requested", { artifact_id: artifactId });
+        try {
+          const matched = await awaitReviewFeedback(artifactId, timeoutS * 1000);
+          if (!matched) {
+            return {
+              timed_out: true,
+              hint: "feedback will arrive via check_askbacks",
+            };
+          }
+          if (matched.kind === "approval") return { approved: true };
+          return { askback: enrichAskback(matched) };
+        } finally {
+          // Clear the banner on BOTH resolution and timeout.
+          sse.broadcast("review_resolved", { artifact_id: artifactId });
+        }
       },
     },
     {

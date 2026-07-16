@@ -1,6 +1,6 @@
 # 14 — request_review blocking tool + review banner
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: M6
 Blocked by: 05
@@ -56,3 +56,34 @@ canvas — waiting there" in its text before calling, and that Esc interrupts sa
 
 Making blocking the default after publish (rejected in ADR-0004), multi-artifact
 review sessions.
+
+## Comments
+
+Done. `request_review({artifact_id, timeout_s?})` clamps the timeout to
+[30,600] (default 180) and long-polls the queue via a new in-memory
+`ReviewCoordinator` (src/server/reviews.ts): a blocked call registers one waiter
+for the artifact; the POST /api/askbacks handler calls `reviews.onAskback` after
+every append, waking exactly one matching waiter. No busy-spin — a single waiter
++ a single unref'd timer, both torn down on whichever fires first. On entry it
+also checks already-queued feedback so a pre-existing ask-back resolves
+immediately.
+
+Resolution: an anchored question returns `{askback: <check_askbacks item>}` and
+is marked delivered synchronously inside the POST stack (so a concurrent
+check_askbacks can't also drain it); an approval returns `{approved:true}`; a
+timeout returns `{timed_out:true, hint}` (a normal result, not an error) and
+leaves the queue untouched so the feedback still arrives via check_askbacks.
+
+The queue stays the single browser->agent channel (ADR-0010): approvals travel
+as ask-backs with the new `kind:"approval"` field (added to the schema, default
+"question"; approvals carry an empty question). No new endpoint. Canvas: SSE
+`review_requested{artifact_id}` shows a banner ("agent is waiting for your
+review" + "Looks good — continue"); approve POSTs the approval ask-back; the
+banner clears on SSE `review_resolved` (sent on both resolution and timeout).
+
+A test seam (`VISUAL_CHAT_REVIEW_MIN_S`) lowers the floor so the timeout path
+runs in ~1s. Tests (+6, all green): resolve-by-approval (<1s), resolve-by-
+question (+ delivered), timeout (+ later feedback reaches check_askbacks),
+cross-artifact isolation (other-artifact ask-back doesn't resolve but stays
+queued), two concurrent reviews resolve independently, banner lifecycle. Full
+suite: 235 pass. AC1–6 satisfied. Committed as feat(14).

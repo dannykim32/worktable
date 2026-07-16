@@ -31,11 +31,15 @@ interface CardState {
   marker: HTMLElement;
   prev: HTMLButtonElement;
   next: HTMLButtonElement;
+  /** Review Moment banner (issue 14); hidden until a review is requested. */
+  banner: HTMLElement;
 }
 
 export interface GalleryOptions {
   /** Card ⋯ menu → "Ask about this artifact" (whole-artifact ask-back). */
   onAskArtifact?: (meta: ArtifactMeta, viewing: number) => void;
+  /** Review banner "Looks good — continue" (issue 14): approve the artifact. */
+  onApproveReview?: (meta: ArtifactMeta, viewing: number) => void;
 }
 
 export class Gallery {
@@ -76,6 +80,39 @@ export class Gallery {
 
   metaFor(artifactId: string): ArtifactMeta | null {
     return this.cards.get(artifactId)?.meta ?? null;
+  }
+
+  /** SSE `review_requested`: the agent is blocking on this artifact's review.
+   *  Show a banner with an approve button (issue 14). No-op if the card is not
+   *  present yet. */
+  showReviewBanner(artifactId: string): void {
+    const card = this.cards.get(artifactId);
+    if (!card) return;
+    const doc = this.root.ownerDocument;
+    card.banner.replaceChildren();
+    const msg = doc.createElement("span");
+    msg.className = "review-msg";
+    msg.textContent = "agent is waiting for your review";
+    const approve = doc.createElement("button");
+    approve.className = "review-approve";
+    approve.textContent = "Looks good — continue";
+    approve.addEventListener("click", () => {
+      approve.disabled = true;
+      approve.textContent = "sent ✓";
+      // The banner stays until the server confirms resolution via SSE
+      // review_resolved — the approval travels as an ask-back (ADR-0010).
+      this.options.onApproveReview?.(card.meta, card.viewing);
+    });
+    card.banner.append(msg, approve);
+    card.banner.hidden = false;
+  }
+
+  /** SSE `review_resolved` (resolution OR timeout): clear the banner. */
+  clearReviewBanner(artifactId: string): void {
+    const card = this.cards.get(artifactId);
+    if (!card) return;
+    card.banner.hidden = true;
+    card.banner.replaceChildren();
   }
 
   private upsertCard(meta: ArtifactMeta, latestContent: ArtifactContent): void {
@@ -154,9 +191,13 @@ export class Gallery {
       head.append(menuButton, menu);
     }
 
+    const banner = doc.createElement("div");
+    banner.className = "review-banner";
+    banner.hidden = true;
+
     const body = doc.createElement("div");
     body.className = "body";
-    root.append(head, body);
+    root.append(head, banner, body);
 
     const card: CardState = {
       meta,
@@ -169,6 +210,7 @@ export class Gallery {
       marker,
       prev,
       next,
+      banner,
     };
     prev.addEventListener("click", () => void this.scrub(card, -1));
     next.addEventListener("click", () => void this.scrub(card, +1));

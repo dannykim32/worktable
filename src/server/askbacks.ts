@@ -4,7 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Anchor, Askback } from "../shared/artifacts.js";
+import type { Anchor, Askback, AskbackKind } from "../shared/artifacts.js";
 import {
   isArtifactId,
   QUESTION_MAX,
@@ -22,20 +22,35 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 export function validateAskbackBody(body: unknown): {
   anchor: Anchor;
   question: string;
+  kind: AskbackKind;
 } {
   if (!isRecord(body)) {
     throw new AskbackValidationError("body must be a JSON object");
   }
   for (const key of Object.keys(body)) {
-    if (key !== "anchor" && key !== "question") {
+    if (key !== "anchor" && key !== "question" && key !== "kind") {
       throw new AskbackValidationError(`unexpected field "${key}"`);
     }
   }
   const { anchor, question } = body;
-  if (typeof question !== "string" || question.trim().length === 0) {
+  // kind defaults to "question" (issue 14). An "approval" is the Review Moment
+  // acknowledgement and carries an empty question by design; every other kind
+  // must have a non-empty question.
+  let kind: AskbackKind = "question";
+  if (body.kind !== undefined) {
+    if (body.kind !== "question" && body.kind !== "approval") {
+      throw new AskbackValidationError('kind must be "question" or "approval"');
+    }
+    kind = body.kind;
+  }
+  if (kind === "approval") {
+    if (typeof question !== "string") {
+      throw new AskbackValidationError("question must be a string");
+    }
+  } else if (typeof question !== "string" || question.trim().length === 0) {
     throw new AskbackValidationError("question must be a non-empty string");
   }
-  if (question.length > QUESTION_MAX) {
+  if (typeof question === "string" && question.length > QUESTION_MAX) {
     throw new AskbackValidationError(
       `question is ${question.length} chars; maximum is ${QUESTION_MAX}`,
     );
@@ -97,7 +112,7 @@ export function validateAskbackBody(body: unknown): {
   };
   if (anchor.char_start !== undefined) result.char_start = anchor.char_start as number;
   if (anchor.char_end !== undefined) result.char_end = anchor.char_end as number;
-  return { anchor: result, question };
+  return { anchor: result, question: question as string, kind };
 }
 
 export class AskbackQueue {
@@ -115,11 +130,16 @@ export class AskbackQueue {
       .map((line) => JSON.parse(line) as Askback);
   }
 
-  append(input: { anchor: Anchor; question: string }): Askback {
+  append(input: {
+    anchor: Anchor;
+    question: string;
+    kind?: AskbackKind;
+  }): Askback {
     const askback: Askback = {
       id: `ab_${randomBytes(4).toString("hex")}`,
       anchor: input.anchor,
       question: input.question,
+      kind: input.kind ?? "question",
       state: "pending",
       created_at: new Date().toISOString(),
     };
@@ -129,6 +149,35 @@ export class AskbackQueue {
 
   pending(): Askback[] {
     return this.readAll().filter((a) => a.state === "pending");
+  }
+
+  /** Pending ask-backs anchored to one artifact, any version (issue 14).
+   *  A read-only view — the caller decides whether to mark delivery. */
+  pendingForArtifact(artifactId: string): Askback[] {
+    return this.readAll().filter(
+      (a) => a.state === "pending" && a.anchor.artifact_id === artifactId,
+    );
+  }
+
+  /** Mark a single pending ask-back delivered (atomic tmp+rename rewrite).
+   *  Returns the delivered item, or null if it was missing/already delivered. */
+  markDelivered(id: string): Askback | null {
+    const all = this.readAll();
+    let delivered: Askback | null = null;
+    const rewritten = all.map((a) => {
+      if (a.id === id && a.state === "pending") {
+        delivered = { ...a, state: "delivered" as const };
+        return delivered;
+      }
+      return a;
+    });
+    if (delivered) {
+      atomicWriteFile(
+        this.path,
+        rewritten.map((a) => JSON.stringify(a)).join("\n") + "\n",
+      );
+    }
+    return delivered;
   }
 
   /** Return all pending ask-backs, atomically marking them delivered

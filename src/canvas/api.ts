@@ -15,7 +15,11 @@ export interface CanvasApi {
   listArtifacts(): Promise<ArtifactMeta[]>;
   getArtifact(id: string): Promise<ArtifactWithContent>;
   getVersion(id: string, version: number): Promise<ArtifactContent>;
-  postAskback(body: { anchor: unknown; question: string }): Promise<void>;
+  postAskback(body: {
+    anchor: unknown;
+    question: string;
+    kind?: "question" | "approval";
+  }): Promise<void>;
 }
 
 export function createApi(token: string): CanvasApi {
