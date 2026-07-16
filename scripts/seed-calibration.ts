@@ -40,12 +40,12 @@ const SEEDS: Array<{ title: string; svg: string; expect: string }> = [
       '<text x="100" y="97" font-size="13">label runs off right</text></svg>',
   },
   {
-    title: "Reviewer probe: label runs WAY off one side, center barely inside",
-    expect: "NO flag by the 2-sided model — but rule by eye: does an extreme 1-sided overhang bother you?",
+    title: "Reviewer probe: a big one-sided tail (center inside, stays on-canvas)",
+    expect: "NO edge-straddle by the 2-sided model — rule by eye: does a ~58px one-sided tail bother you?",
     svg:
       S +
-      '<rect x="60" y="80" width="120" height="30" fill="none" stroke="navy"/>' +
-      '<text x="118" y="99" font-size="13">this label runs far past the right edge</text></svg>',
+      '<rect x="40" y="76" width="200" height="32" fill="none" stroke="navy"/>' +
+      '<text x="80" y="97" font-size="13">pokes past the box edge here</text></svg>',
   },
   {
     title: "Label sitting on a connector arrow",
