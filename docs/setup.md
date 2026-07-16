@@ -8,6 +8,12 @@ bun run build     # tsc (server + canvas typecheck) + vite build → dist/
 bun test          # full suite, loopback only
 ```
 
+> **Firewalled / no-npm machine?** This page is the dev path (needs
+> `node_modules`). To install where npm/npx/`bun install` are unreachable, build a
+> self-contained bundle (`bun run build:standalone`) and register it with the
+> network-free helper (`node scripts/register.mjs`). Full walkthrough:
+> [install.md](./install.md).
+
 ## Register in Claude Code
 
 Add the Canvas Server to the project's `.mcp.json` (replace `<abs path>` with
@@ -143,6 +149,9 @@ converts anything; enforcement acts on real findings only. Repair contexts are
 persisted (they survive a restart) and expire after one hour.
 
 ## Agent guidance (add to the host project's AGENTS.md / CLAUDE.md)
+
+The canonical, marker-wrapped copy lives in [agent-guidance.md](./agent-guidance.md)
+(what `register.mjs --guidance` appends). Reproduced here for convenience:
 
 ```markdown
 ## Visual Chat

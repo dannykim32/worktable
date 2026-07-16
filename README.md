@@ -99,6 +99,8 @@ bun scripts/demo.ts        # publishes a doc, prints the tokened canvas URL, pol
 ```
 
 Claude Code registration + manual walkthrough: `docs/setup.md`.
+Firewalled / no-npm install (self-contained bundle + network-free register
+helper): `docs/install.md`.
 
 ## Map of record (read in this order when coming in cold)
 
