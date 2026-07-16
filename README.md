@@ -73,16 +73,19 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ## ▶ RESUME HERE (next session)
 
-**Open thread — re-calibrate edge-straddle (round 6), owner action.** THREE fixes
-have landed: issue 17 (owning-shape + on-arrow exclusion), 18 (conservative 0.45em
-width), and 19 (the model change: flag "box too small" = label pokes 2+ sides, NOT
-overhang magnitude — derived from the round-5 ladder, which showed the owner's
-judgment is gestalt not magnitude). The 2-sided model matches every ruling to date;
-merged, review verdict ship, but NOT yet confirmed on a fresh set. Next: re-seed
-(a 2-sided burst + a 1-sided tail + an EXTREME 1-sided overhang [reviewer probe] +
-on-arrow + fully-inside), then the owner rules in `/calibration`. If it holds, all
-four checks are trustworthy and `gate: enforce` is finally safe to flip. `gate`
-stays `report` until then.
+**All four legibility checks are calibrated and trustworthy (round 6, 2026-07-16).**
+edge-straddle took three fixes (17: owning-shape + on-arrow; 18: conservative width;
+19: the 2-sided "box too small" model derived from the round-5 ladder) and six
+calibration rounds, but it now matches the owner's eye — confirmed round 6 (burst =
+correct, contained = fine). text-overlap, clipped, sub-legible were all clean.
+Evidence: `docs/qa/calibration-round-6.md`.
+
+**Open decision — flip `gate: enforce`?** The gate is calibrated, so per ADR-0007
+enforcement is now SAFE to enable (fail → one repair round → honest absence). It's
+still `report` by default (informational, never blocks). Flipping is the owner's
+call: edit `~/.visual-chat/<workspaceId>/config.json` to `{"gate":"enforce"}` and
+restart. That's the only open thread. Naming the project (still a placeholder) is
+also open.
 
 Everything else is done and merged; v1 is feature-complete. Naming the project (still
 a placeholder) is also open.
