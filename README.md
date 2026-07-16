@@ -11,7 +11,18 @@ Cold-start for any agent or human: this file + the map below is everything you n
 same change.** This document must always let a fresh session resume without any
 prior conversation context.
 
-## Status (updated 2026-07-15)
+## Status (updated 2026-07-15) — v1 FEATURE-COMPLETE
+
+Every issue in the v1 spec (01–14, 16) is built, two-axis reviewed, and merged to
+`main`. Full loop works: agent publishes versioned artifacts (document / dashboard /
+compare / SVG / honest-absence) to a capability-gated local canvas; the human sends
+selection-anchored ask-backs home; the SVG legibility gate runs (report-only by
+default, human-calibrated, opt-in enforcement); and Claude Code gets an ask-back
+auto-inject hook plus an agent-opt-in `request_review` Review Moment. Deferred by
+design: free-form HTML hatch (issue 15, security model pre-decided), structured
+Diagram component, native MCP Apps hosting, sketch aesthetic register.
+
+### Milestone history
 
 - **M1 — walking skeleton: DONE, merged, human-verified.** MCP server (stdio) +
   capability-URL canvas on 127.0.0.1; versioned artifact store + SSE; Document +
@@ -50,8 +61,13 @@ prior conversation context.
   inputSchema) that blocked spec-compliant MCP hosts since M1. 224 tests green.
 - **To turn enforcement on:** edit `~/.visual-chat/<workspaceId>/config.json` to
   `{"gate":"enforce"}` and restart the server (per `docs/setup.md`). Off by default.
-- **Next / last milestone:** M6 — Claude Code `UserPromptSubmit` hook (auto-inject
-  ask-backs) + `request_review` blocking tool. After M6, v1 is feature-complete.
+- **M6 — Claude Code hook + `request_review`: DONE, merged, both axes passed.**
+  `UserPromptSubmit` hook auto-injects pending ask-backs (via a read-only peek route
+  that never drains the queue); `request_review` is an agent-opt-in blocking Review
+  Moment (long-poll, canvas banner + approve button, approvals travel as ask-backs
+  per ADR-0010). 235 tests green.
+- **Next:** dogfood it (register in a real Claude Code session per `docs/setup.md`),
+  and pick up the deferred slots if/when the pilot gallery proves the need.
 - **Deferred with labeled slots:** free-form HTML hatch (security model +
   pre-decisions already recorded — issue 15), structured Diagram component,
   native MCP Apps hosting, sketch aesthetic register.

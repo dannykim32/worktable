@@ -31,7 +31,9 @@ uninstall note.
 ## Acceptance Criteria
 
 1. With server running + pending ask-backs: hook emits additionalContext containing
-   each question + quote + artifact title within 300ms.
+   each question + quote + artifact title. The network peek is bounded by a 300ms
+   fetch timeout (end-to-end also includes host subprocess startup, which is outside
+   our control — so the 300ms budget scopes the network call, not the whole hook).
 2. Server not running: exit 0, empty output, <400ms (measured in test).
 3. Missing token/port files: exit 0 silently.
 4. Hook never mutates queue state (peek route asserted read-only; pending still

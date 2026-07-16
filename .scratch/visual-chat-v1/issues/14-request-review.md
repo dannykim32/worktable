@@ -87,3 +87,9 @@ question (+ delivered), timeout (+ later feedback reaches check_askbacks),
 cross-artifact isolation (other-artifact ask-back doesn't resolve but stays
 queued), two concurrent reviews resolve independently, banner lifecycle. Full
 suite: 235 pass. AC1–6 satisfied. Committed as feat(14).
+
+## Known minor (non-blocking, from M6 review 2026-07-15)
+- AC4 banner is verified at the SSE-event layer (review_requested/review_resolved
+  on both resolution and timeout); the DOM show/clear wiring in gallery.ts/main.ts
+  is correct by inspection but has no direct unit test. The event contract is what
+  the AC hinges on. Add a jsdom banner test in a future UI test pass.
