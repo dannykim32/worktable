@@ -1,6 +1,6 @@
 # 23 — Apply the warm palette to the real theme (owner-picked)
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: post-v1 (design)
 Blocked by: 07
@@ -81,3 +81,41 @@ signal). Those are functional/lead elements, not static metadata.
 ## Out of Scope
 
 Changing chart logic, adding a theme toggle, dark mode. Reworking non-canvas surfaces.
+
+## Comments
+
+Applied to `src/canvas/styles.css` `:root` (light-only; no dark block reintroduced).
+
+Vars changed (before -> after):
+- `--series-1` `#2a78d6` -> `#fc6c26`; `--series-2` `#1baf7a` -> `#c9551b`;
+  `--series-3` `#9a5bd2` -> `#9a4a2a`; `--series-4` `#c85c8e` -> `#6e4630` (variant C ramp).
+- `--delta-good` `#006300` -> `#6b7233` (warm olive). `--delta-bad` `#b23127` and
+  `--muted` `#9a8b70` kept.
+- `--add-bg` `#e2f2e2` -> `#f0ecd8` (warm cream); `--del-bg` `#fbe3e3` -> `#f5e3d8`
+  (warm clay) — distinguished by the +/- glyph, not hue.
+- Added `--callout-accent: #a06a3c`; repointed `.doc .callout` border-left from
+  `var(--series-1)` to `var(--callout-accent)`.
+- `--dot-live` `#0ca30c` -> `var(--accent-warm)` so the live connection dot leads
+  with the accent (AC4 / the owner principle name it a lead element; it had been
+  green from issue 07).
+
+`.badge` reworked to quiet metadata: `color: var(--muted)`, `1px solid var(--border)`,
+transparent fill, uppercase, `.06em` tracking, `10.5px`, `border-radius: 6px` — no
+accent-warm border, no accent-wash fill. `.badge.absence` left as-is. `.badge.freeform`
+kept distinguishable-but-quiet: warm `--accent-ink` text + an `--accent-warm` hairline
++ italic (no filled orange pill); provenance carried by the "svg · free-form" text.
+
+`--accent-warm` still leads only on: masthead border-bottom, `:focus-visible`, the live
+dot, and `.viewing-marker`. Renderers (`dashboard.ts`/`compare.ts`/`document.ts`) carry
+no hardcoded hex — they read the CSS vars, so the var swap sufficed (no renderer edits).
+
+AC verification: `bun test` green (303 pass / 0 fail, 27 files); zero new deps. QA
+screenshots re-captured on the warm theme via the real renderers (happy-dom) + the real
+stylesheet, headless Chrome, light mode: `docs/qa/m2-dashboard-light.png`,
+`docs/qa/m2-compare-light.png`.
+
+Judgment call: the live connection dot. The spec's "keep accent where it leads" section
+and AC4 both name the live dot as an accent-warm lead element, but the merged issue-07
+theme rendered it green (`--dot-live: #0ca30c`, "true status signal"). Followed the
+newer explicit owner direction and pointed the connected dot at `--accent-warm` (a
+color-var change, in scope); idle/disconnected stays muted-neutral.
