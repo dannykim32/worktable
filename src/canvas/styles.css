@@ -28,26 +28,33 @@
   --accent-ink: #b5430f; /* small orange text on vanilla — 5.4:1, AA */
   --accent-wash: #ffe7d6; /* badge/pill fill, focus glow */
 
-  /* Semantics — kept off the hero so orange never means "bad" */
-  --delta-good: #006300; /* 7.3:1 */
+  /* Semantics — warmed so the palette holds one register (issue 23). */
+  --delta-good: #6b7233; /* warm olive — positive deltas, 4.97:1 on surface */
   --delta-bad: #b23127; /* warm red — negative deltas + warnings, 6.0:1 */
 
-  /* Data series — validated categorical set, held apart from brand.
-     Slots assigned in fixed order; six-checks PASS on #FFFBEE (series-2
-     contrast WARN relieved by the mandatory direct value labels). */
-  --series-1: #2a78d6;
-  --series-2: #1baf7a;
-  --series-3: #9a5bd2;
-  --series-4: #c85c8e;
+  /* Data series — variant C, a warm monochrome ramp by lightness (issue 23,
+     owner-picked). Validated ≥13 ΔE adjacent even under deuteranopia/
+     protanopia; the mandatory direct value labels carry precise readout. */
+  --series-1: #fc6c26;
+  --series-2: #c9551b;
+  --series-3: #9a4a2a;
+  --series-4: #6e4630;
 
-  /* Component insets + diff tints */
+  /* Warm-brown callout rail — static metadata, kept off the hero (issue 23). */
+  --callout-accent: #a06a3c;
+
+  /* Component insets + diff tints — warm-neutral washes; the +/- glyph, not
+     hue, distinguishes add/del (issue 23). */
   --callout-bg: #f8edcb;
   --code-bg: #f8edcb;
-  --add-bg: #e2f2e2;
-  --del-bg: #fbe3e3;
+  --add-bg: #f0ecd8; /* warm cream */
+  --del-bg: #f5e3d8; /* warm clay */
 
-  /* Status dots — connection state stays a true status signal (green/idle) */
-  --dot-live: #0ca30c;
+  /* Status dots — the live connection dot is a STATUS signal, not a brand
+     lead: it wears the warm-olive "good" color (keeps the green-family
+     "connected" convention while staying warm). Accent-warm leads only on
+     masthead/focus/viewing-marker. Idle/disconnected stays muted-neutral. */
+  --dot-live: var(--delta-good);
   --dot-dead: #9a8b70;
 }
 
@@ -136,15 +143,18 @@ header.canvas-chrome .live {
   font-size: 15px;
   font-weight: 650;
 }
+/* Quiet type metadata (issue 23): the badge names the component register,
+   it does not lead. Muted uppercase on a hairline border — no orange fill. */
 .badge {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--accent-warm);
-  background: var(--accent-wash);
-  color: var(--accent-ink);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
   white-space: nowrap;
 }
 /* Honest Absence stays deliberately calm — never wears the brand badge. */
@@ -154,10 +164,13 @@ header.canvas-chrome .live {
   color: var(--muted);
   font-style: italic;
 }
-/* Free-form SVG provenance badge — visually distinct from component badges. */
+/* Free-form SVG provenance badge (ADR-0009) — still distinguishable from
+   component badges, but warm-neutral: an accent-ink text step + a hairline
+   accent rule, not a filled orange pill. Provenance is carried by the text. */
 .badge.freeform {
   border-color: var(--accent-warm);
-  color: var(--accent-warm);
+  color: var(--accent-ink);
+  font-style: italic;
 }
 .vchip {
   margin-left: auto;
@@ -218,7 +231,7 @@ header.canvas-chrome .live {
   color: var(--text-primary);
 }
 .doc .callout {
-  border-left: 3px solid var(--series-1);
+  border-left: 3px solid var(--callout-accent);
   background: var(--callout-bg);
   padding: 10px 14px;
   border-radius: 0 6px 6px 0;
