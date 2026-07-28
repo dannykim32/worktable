@@ -6,7 +6,7 @@ import type {
   ArtifactEvent,
   Askback,
 } from "../shared/artifacts.js";
-import { isArtifactId } from "../shared/constraints.js";
+import { ANSWER_MAX, isArtifactId } from "../shared/constraints.js";
 import {
   AskbackQueue,
   AskbackValidationError,
@@ -232,6 +232,23 @@ async function main(): Promise<void> {
       template: "/api/askbacks/pending",
       handler: ({ res }) =>
         sendJson(res, 200, { askbacks: askbacks.pending().map(enrichAskback) }),
+    },
+    {
+      // Answered ask-backs for this workspace (issue 22): the canvas loads
+      // these on boot so the inline replies survive a reload. Bearer-gated like
+      // every /api route (http.ts 401s without the token); read-only — reading
+      // never touches delivered state.
+      method: "GET",
+      template: "/api/askbacks/answered",
+      handler: ({ res }) =>
+        sendJson(res, 200, {
+          askbacks: askbacks.answered().map((a) => ({
+            id: a.id,
+            anchor: a.anchor,
+            question: a.question,
+            answer: a.answer,
+          })),
+        }),
     },
     {
       method: "POST",
@@ -684,6 +701,66 @@ async function main(): Promise<void> {
       handler: () => {
         workspace.rotateToken();
         return { rotated: true, url: canvasUrl() };
+      },
+    },
+    {
+      name: "answer_askback",
+      description:
+        "Answer a specific ask-back the human sent from the canvas, so your " +
+        "reply also shows inline next to the anchored selection in the browser. " +
+        "You still answer in the terminal; this is the extra step that closes " +
+        "the loop where they asked. Pass the askback_id from check_askbacks and " +
+        "your answer text. The reply appears live on the canvas and survives a " +
+        "reload. This does NOT re-open or re-deliver the ask-back.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          askback_id: {
+            type: "string",
+            description: "The id of the ask-back to answer (from check_askbacks).",
+          },
+          answer: {
+            type: "string",
+            description: "Your answer, shown inline as the agent's reply.",
+          },
+        },
+        required: ["askback_id", "answer"],
+        additionalProperties: false,
+      },
+      handler: (args) => {
+        const askbackId = args.askback_id;
+        if (typeof askbackId !== "string" || askbackId.length === 0) {
+          throw new ToolInputError("askback_id must be a non-empty string");
+        }
+        const answer = args.answer;
+        if (typeof answer !== "string" || answer.trim().length === 0) {
+          throw new ToolInputError("answer must be a non-empty string");
+        }
+        if (answer.length > ANSWER_MAX) {
+          throw new ToolInputError(
+            `answer is ${answer.length} chars; maximum is ${ANSWER_MAX}`,
+          );
+        }
+        // Unknown id → nothing is stored (answer() writes only on a match).
+        const updated = askbacks.answer(askbackId, answer);
+        if (!updated) {
+          throw new ToolInputError(`unknown ask-back ${askbackId}`);
+        }
+        // Agent→browser, same direction as artifact pushes — not a new
+        // browser→agent channel, so ADR-0010 is intact. The canvas fetches the
+        // answer text via GET /api/askbacks/answered on this signal.
+        sse.broadcast("askback_answered", {
+          askback_id: updated.id,
+          artifact_id: updated.anchor.artifact_id,
+          version: updated.anchor.version,
+        });
+        return {
+          id: updated.id,
+          anchor: updated.anchor,
+          question: updated.question,
+          state: updated.state,
+          answer: updated.answer,
+        };
       },
     },
   ];

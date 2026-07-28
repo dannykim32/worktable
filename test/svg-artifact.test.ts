@@ -77,7 +77,8 @@ describe("svg card chrome — provenance badge (AC4)", () => {
       listArtifacts: async () => [meta],
       getArtifact: async () => ({ ...meta, content }),
       getVersion: async () => content,
-      postAskback: async () => {},
+      postAskback: async () => ({ id: "ab_stub", state: "pending" }),
+      getAnsweredAskbacks: async () => [],
     };
   }
 

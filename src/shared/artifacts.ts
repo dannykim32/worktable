@@ -170,6 +170,13 @@ export interface Anchor {
  *  request_review. Both travel the single ask-back channel (ADR-0010). */
 export type AskbackKind = "question" | "approval";
 
+/** The agent's answer to an ask-back (issue 22). Stored alongside the queue
+ *  entry; it flows agent→browser via SSE and does NOT change delivered state. */
+export interface AskbackAnswer {
+  text: string;
+  answered_at: string;
+}
+
 export interface Askback {
   id: string;
   anchor: Anchor;
@@ -177,4 +184,14 @@ export interface Askback {
   kind: AskbackKind;
   state: "pending" | "delivered";
   created_at: string;
+  /** Present once the agent has answered it via answer_askback (issue 22). */
+  answer?: AskbackAnswer;
+}
+
+/** SSE payload for `event: askback_answered` (issue 22). Carries only ids —
+ *  the canvas fetches the answer text from GET /api/askbacks/answered. */
+export interface AskbackAnsweredEvent {
+  askback_id: string;
+  artifact_id: string;
+  version: number;
 }

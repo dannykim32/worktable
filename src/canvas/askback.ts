@@ -78,6 +78,10 @@ export function wholeArtifactAnchor(
 export interface AskbackDeps {
   api: CanvasApi;
   gallery: Gallery;
+  /** Called with the server-assigned id once an ask-back is accepted, so the
+   *  canvas can thread the agent's eventual answer back to this anchor (issue
+   *  22). */
+  onSubmitted?: (id: string, anchor: Anchor, question: string) => void;
 }
 
 export class AskbackUi {
@@ -170,11 +174,16 @@ export class AskbackUi {
 
   async submit(): Promise<void> {
     if (!this.currentAnchor) return;
+    const anchor = this.currentAnchor;
     const question = this.input.value.trim();
     if (question.length === 0) return;
     this.input.disabled = true;
     try {
-      await this.deps.api.postAskback({ anchor: this.currentAnchor, question });
+      const res = await this.deps.api.postAskback({ anchor, question });
+      // Track it locally so the agent's later answer can thread back here.
+      if (res && this.deps.onSubmitted) {
+        this.deps.onSubmitted(res.id, anchor, question);
+      }
       this.status.textContent = "sent — reaches the agent next turn ✓";
       setTimeout(() => this.closeComposer(), 2000);
     } catch (err) {

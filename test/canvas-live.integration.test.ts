@@ -48,7 +48,8 @@ function apiFor(s: SpawnedServer): CanvasApi {
       get<ArtifactMeta & { content: ArtifactContent }>(`/api/artifacts/${id}`),
     getVersion: (id, version) =>
       get<ArtifactContent>(`/api/artifacts/${id}/v/${version}`),
-    postAskback: async () => {},
+    postAskback: async () => ({ id: "ab_stub", state: "pending" }),
+    getAnsweredAskbacks: async () => [],
   };
 }
 

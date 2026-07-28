@@ -4,8 +4,12 @@ import "./styles.css";
 import { connectEvents, createApi } from "./api.js";
 import { AskbackUi, wholeArtifactAnchor } from "./askback.js";
 import { Gallery } from "./gallery.js";
+import { ReplyThreads } from "./replies.js";
 import { SettingsPanel } from "./settings.js";
-import type { ArtifactEvent } from "../shared/artifacts.js";
+import type {
+  ArtifactEvent,
+  AskbackAnsweredEvent,
+} from "../shared/artifacts.js";
 
 function boot(): void {
   const app = document.getElementById("app");
@@ -62,6 +66,10 @@ function boot(): void {
       ws.textContent = "workspace: unavailable";
     });
 
+  // Inline canvas answers (issue 22): threads the agent's replies to ask-backs
+  // back under the anchored selection.
+  const replies = new ReplyThreads(document, galleryRoot, api);
+
   const gallery: Gallery = new Gallery(galleryRoot, api, {
     onAskArtifact: (meta, viewing) => {
       askbackUi.openComposer(wholeArtifactAnchor(meta.id, viewing, meta.title));
@@ -76,18 +84,30 @@ function boot(): void {
       });
     },
   });
-  const askbackUi = new AskbackUi(document, { api, gallery });
-  void gallery.init().catch((err: unknown) => {
-    const note = document.createElement("p");
-    note.className = "canvas-error";
-    note.textContent = `Could not load artifacts: ${String(err)}`;
-    galleryRoot.appendChild(note);
+  const askbackUi = new AskbackUi(document, {
+    api,
+    gallery,
+    onSubmitted: (id, anchor, question) => replies.track(id, anchor, question),
   });
+  void gallery
+    .init()
+    .then(() => replies.loadAnswered())
+    .catch((err: unknown) => {
+      const note = document.createElement("p");
+      note.className = "canvas-error";
+      note.textContent = `Could not load artifacts: ${String(err)}`;
+      galleryRoot.appendChild(note);
+    });
 
   connectEvents(token, {
     onEvent: (event, data) => {
       if (event === "artifact") {
-        void gallery.handleArtifactEvent(data as ArtifactEvent);
+        void gallery
+          .handleArtifactEvent(data as ArtifactEvent)
+          // A card re-render wipes body-mounted threads; re-attach them.
+          .then(() => replies.render());
+      } else if (event === "askback_answered") {
+        void replies.handleAnswered(data as AskbackAnsweredEvent);
       } else if (event === "review_requested") {
         gallery.showReviewBanner((data as { artifact_id: string }).artifact_id);
       } else if (event === "review_resolved") {
