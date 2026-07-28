@@ -84,12 +84,14 @@ default, applied with no restart — and no MCP tool can change it. 282 tests gr
 + ask-back loop closes in the browser (issue 22: `answer_askback` → the agent's
 reply renders inline under the anchored selection, live).** 303 tests.
 
-**Open — the owner's:**
-- **Warm palette pick (in progress).** Prototype at `prototype/warm-palette/` —
-  three warm variants; the data + recommendation favor C (warm monochrome ramp:
-  most on-brand AND most colorblind-safe). Once the owner picks, apply the winner
-  to `src/canvas/styles.css` + the dashboard/compare renderers (warm series, warmed
-  semantics + diff tints, warm-brown callout) as a reviewed change.
+**Warm visual identity settled (issue 23).** One cohesive warm palette: a
+colorblind-safe warm series ramp (variant C), warmed semantics (olive good /
+warm-red bad), warm-neutral diff tints (distinguished by the +/- glyph), warm-brown
+callout rail, quiet warm-neutral type badges. Principle: burnt orange LEADS only
+(masthead, focus, viewing marker); the live dot is warm olive (good-status). All
+values contrast-validated. 303 tests.
+
+**Open — the owner's, none are code:**
 - **Flip enforce (or not)** — a click in the canvas gear panel (issue 20).
 - **Name the project** — still the "visual-chat" placeholder.
 - **Dogfood** — install into a real work repo per `docs/install.md` and use it.
