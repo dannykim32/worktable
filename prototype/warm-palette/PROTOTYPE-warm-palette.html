@@ -1,0 +1,147 @@
+<!doctype html>
+<!--
+  PROTOTYPE — THROWAWAY. Warm palette exploration for the canvas.
+  Question: which warm series palette stays true to burnt-orange+vanilla while
+  keeping charts readable? Three variants, switch with the bottom bar / ← →.
+    A — warm spectrum (varied but fails colorblind-safety)
+    B — warm + sage/rose (better, still weak pairs)
+    C — warm monochrome ramp (most cohesive AND most colorblind-safe) [recommended]
+  Semantics (good/bad/diff tints/callout) are WARMED and shared across variants.
+  Run: open prototype/warm-palette/PROTOTYPE-warm-palette.html
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE — warm palette</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#fff4d6; --surface-1:#fffbee;
+    --text-primary:#241c12; --text-secondary:#6b5d48; --muted:#9a8b70;
+    --grid:#eadfc2; --baseline:#d8c7a0; --border:rgba(74,45,20,.14);
+    --accent-warm:#fc6c26; --accent-ink:#b5430f; --accent-wash:#ffe7d6;
+    /* WARMED semantics (shared across variants) */
+    --delta-good:#6b7233;      /* warm olive, not cool green */
+    --delta-bad:#b23127;       /* warm red */
+    --add-bg:#e9ecd5;          /* warm-neutral wash for "add" */
+    --del-bg:#f6ddd2;          /* warm clay tint for "del" */
+    --callout-accent:#a06a3c;  /* warm brown, not blue */
+    --callout-bg:#f8edcb; --code-bg:#f8edcb;
+    /* series set by the switcher (defaults to C) */
+    --s1:#fc6c26; --s2:#c9551b; --s3:#9a4a2a; --s4:#6e4630;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--page);color:var(--text-primary);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:0 0 90px}
+  .banner{background:repeating-linear-gradient(45deg,#fab219,#fab219 12px,#241c12 12px,#241c12 24px);color:#fff;text-align:center;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:4px;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px}
+  h1.pt{font-size:18px;margin:20px 0 4px}
+  .variant-note{color:var(--text-secondary);font-size:13px;margin-bottom:14px}
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;margin:16px 0;overflow:hidden}
+  .card>.head{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border)}
+  .card>.head h2{font-size:15px;font-weight:650}
+  /* quiet metadata tag — warm-neutral, NOT the loud orange pill. Orange is
+     reserved for the lead (masthead, focus, live dot), not every type label. */
+  .badge{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted)}
+  .body{padding:16px 20px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .tile{border:1px solid var(--border);border-radius:8px;padding:11px 13px}
+  .tile .label{font-size:12px;color:var(--text-secondary)}
+  .tile .value{font-size:24px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+  .tile .delta{font-size:12px;margin-top:1px}
+  .delta.good{color:var(--delta-good)} .delta.bad{color:var(--delta-bad)} .delta.neutral{color:var(--muted)}
+  .chart-title{font-size:13px;font-weight:600;color:var(--text-secondary);margin:14px 0 6px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary);margin-bottom:6px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .swatch{width:11px;height:11px;border-radius:2px;display:inline-block}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pane{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .pane .ph{font-size:12px;font-weight:600;padding:6px 12px;color:var(--text-secondary);border-bottom:1px solid var(--border);background:var(--callout-bg)}
+  .pane pre{margin:0;padding:8px 12px;font:12px/1.6 ui-monospace,Menlo,monospace;overflow-x:auto}
+  .pane .add{background:var(--add-bg);display:block} .pane .del{background:var(--del-bg);display:block}
+  .callout{border-left:3px solid var(--callout-accent);background:var(--callout-bg);padding:9px 13px;border-radius:0 6px 6px 0;color:var(--text-secondary);margin-top:4px}
+  .switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:4px;background:#241c12;color:#fff;border-radius:999px;padding:6px 10px;box-shadow:0 4px 18px rgba(0,0,0,.35);font-size:13px}
+  .switcher button{all:unset;cursor:pointer;padding:2px 10px;border-radius:999px;font-weight:700}
+  .switcher button:hover{background:rgba(255,255,255,.15)}
+  .switcher .lbl{min-width:320px;text-align:center;font-weight:600}
+</style></head>
+<body>
+<div class="banner">Prototype — warm palette exploration (pick a variant)</div>
+<div class="wrap">
+  <h1 class="pt">Warm palette on your real components</h1>
+  <div class="variant-note" id="note"></div>
+
+  <div class="card">
+    <div class="head"><h2>This project, by the numbers</h2><span class="badge">dashboard</span></div>
+    <div class="body">
+      <div class="tiles">
+        <div class="tile"><div class="label">Issues shipped</div><div class="value">21</div><div class="delta good">↑ all reviewed</div></div>
+        <div class="tile"><div class="label">Tests on main</div><div class="value">293</div><div class="delta good">↑ 0 failing</div></div>
+        <div class="tile"><div class="label">Open bugs</div><div class="value">2</div><div class="delta bad">↓ 1 waiting a day</div></div>
+        <div class="tile"><div class="label">Deferred slots</div><div class="value">4</div><div class="delta neutral">by design</div></div>
+      </div>
+      <div class="chart-title">Findings by check (4 series — the palette stress test)</div>
+      <div class="legend" id="legend"></div>
+      <svg id="bars" viewBox="0 0 640 190" width="100%" role="img" aria-label="grouped bars"></svg>
+      <div class="chart-title">Publishes per session (2 series)</div>
+      <svg id="lines" viewBox="0 0 640 150" width="100%" role="img" aria-label="lines"></svg>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head"><h2>Gate mode: report vs enforce</h2><span class="badge">compare</span></div>
+    <div class="body"><div class="compare">
+      <div class="pane"><div class="ph">report</div><pre><span>illegible SVG publishes</span><span class="add">+ findings in the gallery</span><span class="del">- never blocks</span></pre></div>
+      <div class="pane"><div class="ph">enforce</div><pre><span>illegible SVG caught</span><span class="add">+ one repair round</span><span class="add">+ then honest absence</span></pre></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="head"><h2>A design note</h2><span class="badge">document</span></div>
+    <div class="body">
+      <p>Body text sits in warm espresso ink on the vanilla ground. Burnt orange leads the chrome.</p>
+      <div class="callout"><strong>Callout:</strong> the accent rail is warm brown now, not blue — so nothing cool competes with the orange.</div>
+    </div>
+  </div>
+</div>
+
+<div class="switcher"><button id="prev">←</button><div class="lbl" id="vlabel"></div><button id="next">→</button></div>
+
+<script>
+const VARIANTS = [
+  { key:'C', name:'warm monochrome ramp (recommended — most cohesive AND colorblind-safe)',
+    series:['#fc6c26','#c9551b','#9a4a2a','#6e4630'],
+    note:'One warm family stepped by lightness. Every series stays distinct even for colorblind viewers (lightness is the channel colorblindness preserves). Needs direct labels to map shades→categories (the method already does).' },
+  { key:'A', name:'warm spectrum (varied but fails colorblind-safety)',
+    series:['#fc6c26','#d99a1c','#b23a2a','#7a5137'],
+    note:'More hue variety, but orange vs amber is nearly identical under deuteranopia (ΔE 1.6). Looks fine to you, unreadable to some. This is the "extra colors throw it off" trap, measured.' },
+  { key:'B', name:'warm + sage/rose (balanced, still weak pairs)',
+    series:['#d9622a','#c69a3f','#7d8a5a','#b5766a'],
+    note:'A muted sage + clay-rose add mid-palette separation, but sage vs rose is weak under deuteranopia (ΔE 4.0). Warmer than a rainbow, not as safe as the ramp.' },
+];
+const SLABELS = ['text-overlap','edge-straddle','clipped','sub-legible'];
+const barData = [ {cat:'M1',v:[3,2,1,4]},{cat:'M2',v:[2,1,3,0]},{cat:'M3',v:[4,3,2,1]},{cat:'M4',v:[1,4,0,3]} ];
+function css(v){ v.series.forEach((c,i)=>document.documentElement.style.setProperty('--s'+(i+1),c)); }
+function drawLegend(){ const el=document.getElementById('legend'); el.innerHTML='';
+  SLABELS.forEach((l,i)=>{ const s=document.createElement('span'); const sw=document.createElement('span'); sw.className='swatch';
+    sw.style.background='var(--s'+(i+1)+')'; const t=document.createElement('span'); t.textContent=l; s.append(sw,t); el.append(s); }); }
+function drawBars(){ const svg=document.getElementById('bars'); const W=640,H=190,padL=36,padB=26,padT=8,padR=12;
+  const iw=W-padL-padR, ih=H-padT-padB, max=5, groups=barData.length, gw=iw/groups, bw=gw/5;
+  let s=''; for(let g=0;g<=max;g++){ const y=padT+ih-(g/max)*ih; s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--grid)"/><text x="${padL-6}" y="${y+4}" font-size="10" fill="var(--muted)" text-anchor="end">${g}</text>`; }
+  barData.forEach((d,gi)=>{ const gx=padL+gi*gw+6; d.v.forEach((val,si)=>{ const bh=(val/max)*ih; const x=gx+si*bw; const y=padT+ih-bh;
+    s+=`<rect x="${x}" y="${y}" width="${bw-3}" height="${bh}" rx="2" fill="var(--s${si+1})"/>`; if(val>0)s+=`<text x="${x+(bw-3)/2}" y="${y-3}" font-size="9" fill="var(--text-primary)" text-anchor="middle">${val}</text>`; });
+    s+=`<text x="${gx+gw/2-6}" y="${H-8}" font-size="11" fill="var(--text-secondary)" text-anchor="middle">${d.cat}</text>`; });
+  s+=`<line x1="${padL}" y1="${padT+ih}" x2="${W-padR}" y2="${padT+ih}" stroke="var(--baseline)"/>`; svg.innerHTML=s; }
+function drawLines(){ const svg=document.getElementById('lines'); const W=640,H=150,padL=36,padB=24,padT=8,padR=60;
+  const iw=W-padL-padR, ih=H-padT-padB, max=8; const S=[[2,4,3,6,8],[1,2,4,5,7]];
+  const x=i=>padL+(i/4)*iw, y=v=>padT+ih-(v/max)*ih; let s='';
+  for(let g=0;g<=8;g+=2){const yy=y(g);s+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--grid)"/><text x="${padL-6}" y="${yy+4}" font-size="10" fill="var(--muted)" text-anchor="end">${g}</text>`;}
+  S.forEach((pts,si)=>{ let d='';pts.forEach((v,i)=>d+=(i?'L':'M')+x(i)+' '+y(v)+' '); s+=`<path d="${d}" fill="none" stroke="var(--s${si+1})" stroke-width="2"/>`;
+    pts.forEach((v,i)=>s+=`<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="var(--s${si+1})" stroke="var(--surface-1)" stroke-width="1.5"/>`);
+    s+=`<text x="${x(4)+6}" y="${y(pts[4])+4}" font-size="11" fill="var(--s${si+1})">${si?'free-form':'components'}</text>`; });
+  svg.innerHTML=s; }
+function apply(i){ const v=VARIANTS[i]; css(v); document.getElementById('vlabel').textContent=v.key+' — '+v.name; document.getElementById('note').textContent=v.note;
+  drawLegend(); drawBars(); drawLines(); location.hash=v.key; }
+let idx=0; const step=d=>{idx=(idx+d+VARIANTS.length)%VARIANTS.length;apply(idx);};
+document.getElementById('prev').onclick=()=>step(-1); document.getElementById('next').onclick=()=>step(1);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')step(-1);if(e.key==='ArrowRight')step(1);});
+const h=(location.hash||'#C').slice(1); idx=Math.max(0,VARIANTS.findIndex(v=>v.key===h)); apply(idx);
+</script>
+</body></html>
