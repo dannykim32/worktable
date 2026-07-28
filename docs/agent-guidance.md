@@ -18,6 +18,10 @@ the conversation driver; the canvas renders artifacts.
   anchor's context, and prefer updating the same artifact. (On Claude Code with the
   ask-back hook installed, pending questions are auto-appended to your prompt; the
   `check_askbacks` call is still what marks them delivered.)
+- After you answer an ask-back in the terminal, you may also call `answer_askback`
+  with its `askback_id` and your answer. Your reply then shows inline on the canvas,
+  threaded under the selection the human asked about, so the loop closes where they
+  asked. It appears live and survives a reload; it does not re-deliver the ask-back.
 - Publish an artifact (`publish_artifact`) when structure beats prose: design notes,
   comparisons, tabular data, multi-section explanations. Answer in plain text when a
   sentence or two suffices.

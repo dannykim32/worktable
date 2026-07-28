@@ -155,7 +155,8 @@ describe("ask-back loop", () => {
             })
           ).body,
         ) as ArtifactContent,
-      postAskback: async () => {},
+      postAskback: async () => ({ id: "ab_stub", state: "pending" }),
+      getAnsweredAskbacks: async () => [],
     };
     const gallery = new Gallery(mount, api);
     await gallery.init();

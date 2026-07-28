@@ -180,6 +180,37 @@ export class AskbackQueue {
     return delivered;
   }
 
+  /** Store the agent's answer on a specific ask-back (issue 22), atomic
+   *  tmp+rename rewrite. The answer does NOT change delivered state. Returns the
+   *  updated record, or null if the id is unknown (nothing is written then). */
+  answer(id: string, text: string): Askback | null {
+    const all = this.readAll();
+    let updated: Askback | null = null;
+    const rewritten = all.map((a) => {
+      if (a.id === id) {
+        updated = {
+          ...a,
+          answer: { text, answered_at: new Date().toISOString() },
+        };
+        return updated;
+      }
+      return a;
+    });
+    if (updated) {
+      atomicWriteFile(
+        this.path,
+        rewritten.map((a) => JSON.stringify(a)).join("\n") + "\n",
+      );
+    }
+    return updated;
+  }
+
+  /** Ask-backs that carry an answer, for the /answered read route (issue 22).
+   *  A read-only view — reading never changes any delivered state. */
+  answered(): Askback[] {
+    return this.readAll().filter((a) => a.answer !== undefined);
+  }
+
   /** Return all pending ask-backs, atomically marking them delivered
    *  (tmp + rename rewrite so a crash never loses the queue). */
   drainPending(): Askback[] {

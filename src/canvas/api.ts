@@ -2,12 +2,22 @@
 // (ADR-0005) and lives in JS memory here; every /api request sends it as a
 // bearer. SSE runs over fetch because EventSource cannot attach the bearer.
 import type {
+  Anchor,
   ArtifactContent,
   ArtifactMeta,
+  AskbackAnswer,
 } from "../shared/artifacts.js";
 
 export interface ArtifactWithContent extends ArtifactMeta {
   content: ArtifactContent;
+}
+
+/** An answered ask-back as returned by GET /api/askbacks/answered (issue 22). */
+export interface AnsweredAskback {
+  id: string;
+  anchor: Anchor;
+  question: string;
+  answer: AskbackAnswer;
 }
 
 export type GateMode = "report" | "enforce";
@@ -28,7 +38,8 @@ export interface CanvasApi {
     anchor: unknown;
     question: string;
     kind?: "question" | "approval";
-  }): Promise<void>;
+  }): Promise<{ id: string; state: string }>;
+  getAnsweredAskbacks(): Promise<AnsweredAskback[]>;
   getSettings(): Promise<GateSettings>;
   postSettings(body: { gate: GateMode; scope: GateScope }): Promise<GateSettings>;
 }
@@ -53,7 +64,11 @@ export function createApi(token: string): CanvasApi {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`POST /api/askbacks failed: ${res.status}`);
+      return (await res.json()) as { id: string; state: string };
     },
+    getAnsweredAskbacks: async () =>
+      (await getJson<{ askbacks: AnsweredAskback[] }>("/api/askbacks/answered"))
+        .askbacks,
     getSettings: () => getJson("/api/settings"),
     postSettings: async (body) => {
       const res = await fetch("/api/settings", {

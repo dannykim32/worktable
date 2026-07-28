@@ -325,11 +325,13 @@ describe("no MCP tool can change the gate mode (AC6, security invariant)", () =>
     // type:"object" (was latent since M1 — publish/update used a bare oneOf).
     const { tools } = await server.client.listTools();
     // Pin the EXACT count too (defense in depth on the closed-set contract): a
-    // future drift to a 7th tool — even a harmless-named one that slips past the
-    // name pattern below — trips this immediately.
-    expect(tools).toHaveLength(6);
+    // future drift to an 8th tool — even a harmless-named one that slips past
+    // the name pattern below — trips this immediately. answer_askback (issue 22)
+    // took this from 6 to 7; it is agent→browser, not a gate/config surface.
+    expect(tools).toHaveLength(7);
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
+        "answer_askback",
         "check_askbacks",
         "open_canvas",
         "publish_artifact",
