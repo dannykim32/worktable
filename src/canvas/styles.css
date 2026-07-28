@@ -50,10 +50,11 @@
   --add-bg: #f0ecd8; /* warm cream */
   --del-bg: #f5e3d8; /* warm clay */
 
-  /* Status dots — the live connection dot LEADS with the brand accent
-     (issue 23: accent-warm owns masthead/focus/live-dot/viewing-marker);
-     idle/disconnected stays a muted-neutral, not a competing hue. */
-  --dot-live: var(--accent-warm);
+  /* Status dots — the live connection dot is a STATUS signal, not a brand
+     lead: it wears the warm-olive "good" color (keeps the green-family
+     "connected" convention while staying warm). Accent-warm leads only on
+     masthead/focus/viewing-marker. Idle/disconnected stays muted-neutral. */
+  --dot-live: var(--delta-good);
   --dot-dead: #9a8b70;
 }
 

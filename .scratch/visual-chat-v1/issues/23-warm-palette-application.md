@@ -119,3 +119,8 @@ and AC4 both name the live dot as an accent-warm lead element, but the merged is
 theme rendered it green (`--dot-live: #0ca30c`, "true status signal"). Followed the
 newer explicit owner direction and pointed the connected dot at `--accent-warm` (a
 color-var change, in scope); idle/disconnected stays muted-neutral.
+
+Review follow-up (owner, post-capture): walked the live dot back off the accent —
+`--dot-live` now uses the warm-olive `--delta-good` (#6b7233), keeping the green-family
+"connected" convention while staying warm. Accent-warm now leads on masthead +
+`:focus-visible` + `.viewing-marker` only; the dot is a status signal, not a brand lead.
