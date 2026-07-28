@@ -8,3 +8,6 @@ dist/
 
 # local MCP registration (machine-specific abs path; recreate per docs/setup.md)
 .mcp.json
+
+# release tarballs (built artifacts)
+dist-release/

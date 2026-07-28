@@ -10,7 +10,8 @@
     "build:standalone": "node scripts/build-standalone.mjs",
     "register": "node scripts/register.mjs",
     "test": "bun test",
-    "start": "node dist/server/index.js"
+    "start": "node dist/server/index.js",
+    "package:release": "node scripts/package-release.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0"

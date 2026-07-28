@@ -95,6 +95,38 @@ Add the flags you want, e.g. the full Claude Code setup:
 node scripts/register.mjs /path/to/your/project --guidance --hook
 ```
 
+## The easy path — download a release bundle (recommended)
+
+Instead of building + copying yourself, grab a pre-built self-contained tarball from
+the private repo's GitHub Releases. This is the no-npm, firewall-friendly path (git /
+github.com is usually reachable where npm is not):
+
+```sh
+# on any machine (needs only node + gh, or download the .tar.gz from the Releases page):
+gh release download --repo dannykim32/visual-chat --pattern '*.tar.gz'
+tar xzf visual-chat-*.tar.gz
+# register into a project (no network):
+node visual-chat-*/scripts/register.mjs /path/to/your/project --guidance   # + --hook for Claude Code
+```
+
+The tarball contains the runtime bundle (`dist/`), the register helper, and the docs —
+no source, no `node_modules`. `INSTALL.txt` at its root has the quickstart. To cut a
+new release from a networked machine: `bun run package:release` then
+`gh release create v<version> dist-release/visual-chat-<version>.tar.gz`.
+
+## Install for EVERY Claude Code session (user scope)
+
+Per-repo `.mcp.json` (what `register.mjs` writes) scopes the server to one project.
+To have the tools in **every** Claude Code session in any repo, register at user scope
+once (point it at the extracted bundle's server):
+
+```sh
+claude mcp add -s user visual-chat -- node /abs/path/to/visual-chat-<version>/dist/server/index.js
+```
+
+The canvas still keys its workspace off the session's working directory, so each repo
+gets its own artifacts and capability token.
+
 ## Step 4 — restart and verify
 
 Restart Claude Code in the target project so it picks up the new `.mcp.json` (and
