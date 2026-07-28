@@ -80,14 +80,17 @@ issue 19). Gate mode is now a live human setting (issue 20 / ADR-0011): a gear p
 in the canvas toggles Report↔Enforce, scoped per-workspace or as a user-level
 default, applied with no restart — and no MCP tool can change it. 282 tests green.
 
-**No open build threads.** v1 complete + calibrated + ergonomic + installable
-behind a firewall (issue 21: `bun run build:standalone` → a `node`-only
-self-contained bundle; `node scripts/register.mjs <repo> --guidance [--hook]`
-wires it into any project with no network — see `docs/install.md`). 293 tests.
+**v1 complete + calibrated + ergonomic + installable behind a firewall (issue 21)
++ ask-back loop closes in the browser (issue 22: `answer_askback` → the agent's
+reply renders inline under the anchored selection, live).** 303 tests.
 
-Left, both the owner's:
-- **Flip enforce (or not)** — a click in the canvas gear panel (issue 20). Report
-  is the default; enforcing is safe (all checks calibrated, ADR-0007 satisfied).
+**Open — the owner's:**
+- **Warm palette pick (in progress).** Prototype at `prototype/warm-palette/` —
+  three warm variants; the data + recommendation favor C (warm monochrome ramp:
+  most on-brand AND most colorblind-safe). Once the owner picks, apply the winner
+  to `src/canvas/styles.css` + the dashboard/compare renderers (warm series, warmed
+  semantics + diff tints, warm-brown callout) as a reviewed change.
+- **Flip enforce (or not)** — a click in the canvas gear panel (issue 20).
 - **Name the project** — still the "visual-chat" placeholder.
 - **Dogfood** — install into a real work repo per `docs/install.md` and use it.
 
