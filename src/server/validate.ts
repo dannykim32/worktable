@@ -659,8 +659,11 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
         throw new ValidationError(
           "/html",
           "contains disallowed no-click network-egress construct(s) — nothing " +
-            "was stored. Remove them and retry (the sandboxed frame has no " +
-            `network by design):\n${lines}`,
+            "was stored. Inline the resource (fonts/styles/images as data: URIs " +
+            "or inline <style>) so the page is self-contained, then re-publish to " +
+            "this canvas — do NOT fall back to another rendering surface. The " +
+            "sandboxed frame has no network by design:\n" +
+            `${lines}`,
         );
       }
       return input as unknown as ArtifactContent;

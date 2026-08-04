@@ -410,9 +410,24 @@ async function main(): Promise<void> {
       const lines = result.violations
         .map((v) => `  · [${v.code}] ${v.path}: ${v.detail}`)
         .join("\n");
+      // If the rejection is about CSS styling (a <style> block, class=, or
+      // style=), that content belongs in an "html" artifact, which renders full
+      // CSS isolated — steer there rather than letting the agent give up.
+      const stylingRejected = result.violations.some(
+        (v) =>
+          /style|class/i.test(v.code) ||
+          /\b(style|class)\b/i.test(v.detail),
+      );
       throw new ToolInputError(
-        `SVG rejected by the sanitizer — nothing was stored. Fix these and ` +
-          `retry, or publish an "absence" artifact instead:\n${lines}`,
+        `SVG rejected by the sanitizer — nothing was stored. The "svg" type is ` +
+          `presentation-attribute diagrams only. Fix these and re-publish to ` +
+          `this canvas` +
+          (stylingRejected
+            ? ` — and if you were styling with a <style> block, class=, or ` +
+              `style=, re-send it as an "html" artifact instead (full CSS, ` +
+              `rendered isolated), do NOT drop to another surface`
+            : `, or publish an "absence" artifact instead`) +
+          `:\n${lines}`,
       );
     }
     // Fail-open: the gate NEVER decides whether the artifact publishes — not by
@@ -508,17 +523,28 @@ async function main(): Promise<void> {
     {
       name: "publish_artifact",
       description:
-        "Publish a new visual artifact to the canvas. Component Artifacts are " +
-        "structured data drawn by the trusted Component Vocabulary. Use type " +
-        '"absence" to decline honestly (with the reason) instead of fabricating. ' +
-        "Design it, do not dump it: a long answer rendered as an unbroken wall " +
-        "of prose is no better than the terminal. Decide the treatment (a " +
-        "document to read, or a surface to scan), lead with the claim, and mark " +
-        "every literal — file path, identifier, status code, field name — as " +
-        "`code` so it renders monospace. Add an SVG diagram ONLY when it shows a " +
-        "mechanism prose can't — one figure, one claim; if a sentence says it " +
-        "faster, write the sentence, and never diagram a whole system as an " +
-        "inventory of boxes.",
+        "Publish a new visual artifact to THIS canvas (not a different rendering " +
+        "surface — only this one carries the select-and-ask-back loop). " +
+        "Choosing a type: for a rich, CSS-styled, or theme-aware page or diagram " +
+        '(bespoke layout, custom colors, animation, embedded SVG), use "html" — ' +
+        "it renders full model-authored HTML/CSS/SVG isolated in a locked-down " +
+        'sandbox, and is the right home for exactly that kind of visual. "svg" ' +
+        "is for plain presentation-attribute diagrams ONLY (no <style>, class, " +
+        'or style= — those belong in an "html" artifact). "prose" renders a long ' +
+        "markdown answer. document / dashboard / compare draw structured data. " +
+        'Use "absence" to decline honestly (with the reason) instead of ' +
+        "fabricating. Design it, do not dump it: a long answer rendered as an " +
+        "unbroken wall of prose is no better than the terminal. Decide the " +
+        "treatment (a document to read, or a surface to scan), lead with the " +
+        "claim, and mark every literal — file path, identifier, status code, " +
+        "field name — as `code`. Add a diagram ONLY when it shows a mechanism " +
+        "prose can't — one figure, one claim; if a sentence says it faster, " +
+        "write the sentence, and never diagram a whole system as an inventory of " +
+        "boxes. IF A PUBLISH IS REJECTED: the error names exactly what to fix and " +
+        "nothing was stored — fix it and re-publish HERE (e.g. a CSS-styled SVG " +
+        'rejected under "svg" should be re-sent as "html"; an html page with an ' +
+        "external font/link should inline it). Do NOT fall back to another " +
+        "rendering surface — that silently drops the ask-back loop.",
       inputSchema: publishArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {

@@ -37,6 +37,19 @@ renders artifacts.
 - Publish an artifact (`publish_artifact`) when structure beats prose:
   design notes, comparisons, tabular data, multi-section explanations.
   Answer in plain text when a sentence or two suffices.
+- Choose the type by what the visual needs, and stay on this canvas:
+  - `html` — a rich, CSS-styled, or theme-aware page or diagram (bespoke
+    layout, custom colors, animation, embedded/hand-authored SVG). It renders
+    full model-authored HTML/CSS/SVG isolated in a locked-down sandbox and is
+    the right home for that kind of visual. Keep it self-contained (inline CSS;
+    fonts/images as `data:` URIs) — the frame has no network.
+  - `svg` — plain **presentation-attribute** diagrams only. No `<style>`,
+    `class`, or `style=` (those belong in an `html` artifact).
+  - `prose` — a long markdown answer. `document`/`dashboard`/`compare` — structured data.
+  If a publish is rejected, the error names exactly what to fix and nothing was
+  stored: fix it and re-publish HERE (a CSS-styled SVG rejected under `svg` →
+  re-send as `html`; an html page with an external font/link → inline it).
+  Never fall back to a different rendering surface — that drops the ask-back loop.
 - When a response would be a terminal wall (long or multi-section),
   publish it as `type: "prose"` (send your answer as `markdown`) and give a
   terse terminal pointer ("published to the canvas — read it there, ask about
