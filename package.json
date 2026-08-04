@@ -1,7 +1,7 @@
 {
   "name": "visual-chat",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "Companion browser canvas for terminal LLM agents (placeholder name - never publish)",
   "scripts": {

@@ -2,7 +2,7 @@
 // runnable subset (dist/ + register helper + docs) so a machine with NO npm/bun can
 // download, extract, and run with only `node`. Plain Node ESM, zero deps.
 //   node scripts/package-release.mjs   →   dist-release/visual-chat-<version>.tar.gz
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFileSync, rmSync, mkdirSync, cpSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,64 @@ console.log(`Packaging visual-chat v${version}…`);
 console.log("  building standalone bundle…");
 execFileSync("node", [join(repo, "scripts", "build-standalone.mjs")], { cwd: repo, stdio: "inherit" });
 if (!existsSync(join(repo, "dist", "server", "index.js"))) throw new Error("build produced no dist/server/index.js");
+
+// 1b. Publish-smoke the built bundle over REAL MCP. A bundle can START cleanly
+// yet reject artifacts (schema shape / validator drift — exactly the 0.2.1 bug,
+// where a top-level oneOf made the model emit the wrong type). Catch that HERE,
+// before a tarball ships. Publishes one of each free-form type the way a model
+// would (type + its own field); any rejection aborts the release.
+console.log("  smoke-testing publish over MCP…");
+await (async () => {
+  const srv = spawn("node", [join(repo, "dist", "server", "index.js")], {
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, VISUAL_CHAT_NO_OPEN: "1" },
+  });
+  let buf = "";
+  const pending = [];
+  srv.stdout.on("data", (d) => {
+    buf += d.toString();
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i);
+      buf = buf.slice(i + 1);
+      if (line.trim()) { try { pending.push(JSON.parse(line)); } catch { /* non-JSON log */ } }
+    }
+  });
+  const send = (o) => srv.stdin.write(JSON.stringify(o) + "\n");
+  const wait = (id, ms = 8000) =>
+    new Promise((res, rej) => {
+      const t0 = Date.now();
+      const t = setInterval(() => {
+        const m = pending.find((p) => p.id === id);
+        if (m) { clearInterval(t); res(m); }
+        else if (Date.now() - t0 > ms) { clearInterval(t); rej(new Error(`MCP timeout waiting for id ${id}`)); }
+      }, 20);
+    });
+  try {
+    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "release-smoke", version: "1" } } });
+    await wait(1);
+    send({ jsonrpc: "2.0", method: "notifications/initialized" });
+    const cases = [
+      { type: "html", title: "smoke", html: "<h1>ok</h1>" },
+      { type: "svg", title: "smoke", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="8" height="8" fill="#333"/></svg>` },
+      { type: "prose", title: "smoke", markdown: "# ok" },
+      { type: "document", title: "smoke", blocks: [{ kind: "heading", level: 3, text: "ok" }] },
+    ];
+    let id = 2;
+    for (const args of cases) {
+      send({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "publish_artifact", arguments: args } });
+      const r = await wait(id);
+      const text = r.result?.content?.map((c) => c.text).join(" ") ?? JSON.stringify(r.result ?? r.error);
+      if (r.result?.isError || !/artifact_id/.test(text)) {
+        throw new Error(`publish smoke FAILED for type=${args.type}: ${String(text).slice(0, 200)}`);
+      }
+      id++;
+    }
+    console.log("    ✓ html, svg, prose, document all publish through the bundle");
+  } finally {
+    srv.kill();
+  }
+})();
 
 // 2. Stage the RUNTIME subset (what a firewalled machine needs — no source, no node_modules).
 rmSync(outDir, { recursive: true, force: true });
