@@ -11,17 +11,28 @@ Cold-start for any agent or human: this file + the map below is everything you n
 same change.** This document must always let a fresh session resume without any
 prior conversation context.
 
-## Status (updated 2026-08-04) — v1 FEATURE-COMPLETE + HTML hatch (Tier 1)
+## Status (updated 2026-08-04) — the HTML hatch IS the surface (M8)
 
-Every issue in the v1 spec (01–14, 16) is built, two-axis reviewed, and merged to
-`main`. Full loop works: agent publishes versioned artifacts (document / dashboard /
-compare / SVG / prose / **html** / honest-absence) to a capability-gated local canvas;
-the human sends selection-anchored ask-backs home — now including ask-backs from
-*inside* a model-authored HTML page; the SVG legibility gate runs (report-only by
-default, human-calibrated, opt-in enforcement); and Claude Code gets an ask-back
-auto-inject hook plus an agent-opt-in `request_review` Review Moment. Deferred by
-design: HTML hatch **Tier 2** (live model JavaScript — Tier 1 static HTML is built),
-structured Diagram component, native MCP Apps hosting, sketch aesthetic register.
+The product has been simplified to its core value: **the model's native
+artifact-design quality, rendered on a local page you can select-and-ask-back on.**
+The artifact surface is exactly three types — **`html`** (primary: a self-contained,
+sandboxed, model-authored HTML/CSS/SVG page), **`prose`** (a long markdown answer),
+and **`absence`** (Honest Absence). The agent authors html artifacts with the
+artifact-design skill's process but publishes them *here* (for the ask-back loop),
+not to the native Artifact tool.
+
+The full loop works: agent publishes versioned artifacts to a capability-gated local
+canvas; the human sends selection-anchored ask-backs home — including from *inside* a
+model-authored HTML page; Claude Code gets an ask-back auto-inject hook plus an
+agent-opt-in `request_review` Review Moment. Deferred by design: HTML hatch **Tier 2**
+(live model JavaScript — Tier 1 static HTML is built), native MCP Apps hosting.
+
+**Retired 2026-08-04 (M8, ADR-0012):** the structured Component Vocabulary
+(document / dashboard / compare), the free-form `svg` type, and everything that
+existed only for svg — the SVG sanitizer, the legibility gate, calibration, the
+repair round, and the gate-mode config/panel (~9,250 LOC). Superseded by the
+iframe-isolated hatch (a stricter boundary for the visual use case). This retires
+**M3–M5** and **ADR-0009 / ADR-0011** below; they remain for historical record.
 
 ### Milestone history
 
@@ -87,33 +98,41 @@ structured Diagram component, native MCP Apps hosting, sketch aesthetic register
   threads the agent's answer back into the browser (answer_askback required via the
   tool results, waiting-marker at the selection); the Opus-5 design doctrine is
   baked into the tool descriptions + AGENTS.md; "Slate" light palette. 374 tests green.
+- **M8 — retire the structured vocabulary; the HTML hatch is the surface: DONE,
+  merged, verified (issue 26, ADR-0012).** Dogfooding proved the model's native
+  artifact-design quality (self-contained HTML/CSS/SVG) beats our components, and
+  the hatch already hosts it — so the components are gone. Deleted document /
+  dashboard / compare / `svg` + the entire svg-only apparatus (sanitizer, legibility
+  gate, calibration, repair, gate-mode config/panel) — ~9,250 LOC. Surface is now
+  `{html, prose, absence}`; the exposed schema is flat (a `type` enum, which
+  tool-use fills reliably — a prior top-level `oneOf` made the model emit the wrong
+  type). The agent authors html via the artifact-design skill's process but
+  publishes here, not to the native Artifact tool. Supersedes M3–M5. 148 tests green.
 
 ## ▶ RESUME HERE (next session)
 
-**v1 complete, and extended (through M7).** 374 tests green on `main` (also pushed to
-the private GitHub remote `dannykim32/visual-chat`; a firewall-friendly self-contained
-tarball ships as a release). The build history is in the milestone log below; the
-current capability surface:
+**The surface is `{html, prose, absence}`.** 148 tests green on `main` (pushed to the
+private GitHub remote `dannykim32/visual-chat`; a firewall-friendly self-contained
+tarball ships as a release). The current capability surface:
 
-- Artifacts: document, dashboard, compare, SVG (sanitized + image-isolated + legibility
-  gated), **prose/markdown** (issue 24 — own-built zero-dep markdown→DOM renderer),
-  **html** (issue 25 — free-form model-authored *static* HTML in a sandboxed second-
-  origin iframe under a locked-down CSP; `frameGuard` reject-not-drops no-click egress
-  at ingest; Tier 2 live-JS deferred), and honest-absence.
-- Ask-back loop closes in the browser: select a section → question home to the terminal
-  → the agent's reply threads inline (issue 22), and `answer_askback` is now required
-  (delivered via the tool results) so the reply reliably reaches the browser. Works from
-  *inside* an html artifact too, via the frame MessageChannel bridge.
-- Gate mode is a live human setting via a canvas gear panel (issue 20); all four
-  legibility checks human-calibrated (round 6).
-- Light-mode "Slate" identity — cool near-white ground, deep-teal lead (owner-picked
-  direction A, 2026-08-04; supersedes the warm issue-23 palette). Installs behind a
-  firewall (issue 21).
+- **`html`** (primary, issue 25 + ADR-0012) — a self-contained, model-authored
+  HTML/CSS/SVG page served verbatim into a sandboxed, origin-split, CSP-locked
+  iframe; `frameGuard` reject-not-drops no-click network egress at ingest; the agent
+  authors it with the artifact-design skill's process and publishes it here for the
+  ask-back loop. Tier 2 (live model JS) deferred, labeled.
+- **`prose`** (issue 24) — a long markdown answer via the own-built zero-dep
+  markdown→DOM renderer. **`absence`** — first-class Honest Absence.
+- Ask-back loop closes in the browser: select a section → question home to the
+  terminal → the agent's reply threads inline (issue 22); `answer_askback` is
+  required (delivered via the tool results). Works from *inside* an html artifact
+  via the frame MessageChannel bridge.
+- Light-mode "Slate" identity (`src/canvas/styles.css`). Installs behind a firewall
+  (issue 21).
 
 **Open — the owner's, none are code:**
-- **Flip enforce (or not)** — a click in the canvas gear panel (issue 20).
 - **Name the project** — still the "visual-chat" placeholder.
-- **Dogfood** — install into a real work repo per `docs/install.md` and use it.
+- **Dogfood** — install into a real work repo per `docs/install.md` and use it; the
+  agent should now render walkthroughs as `html` at artifact-design quality.
 
 **Known follow-ups (non-blocking):** prose relative/in-page-anchor links render as
 literal text (issue 24 comments — allowing safe `#fragment` links is a clean win);
@@ -122,8 +141,7 @@ cross-frame MessageChannel invariants are proven structurally (served bytes + CS
 header + direct handler calls), so one real-browser confirmation is worth doing before
 heavy real-world use. **Deferred, labeled:** HTML hatch **Tier 2** — live model
 JavaScript (needs deeper isolation; carries a forged-ask-back residual, documented in
-issue 25); Slate dark mode; structured Diagram component; native MCP Apps hosting;
-sketch register.
+issue 25); Slate dark mode; native MCP Apps hosting.
 
 ## Run it
 
@@ -141,7 +159,7 @@ helper): `docs/install.md`.
 | Where | What |
 |-------|------|
 | `CONTEXT.md` | The domain glossary — use these exact terms in code, tests, prose |
-| `docs/adr/0001–0010` | Every architectural decision, with the why and the rejected alternatives |
+| `docs/adr/0001–0012` | Every architectural decision, with the why and the rejected alternatives (0012 = the pivot; 0009/0011 retired) |
 | `.scratch/visual-chat-v1/` | The tracker: PRD (epic, dependency graph) + numbered issues with pass/fail acceptance criteria |
 | `docs/agents/` | Issue-tracker conventions, triage labels, domain-doc consumer rules |
 | `docs/research/` | Landscape survey (niche analysis) + safe-HTML-rendering research (informs the deferred hatch) |
@@ -172,8 +190,8 @@ helper): `docs/install.md`.
   `ComponentRenderer` seam (a dedicated visual library may replace internals
   later — the seam is the contract).
 - Model-influenced strings render via `textContent`/`createElement` only.
-- Zero runtime dependencies in security modules (`src/sanitizer/`, gate); new
-  dependencies anywhere require written justification — default no.
+- Zero runtime dependencies in security modules (`src/server/frameGuard.ts`, the
+  frame server); new dependencies anywhere require written justification — default no.
 - Security invariants are test-enforced (perms via fs.stat, 401/403 over real
   HTTP, XSS canaries), not aspirational.
 - Server logs to stderr only (stdout is the MCP transport).
