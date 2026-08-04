@@ -128,12 +128,24 @@ export interface SvgContent {
   svg: string;
 }
 
+/** Prose/markdown (issue 24, ADR-0002 trusted lane): the agent's long-form
+ *  answer sent as MARKDOWN. It is untrusted model text, but rendered by our
+ *  OWN markdown→DOM renderer using createElement/textContent ONLY — never
+ *  innerHTML, never raw-HTML passthrough. It opens no HTML hole; it is NOT the
+ *  free-form HTML hatch. Stored verbatim; parsed only at render time. */
+export interface ProseContent {
+  type: "prose";
+  title: string;
+  markdown: string;
+}
+
 export type ArtifactContent =
   | DocumentContent
   | DashboardContent
   | CompareContent
   | AbsenceContent
-  | SvgContent;
+  | SvgContent
+  | ProseContent;
 export type ArtifactType = ArtifactContent["type"];
 
 export interface ArtifactMeta {

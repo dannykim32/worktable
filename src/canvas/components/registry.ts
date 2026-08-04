@@ -9,6 +9,7 @@ import { renderAbsence } from "./absence.js";
 import { renderCompare } from "./compare.js";
 import { renderDashboard } from "./dashboard.js";
 import { renderDocument } from "./document.js";
+import { renderProse } from "./prose.js";
 import { renderSvg } from "./svg.js";
 
 export type ComponentRenderer = (
@@ -22,4 +23,5 @@ export const componentRegistry: Record<ArtifactType, ComponentRenderer> = {
   compare: renderCompare,
   absence: renderAbsence,
   svg: renderSvg,
+  prose: renderProse,
 };

@@ -25,6 +25,11 @@ the conversation driver; the canvas renders artifacts.
 - Publish an artifact (`publish_artifact`) when structure beats prose: design notes,
   comparisons, tabular data, multi-section explanations. Answer in plain text when a
   sentence or two suffices.
+- When a response would be a terminal wall (long, multi-section, a big explanation),
+  publish it as `type: "prose"` with your answer as `markdown`, then leave a TERSE
+  terminal pointer ("published to the canvas — read it there, ask about any section")
+  instead of dumping the full text. The canvas renders the markdown richly (headings,
+  lists, code, tables, links) and the human can select any part to ask a follow-up.
 - Update artifacts in place (`update_artifact`) rather than republishing: the
   artifact keeps its identity and readers keep version history.
 - Honest absence: if you cannot render something truthfully (too large, not enough

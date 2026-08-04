@@ -38,6 +38,9 @@ const PANE_LINES_MAX = 500;
 // SVG (issue 10): the sanitizer enforces the authoritative 256KB UTF-8 byte
 // cap; this char-length bound just rejects absurd inputs before they reach it.
 const SVG_MAX = 256 * 1024;
+// Prose (issue 24): a long response as markdown. Bounded so a runaway response
+// can't blow up storage or the renderer; 100KB is a large document already.
+const MARKDOWN_MAX = 100 * 1024;
 
 // ---------------------------------------------------------------------------
 // JSON Schemas, declared on the MCP tools so hosts see the exact contract.
@@ -267,6 +270,27 @@ const contentVariants = [
       },
     },
     required: ["type", "title", "svg"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    description:
+      "Prose/markdown (issue 24): a long response rendered richly by the " +
+      "canvas's OWN markdown→DOM renderer (createElement/textContent only — " +
+      "no innerHTML, no raw-HTML passthrough, no scripts). The TRUSTED lane, " +
+      "not the free-form HTML hatch. Send markdown; the canvas renders " +
+      "headings, lists, code, tables, emphasis, and safe links, select-and-" +
+      "ask-able like any artifact.",
+    properties: {
+      type: { const: "prose" },
+      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+      markdown: {
+        type: "string",
+        maxLength: MARKDOWN_MAX,
+        description: "Markdown source (≤100KB); parsed only at render time",
+      },
+    },
+    required: ["type", "title", "markdown"],
     additionalProperties: false,
   },
 ];
@@ -586,11 +610,20 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
       requireString(input.svg, "/svg", { min: 1, max: SVG_MAX });
       return input as unknown as ArtifactContent;
     }
+    case "prose": {
+      rejectUnknownFields(input, ["type", "title", "markdown"], "");
+      requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
+      // Shape/size only — the markdown is stored verbatim and rendered safely
+      // by the canvas's own textContent-only renderer (issue 24), which is the
+      // authoritative safety boundary. The legibility gate is svg-only.
+      requireString(input.markdown, "/markdown", { max: MARKDOWN_MAX });
+      return input as unknown as ArtifactContent;
+    }
     default:
       throw new ValidationError(
         "/type",
-        `expected "document", "dashboard", "compare", "absence", or "svg", ` +
-          `got ${JSON.stringify(input.type)}`,
+        `expected "document", "dashboard", "compare", "absence", "svg", or ` +
+          `"prose", got ${JSON.stringify(input.type)}`,
       );
   }
 }

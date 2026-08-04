@@ -1,6 +1,6 @@
 # 24 — Prose/markdown artifact: render long responses as a rich, ask-able webpage
 
-Status: ready-for-agent
+Status: done
 Type: task
 Milestone: post-v1 (the "render my response" use case)
 Blocked by: 04
@@ -93,3 +93,60 @@ Animations / interactive scripted content (that's the deferred HTML hatch, issue
 a separate decision). Markdown images (v1 renders alt text only). A full CommonMark
 implementation (a practical subset is the contract). GitHub-flavored task lists,
 footnotes, math — add later if needed.
+
+## Comments
+
+Done. Shipped the `prose` artifact type end to end.
+
+**Server (`src/server/validate.ts`, `src/shared/artifacts.ts`):** added a `prose`
+branch to the schema `oneOf` and the hand validator — `{ type, title, markdown }`,
+markdown bounded at 100KB (`MARKDOWN_MAX`), unknown fields rejected with a JSON path,
+title 1..200. `publishArtifactSchema` stays `{ type:"object", oneOf:[...] }`, so
+listTools is unchanged (still 7 tools) and MCP-spec-compliant. The legibility gate is
+untouched (svg-only): `prepareContent` special-cases only `svg`, so prose stores and
+versions like any other artifact.
+
+**Renderer (`src/canvas/components/prose.ts`):** own-built, zero-dep markdown→DOM
+builder. Block parser (fenced code w/ lang, ATX headings h1–h6, hr, blockquote w/
+recursion, GFM tables, nested ordered+unordered lists, paragraphs w/ hard breaks) +
+an inline scanner (code spans opaque, then image→alt-only, link, strong, emphasis).
+Security spine: `createElement` + `textContent`/`createTextNode` ONLY — no innerHTML
+anywhere, so raw HTML in the markdown is literal text for free. Links pass through a
+`safeHref` protocol allowlist (http/https/mailto absolute only; control chars and
+schemeless/relative URLs rejected → literal text). Every top-level block gets a
+`data-block-index` so ask-back's `closestBlock` anchors a selection to a section.
+`renderProse` never throws — a parse failure degrades to the raw markdown as text.
+
+**Ask-back:** confirmed `anchorFromRange` produces a quoted anchor from a selection in
+a rendered prose block, and issue-22 `ReplyThreads` mounts an inline answer under it.
+
+**Docs:** `docs/agent-guidance.md` + `AGENTS.md` now tell the agent to publish long /
+multi-section responses as `prose` with a terse terminal pointer.
+
+**Tests:** +5 server (`test/artifact-validation.test.ts`) and +8 canvas
+(`test/prose-renderer.test.ts`, including all XSS canaries). Full suite green: 315
+pass / 0 fail across 28 files. Both tsconfigs typecheck clean. Zero new deps.
+
+**Judgment calls:**
+- Headings render as real `h1`–`h6` (the document component down-shifts to h3/h5;
+  prose is a full "webpage", so the natural mapping fits better, sized down in CSS).
+- The link allowlist is strict: only absolute http/https/mailto become `<a>`.
+  Schemeless/relative URLs (`/path`, `#anchor`, protocol-relative) render as literal
+  text — the safest reading of "allowlist http/https/mailto only", and it closes
+  colon-obfuscation tricks structurally. Revisit if relative links are wanted later.
+- A bare `---` after a paragraph renders as a thematic break (hr), not a setext H2
+  (setext headings are out of the supported subset).
+- Disallowed-scheme links render the WHOLE literal `[text](url)` construct (not just
+  the label) so nothing is silently hidden — matches "everything appears as literal
+  text".
+
+## Known minor / follow-ups (from review 2026-08-03, non-blocking)
+- **Relative + in-page anchor links render as literal text.** The href allowlist is
+  http/https/mailto only, so `[jump](#section)` and site-relative links show as ugly
+  literal `[text](url)`. Common in long structured answers (TOCs). In-page `#fragment`
+  links are safe (same-page jumps) — allowing those specifically is a clean UX win.
+- **Deep-blockquote stack overflow degrades via try/catch.** A pathological single-line
+  blockquote of ~100k `>` recurses parseBlocks and hits RangeError; it's CAUGHT and
+  degrades to literal text (~1s, nothing escapes, spec-compliant). Add a defensive
+  blockquote-depth cap so it degrades cleanly instead of relying on catching a stack
+  overflow — hardening, not a vulnerability.

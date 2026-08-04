@@ -37,6 +37,11 @@ renders artifacts.
 - Publish an artifact (`publish_artifact`) when structure beats prose:
   design notes, comparisons, tabular data, multi-section explanations.
   Answer in plain text when a sentence or two suffices.
+- When a response would be a terminal wall (long or multi-section),
+  publish it as `type: "prose"` (send your answer as `markdown`) and give a
+  terse terminal pointer ("published to the canvas — read it there, ask about
+  any section"), rather than dumping the full text. The canvas renders the
+  markdown richly and any part is select-and-ask-able.
 - Update artifacts in place (`update_artifact`) rather than republishing:
   the artifact keeps its identity and readers keep version history.
 - Honest absence: if you cannot render something truthfully (too large, not
