@@ -198,11 +198,30 @@ export function scanHtmlForEgress(html: string): FrameGuardViolation[] {
     i = lt + 1;
     if (i >= n) break;
     const c = html[i]!;
-    // Comments / declarations / PIs — skip (their contents are not tags).
+    // Comments / declarations / PIs — skip (their contents are not tags), but a
+    // comment must be consumed EXACTLY as the HTML tokenizer closes it, or the
+    // scan fails OPEN: the tokenizer closes a comment early on the abrupt-close
+    // forms `<!-->` (comment-start `>`), `<!--->` (comment-start-dash `>`), and
+    // `--!>` (comment-end-bang), none of which contain the canonical `-->`. A
+    // naive `indexOf("-->")` misses them and — finding no match — would skip to
+    // end-of-input, swallowing every following live <meta>/<link>. Terminate at
+    // the EARLIEST real close; only a genuine unterminated comment reaches EOF
+    // (there the browser agrees the rest is comment).
     if (c === "!") {
       if (html.startsWith("!--", i)) {
-        const close = html.indexOf("-->", i + 3);
-        i = close === -1 ? n : close + 3;
+        const start = i + 3; // just past `<!--`
+        if (html[start] === ">") {
+          i = start + 1; // <!--> abrupt-closing of empty comment
+        } else if (html[start] === "-" && html[start + 1] === ">") {
+          i = start + 2; // <!---> abrupt close after one dash
+        } else {
+          const a = html.indexOf("-->", start);
+          const b = html.indexOf("--!>", start);
+          const endA = a === -1 ? Infinity : a + 3;
+          const endB = b === -1 ? Infinity : b + 4;
+          const end = Math.min(endA, endB);
+          i = Number.isFinite(end) ? end : n; // no close ⇒ EOF-in-comment
+        }
       } else {
         const gt = html.indexOf(">", i);
         i = gt === -1 ? n : gt + 1;

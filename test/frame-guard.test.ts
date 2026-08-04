@@ -83,6 +83,40 @@ describe("frameGuard — REJECTS no-click egress", () => {
   });
 });
 
+// Second-round review: the comment skip must match the HTML tokenizer's EARLY
+// closes, or a `<!-->`/`<!--->`/`--!>` re-opens the data state and the following
+// <meta>/<link> is LIVE while the scanner (naive indexOf("-->")) skips to EOF.
+// Each payload below was confirmed LIVE by parse5 and must be REJECTED.
+describe("frameGuard — comment abrupt-close bypasses (parse5-confirmed live)", () => {
+  test("abrupt empty comment <!--> exposes a live meta refresh", () => {
+    rejects('<!--><meta http-equiv="refresh" content="0;url=https://evil/">');
+  });
+
+  test("<!--> exposes a live hint link", () => {
+    rejects('<!--><link rel="preconnect" href="https://evil/">');
+  });
+
+  test("abrupt close after one dash <!---> exposes a live meta", () => {
+    rejects('<!---><meta http-equiv="refresh" content="0;url=https://evil/">');
+  });
+
+  test("comment-end-bang --!> (hides inside a normal-looking comment)", () => {
+    rejects('<!--nothing to see--!><meta http-equiv="refresh" content="0">');
+  });
+
+  test("--!> with empty comment body", () => {
+    rejects('<!----!><link rel="dns-prefetch" href="//evil/">');
+  });
+
+  test("a properly closed comment before real content still scans it", () => {
+    rejects('<!-- ok --><meta http-equiv="refresh" content="0">');
+  });
+
+  test("a normal empty comment <!----> does not disable later scanning", () => {
+    rejects('<!----><p>x</p><meta http-equiv="refresh" content="0">');
+  });
+});
+
 describe("frameGuard — ALLOWS benign static HTML", () => {
   test("plain rich content", () => {
     allows("<h1>Title</h1><p>Hello <strong>world</strong></p><ul><li>a</li></ul>");
