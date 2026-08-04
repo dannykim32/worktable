@@ -83,6 +83,10 @@ function boot(): void {
         kind: "approval",
       });
     },
+    // html hatch (issue 25): an ask-back raised from inside a sandboxed frame
+    // was accepted — track it so the agent's reply threads back onto the card.
+    onAskbackSubmitted: (id, anchor, question) =>
+      replies.track(id, anchor, question),
   });
   const askbackUi = new AskbackUi(document, {
     api,

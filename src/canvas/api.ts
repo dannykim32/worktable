@@ -30,7 +30,12 @@ export interface GateSettings {
 }
 
 export interface CanvasApi {
-  health(): Promise<{ workspaceId: string; version: string }>;
+  health(): Promise<{
+    workspaceId: string;
+    version: string;
+    /** The frame-serving origin for html artifacts (issue 25), or null. */
+    frameOrigin: string | null;
+  }>;
   listArtifacts(): Promise<ArtifactMeta[]>;
   getArtifact(id: string): Promise<ArtifactWithContent>;
   getVersion(id: string, version: number): Promise<ArtifactContent>;

@@ -43,6 +43,8 @@ import {
   ArtifactTypeMismatchError,
   UnknownArtifactError,
 } from "./store.js";
+import { FrameRegistry } from "./frames.js";
+import { startFrameHttpServer } from "./frameHttp.js";
 import {
   publishArtifactSchema,
   updateArtifactSchema,
@@ -60,6 +62,9 @@ async function main(): Promise<void> {
   );
 
   const store = new ArtifactStore(workspace.dir);
+  // Frame slugs for the html hatch (issue 25): a fresh 128-bit slug per html
+  // Version, mapped server-side to (artifactId, version).
+  const frames = new FrameRegistry(workspace.dir);
   const calibration = new CalibrationLedger(workspace.dir);
   // The gate mode is a human-only decision (issue 12 / ADR-0011): no MCP tool
   // can change it. It is resolved PER PUBLISH now (workspace override > user
@@ -87,6 +92,21 @@ async function main(): Promise<void> {
     kind: a.kind ?? "question",
     created_at: a.created_at,
   });
+
+  // The parent-canvas view of an artifact's content. For the html hatch (issue
+  // 25) the raw `html` body is REPLACED by the version's frame slug: the model's
+  // HTML travels ONLY to the frame-serving origin, never to the parent canvas
+  // JS, and the canvas builds the iframe src from `frameSlug`. All other types
+  // pass through unchanged.
+  const clientContent = (
+    content: ArtifactContent,
+    artifactId: string,
+    version: number,
+  ): ArtifactContent => {
+    if (content.type !== "html") return content;
+    const frameSlug = frames.slugFor(artifactId, version) ?? undefined;
+    return { type: "html", title: content.title, frameSlug };
+  };
 
   // Block a request_review call until an ask-back anchored to `artifactId`
   // arrives or `ms` elapses. Resolves with the ask-back (marked delivered) or
@@ -141,19 +161,23 @@ async function main(): Promise<void> {
           sendJson(res, 404, { error: "unknown artifact" });
           return;
         }
-        sendJson(res, 200, { ...meta, content });
+        sendJson(res, 200, {
+          ...meta,
+          content: clientContent(content, meta.id, meta.latest),
+        });
       },
     },
     {
       method: "GET",
       template: "/api/artifacts/:id/v/:n",
       handler: ({ res, params }) => {
-        const content = store.getVersion(params.id!, Number(params.n));
+        const version = Number(params.n);
+        const content = store.getVersion(params.id!, version);
         if (!content) {
           sendJson(res, 404, { error: "unknown artifact or version" });
           return;
         }
-        sendJson(res, 200, content);
+        sendJson(res, 200, clientContent(content, params.id!, version));
       },
     },
     {
@@ -326,13 +350,31 @@ async function main(): Promise<void> {
     },
   ];
 
+  // The frame-origin server (issue 25) binds a disjoint port range; its port is
+  // known only after it binds, so the canvas CSP names the frame origin through
+  // this getter (resolved lazily, per request).
+  let framePort = -1;
+  const frameOrigin = (): string | null =>
+    framePort > 0 ? `http://127.0.0.1:${framePort}` : null;
+
   const running = await startCanvasHttpServer({
     workspace,
     version: SERVER_VERSION,
     canvasDistDir,
     apiRoutes,
+    frameOrigin,
   });
   workspace.recordPort(running.port);
+
+  // Second listener: serves ONLY html-artifact documents at token-free
+  // `/f/<slug>` routes, on its own origin, isolated from the capability token.
+  const frameServer = await startFrameHttpServer({
+    store,
+    frames,
+    canvasOrigin: () => `http://127.0.0.1:${running.port}`,
+  });
+  framePort = frameServer.port;
+  workspace.recordFramePort(framePort);
 
   const canvasUrl = () =>
     `http://127.0.0.1:${running.port}/?token=${workspace.token}`;
@@ -512,6 +554,9 @@ async function main(): Promise<void> {
           }
 
           const meta = store.publish(content);
+          // html hatch (issue 25): mint this version's 128-bit frame slug so the
+          // canvas can build the sandboxed iframe src for it.
+          if (content.type === "html") frames.mint(meta.id, 1);
           // Report-only mode and every clean/enforced-pass submission land here.
           // Store the gate's findings alongside the version; only free-form SVG
           // passes through the gate, so other types have none.
@@ -576,6 +621,9 @@ async function main(): Promise<void> {
           // Type stability is enforced by the store itself (ADR-0006);
           // ArtifactTypeMismatchError surfaces as a friendly tool error.
           const meta = store.update(artifactId, content);
+          // html hatch (issue 25): mint a fresh slug for the NEW version; the
+          // prior version keeps its own slug so the scrubber can still frame it.
+          if (content.type === "html") frames.mint(meta.id, meta.latest);
           // Updating an artifact re-runs the gate for the new version.
           if (content.type === "svg") {
             store.writeFindings(meta.id, meta.latest, findings);
@@ -774,6 +822,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     sse.close();
     await running.close().catch(() => {});
+    await frameServer.close().catch(() => {});
     process.exit(0);
   };
   // HTTP lifecycle is tied to the stdio transport: stdin closing means the
@@ -785,7 +834,8 @@ async function main(): Promise<void> {
   await connectStdio(mcp);
   console.error(
     `${SERVER_NAME} ${SERVER_VERSION} — workspace ${workspace.id}, ` +
-      `canvas on http://127.0.0.1:${running.port}`,
+      `canvas on http://127.0.0.1:${running.port}, ` +
+      `frame origin on http://127.0.0.1:${framePort}`,
   );
 }
 

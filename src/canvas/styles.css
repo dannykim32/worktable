@@ -597,6 +597,23 @@ header.canvas-chrome .live {
   margin-top: 10px;
 }
 
+/* ── Free-form HTML hatch (issue 25): sandboxed, origin-split iframe ──── */
+.html-frame {
+  width: 100%;
+  min-height: 120px;
+  height: 240px; /* replaced live by the frame's reported height */
+  border: 1px solid var(--hairline, #0002);
+  border-radius: 6px;
+  background: #fff;
+  display: block;
+}
+.html-caption {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
 /* ── Ask-back pill + composer (prototype pattern) ───────────────────── */
 .askback-pill {
   position: absolute;

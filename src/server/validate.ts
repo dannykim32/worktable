@@ -11,6 +11,7 @@ import type {
 } from "../shared/artifacts.js";
 import {
   ARTIFACT_ID_PATTERN,
+  HTML_MAX,
   isArtifactId,
   POINTS_MAX,
 } from "../shared/constraints.js";
@@ -270,6 +271,29 @@ const contentVariants = [
       },
     },
     required: ["type", "title", "svg"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    description:
+      "Free-form HTML hatch (issue 25, ADR-0002 exception): agent-authored " +
+      "HTML served VERBATIM into a sandboxed, origin-split, CSP-locked iframe " +
+      "on a second local port — never sanitized into the host DOM, never " +
+      "network-capable. Use ONLY when the trusted components + prose + SVG " +
+      "genuinely cannot express the layout; prefer those. The model's own " +
+      "<script>/onclick are neutralized by a nonce CSP; only static rich HTML " +
+      "renders.",
+    properties: {
+      type: { const: "html" },
+      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+      html: {
+        type: "string",
+        minLength: 1,
+        maxLength: HTML_MAX,
+        description: "HTML source (≤256KB); served verbatim in a sandboxed frame",
+      },
+    },
+    required: ["type", "title", "html"],
     additionalProperties: false,
   },
   {
@@ -610,6 +634,18 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
       requireString(input.svg, "/svg", { min: 1, max: SVG_MAX });
       return input as unknown as ArtifactContent;
     }
+    case "html": {
+      // Shape/size only. The html is stored VERBATIM and served into a
+      // sandboxed, origin-split, CSP-locked iframe (issue 25) — the iframe's
+      // sandbox + header CSP is the authoritative boundary, never a sanitizer
+      // that mutates the markup into the host DOM. `frameSlug` is NEVER
+      // accepted from the model (server-minted, client-response-only), so it is
+      // an unknown field here and rejected.
+      rejectUnknownFields(input, ["type", "title", "html"], "");
+      requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
+      requireString(input.html, "/html", { min: 1, max: HTML_MAX });
+      return input as unknown as ArtifactContent;
+    }
     case "prose": {
       rejectUnknownFields(input, ["type", "title", "markdown"], "");
       requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
@@ -622,8 +658,8 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
     default:
       throw new ValidationError(
         "/type",
-        `expected "document", "dashboard", "compare", "absence", "svg", or ` +
-          `"prose", got ${JSON.stringify(input.type)}`,
+        `expected "document", "dashboard", "compare", "absence", "svg", ` +
+          `"html", or "prose", got ${JSON.stringify(input.type)}`,
       );
   }
 }
