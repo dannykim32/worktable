@@ -156,18 +156,42 @@ describe("publish_artifact schema validation", () => {
     ).toBe("/html");
   });
 
-  test("prose inputSchema stays MCP-compliant: top-level object with a prose branch", () => {
-    // MCP requires a top-level `type: "object"` (the M5 fix); the per-type
-    // schemas hang under it as `oneOf` branches. listTools breaks without this.
+  test("publish inputSchema is a FLAT MCP object schema with a type enum (no top-level oneOf)", () => {
+    // A top-level `oneOf` of per-type branches (the prior shape) is filled
+    // UNRELIABLY by LLM tool-use — the model defaults to the first branch,
+    // emitting {type:"document", html:"…"} when it means html (reproduced live).
+    // A flat object with a `type` ENUM is filled reliably; the hand-validator
+    // stays authoritative. MCP also needs a top-level `type: "object"` (M5).
     expect(publishArtifactSchema.type).toBe("object");
-    const branches = publishArtifactSchema.oneOf as Array<{
-      type: string;
-      properties: { type: { const: string } };
-    }>;
-    const prose = branches.find((b) => b.properties.type.const === "prose");
-    expect(prose).toBeDefined();
-    expect(prose!.type).toBe("object");
-    // Update input carries the prose content through with an artifact_id.
+    expect(
+      (publishArtifactSchema as { oneOf?: unknown }).oneOf,
+    ).toBeUndefined();
+    const props = (
+      publishArtifactSchema as { properties: Record<string, { enum?: string[] }> }
+    ).properties;
+    expect(props.type.enum).toEqual([
+      "document",
+      "dashboard",
+      "compare",
+      "svg",
+      "html",
+      "prose",
+      "absence",
+    ]);
+    // Every content field is exposed so any type is expressible in ONE flat call.
+    for (const f of [
+      "blocks",
+      "tiles",
+      "charts",
+      "panes",
+      "svg",
+      "html",
+      "markdown",
+      "reason",
+    ]) {
+      expect(props[f]).toBeDefined();
+    }
+    // Update input carries content through with an artifact_id.
     const upd = validateUpdateInput({
       type: "prose",
       title: "t",

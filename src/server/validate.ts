@@ -195,153 +195,115 @@ const paneSchema = {
   additionalProperties: false,
 };
 
-const contentVariants = [
-  {
-    type: "object",
-    properties: {
-      type: { const: "document" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      blocks: {
-        type: "array",
-        minItems: 1,
-        maxItems: BLOCKS_MAX,
-        items: { oneOf: blockSchemas },
-      },
-    },
-    required: ["type", "title", "blocks"],
-    additionalProperties: false,
-  },
-  {
-    type: "object",
-    properties: {
-      type: { const: "dashboard" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      tiles: { type: "array", maxItems: TILES_MAX, items: tileSchema },
-      charts: { type: "array", maxItems: CHARTS_MAX, items: chartSchema },
-    },
-    required: ["type", "title", "tiles", "charts"],
-    additionalProperties: false,
-  },
-  {
-    type: "object",
-    properties: {
-      type: { const: "compare" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      panes: {
-        type: "array",
-        minItems: PANES_EXACT,
-        maxItems: PANES_EXACT,
-        items: paneSchema,
-      },
-    },
-    required: ["type", "title", "panes"],
-    additionalProperties: false,
-  },
-  {
-    type: "object",
-    description: "Honest Absence — a first-class refusal, never an error",
-    properties: {
-      type: { const: "absence" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      reason: { type: "string", minLength: 1, maxLength: REASON_MAX },
-    },
-    required: ["type", "title", "reason"],
-    additionalProperties: false,
-  },
-  {
-    type: "object",
+// FLAT input schema: a single object with `type` as an ENUM and every artifact
+// kind's content field present but OPTIONAL. The prior shape was a top-level
+// `oneOf` of 7 per-type branches — which LLM tool-use fills UNRELIABLY: the model
+// can't choose a branch and defaults to the FIRST one, emitting e.g.
+// `{type:"document", html:"…"}` when it means html (reproduced live — the server
+// then rejects it with "unexpected field at /html"). A flat object with a `type`
+// enum is the shape tool-use fills reliably. The hand-validator below stays the
+// AUTHORITATIVE gate: it enforces which fields each `type` requires and rejects
+// any cross-type field, so the looser exposed schema loses no safety — it only
+// lets the model express the call correctly in the first place.
+const contentProperties = {
+  type: {
+    enum: [
+      "document",
+      "dashboard",
+      "compare",
+      "svg",
+      "html",
+      "prose",
+      "absence",
+    ],
     description:
-      "Free-form SVG (ADR-0002): agent-authored markup, sanitized on publish " +
-      "and rendered as an inert image. Anything outside the strict SVG subset " +
-      "fails the publish with fixable violations — nothing is stored.",
-    properties: {
-      type: { const: "svg" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      svg: {
-        type: "string",
-        minLength: 1,
-        maxLength: SVG_MAX,
-        description: "SVG source (≤256KB); sanitized + re-serialized on publish",
-      },
-      repair_token: {
-        type: "string",
-        description:
-          "Only when resubmitting an SVG the Legibility Gate just failed under " +
-          "enforcement: echo the repair_token from that failure so the server " +
-          "correlates this retry with it. Omit on a first publish.",
-      },
-    },
-    required: ["type", "title", "svg"],
-    additionalProperties: false,
+      "The artifact kind. Set this, then provide ONLY that kind's content " +
+      "field(s): document→blocks · dashboard→tiles+charts · compare→panes · " +
+      "svg→svg · html→html · prose→markdown · absence→reason.",
   },
-  {
-    type: "object",
+  title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+  blocks: {
+    type: "array",
+    minItems: 1,
+    maxItems: BLOCKS_MAX,
+    items: { oneOf: blockSchemas },
+    description: "type=document: the ordered content blocks.",
+  },
+  tiles: {
+    type: "array",
+    maxItems: TILES_MAX,
+    items: tileSchema,
+    description: "type=dashboard: stat tiles.",
+  },
+  charts: {
+    type: "array",
+    maxItems: CHARTS_MAX,
+    items: chartSchema,
+    description: "type=dashboard: single-axis bar/line charts.",
+  },
+  panes: {
+    type: "array",
+    minItems: PANES_EXACT,
+    maxItems: PANES_EXACT,
+    items: paneSchema,
+    description: "type=compare: exactly two before/after panes.",
+  },
+  svg: {
+    type: "string",
+    minLength: 1,
+    maxLength: SVG_MAX,
     description:
-      "Free-form HTML hatch (issue 25, ADR-0002 exception): agent-authored " +
-      "HTML served VERBATIM into a sandboxed, origin-split, CSP-locked iframe " +
-      "on a second local port — never sanitized into the host DOM, never " +
-      "network-capable. Use ONLY when the trusted components + prose + SVG " +
-      "genuinely cannot express the layout; prefer those. The model's own " +
-      "<script>/onclick are neutralized by a nonce CSP; only static rich HTML " +
-      "renders.",
-    properties: {
-      type: { const: "html" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      html: {
-        type: "string",
-        minLength: 1,
-        maxLength: HTML_MAX,
-        description: "HTML source (≤256KB); served verbatim in a sandboxed frame",
-      },
-    },
-    required: ["type", "title", "html"],
-    additionalProperties: false,
+      "type=svg: presentation-attribute SVG (≤256KB), sanitized + re-serialized " +
+      "on publish. No <style>, class, or style= — CSS-styled visuals go in html.",
   },
-  {
-    type: "object",
+  html: {
+    type: "string",
+    minLength: 1,
+    maxLength: HTML_MAX,
     description:
-      "Prose/markdown (issue 24): a long response rendered richly by the " +
-      "canvas's OWN markdown→DOM renderer (createElement/textContent only — " +
-      "no innerHTML, no raw-HTML passthrough, no scripts). The TRUSTED lane, " +
-      "not the free-form HTML hatch. Send markdown; the canvas renders " +
-      "headings, lists, code, tables, emphasis, and safe links, select-and-" +
-      "ask-able like any artifact.",
-    properties: {
-      type: { const: "prose" },
-      title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
-      markdown: {
-        type: "string",
-        maxLength: MARKDOWN_MAX,
-        description: "Markdown source (≤100KB); parsed only at render time",
-      },
-    },
-    required: ["type", "title", "markdown"],
-    additionalProperties: false,
+      "type=html: a rich, SELF-CONTAINED HTML/CSS/SVG page (≤256KB) served " +
+      "verbatim in a sandboxed, network-less iframe. Inline everything; no " +
+      "external <link>/fonts and no <meta http-equiv>. The model's own scripts " +
+      "are neutralized (nonce CSP) — static rich HTML/CSS/SVG only.",
   },
-];
+  markdown: {
+    type: "string",
+    maxLength: MARKDOWN_MAX,
+    description:
+      "type=prose: markdown (≤100KB), rendered by the canvas's own safe " +
+      "markdown→DOM renderer (no raw HTML, no scripts).",
+  },
+  reason: {
+    type: "string",
+    minLength: 1,
+    maxLength: REASON_MAX,
+    description:
+      "type=absence: why you are declining to render (Honest Absence — a " +
+      "first-class refusal, never an error).",
+  },
+  repair_token: {
+    type: "string",
+    description:
+      "Only when resubmitting an SVG the Legibility Gate just failed under " +
+      "enforcement: echo the repair_token from that failure. Omit otherwise.",
+  },
+};
 
-// MCP requires a tool inputSchema to be a JSON Schema whose TOP LEVEL is an
-// object (`type: "object"`) — a spec-compliant host (and the SDK's own
-// ListTools result parser) rejects a bare top-level `oneOf`/union, and can then
-// enumerate none of our tools. So the per-artifact-type object schemas stay as
-// `oneOf` branches (each is already `type: "object"`) but hang under a
-// top-level object wrapper. The hand-validator below is the authoritative gate;
-// this shape is only what hosts read.
 export const publishArtifactSchema = {
   type: "object",
-  oneOf: contentVariants,
+  properties: contentProperties,
+  required: ["type", "title"],
+  additionalProperties: false,
 };
 
 export const updateArtifactSchema = {
   type: "object",
-  oneOf: contentVariants.map((variant) => ({
-    ...variant,
-    properties: {
-      artifact_id: { type: "string", pattern: ARTIFACT_ID_PATTERN.source },
-      ...variant.properties,
-    },
-    required: ["artifact_id", ...variant.required],
-  })),
+  properties: {
+    artifact_id: { type: "string", pattern: ARTIFACT_ID_PATTERN.source },
+    ...contentProperties,
+  },
+  required: ["artifact_id", "type", "title"],
+  additionalProperties: false,
 };
 
 // ---------------------------------------------------------------------------
