@@ -73,34 +73,30 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ## ▶ RESUME HERE (next session)
 
-**Everything builds. v1 complete + calibrated + ergonomic to configure.** All four
-legibility checks are calibrated and trustworthy (round 6); edge-straddle took three
-fixes and six rounds to match the owner's eye (the 2-sided "box too small" model,
-issue 19). Gate mode is now a live human setting (issue 20 / ADR-0011): a gear panel
-in the canvas toggles Report↔Enforce, scoped per-workspace or as a user-level
-default, applied with no restart — and no MCP tool can change it. 282 tests green.
+**v1 complete, and extended.** 315 tests green on `main` (also pushed to the private
+GitHub remote `dannykim32/visual-chat`, release v0.1.0 has a firewall-friendly
+self-contained tarball). The build history is in the milestone log below; the current
+capability surface:
 
-**v1 complete + calibrated + ergonomic + installable behind a firewall (issue 21)
-+ ask-back loop closes in the browser (issue 22: `answer_askback` → the agent's
-reply renders inline under the anchored selection, live).** 303 tests.
-
-**Warm visual identity settled (issue 23).** One cohesive warm palette: a
-colorblind-safe warm series ramp (variant C), warmed semantics (olive good /
-warm-red bad), warm-neutral diff tints (distinguished by the +/- glyph), warm-brown
-callout rail, quiet warm-neutral type badges. Principle: burnt orange LEADS only
-(masthead, focus, viewing marker); the live dot is warm olive (good-status). All
-values contrast-validated. 303 tests.
+- Artifacts: document, dashboard, compare, SVG (sanitized + image-isolated + legibility
+  gated), honest-absence, and **prose/markdown** (issue 24 — the agent renders a long
+  answer as a safe rich webpage; own-built zero-dep markdown→DOM renderer, no HTML hole).
+- Ask-back loop closes in the browser: select a section → question home to the terminal
+  → the agent's reply threads inline (issue 22).
+- Gate mode is a live human setting via a canvas gear panel (issue 20); all four
+  legibility checks human-calibrated (round 6).
+- Warm visual identity settled (issue 23); installs behind a firewall (issue 21).
 
 **Open — the owner's, none are code:**
 - **Flip enforce (or not)** — a click in the canvas gear panel (issue 20).
 - **Name the project** — still the "visual-chat" placeholder.
 - **Dogfood** — install into a real work repo per `docs/install.md` and use it.
 
-Everything else is done and merged; v1 is feature-complete. Naming the project (still
-a placeholder) is also open.
-- **Deferred with labeled slots:** free-form HTML hatch (security model +
-  pre-decisions already recorded — issue 15), structured Diagram component,
-  native MCP Apps hosting, sketch aesthetic register.
+**Known follow-ups (non-blocking):** prose relative/in-page-anchor links render as
+literal text (issue 24 comments — allowing safe `#fragment` links is a clean win);
+prose deep-blockquote depth cap (hardening). **Deferred, labeled:** free-form HTML
+hatch for animations/interactivity (issue 15, security pre-decided — the "add motion"
+decision), structured Diagram component, native MCP Apps hosting, sketch register.
 
 ## Run it
 
