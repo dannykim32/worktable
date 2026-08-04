@@ -14,8 +14,6 @@
   },
   "include": [
     "src/server/**/*",
-    "src/shared/**/*",
-    "src/sanitizer/**/*",
-    "src/gate/**/*"
+    "src/shared/**/*"
   ]
 }

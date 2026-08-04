@@ -20,15 +20,6 @@ export interface AnsweredAskback {
   answer: AskbackAnswer;
 }
 
-export type GateMode = "report" | "enforce";
-export type GateScope = "workspace" | "user";
-export type GateSource = GateScope | "default";
-
-/** The effective gate mode + where it was resolved from (issue 20). */
-export interface GateSettings {
-  gate: { effective: GateMode; source: GateSource };
-}
-
 export interface CanvasApi {
   health(): Promise<{
     workspaceId: string;
@@ -45,8 +36,6 @@ export interface CanvasApi {
     kind?: "question" | "approval";
   }): Promise<{ id: string; state: string }>;
   getAnsweredAskbacks(): Promise<AnsweredAskback[]>;
-  getSettings(): Promise<GateSettings>;
-  postSettings(body: { gate: GateMode; scope: GateScope }): Promise<GateSettings>;
 }
 
 export function createApi(token: string): CanvasApi {
@@ -74,16 +63,6 @@ export function createApi(token: string): CanvasApi {
     getAnsweredAskbacks: async () =>
       (await getJson<{ askbacks: AnsweredAskback[] }>("/api/askbacks/answered"))
         .askbacks,
-    getSettings: () => getJson("/api/settings"),
-    postSettings: async (body) => {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(`POST /api/settings failed: ${res.status}`);
-      return (await res.json()) as GateSettings;
-    },
   };
 }
 

@@ -248,15 +248,9 @@ export async function startCanvasHttpServer(
     pathname: string,
     res: ServerResponse,
   ): void {
-    // HTML entry points (Vite multi-page): "/" → index.html, "/calibration" →
-    // the authed legibility calibration gallery (issue 11). Both get the token
-    // injected into their asset URLs.
-    const htmlEntry =
-      pathname === "/"
-        ? "index.html"
-        : pathname === "/calibration"
-          ? "calibration.html"
-          : null;
+    // HTML entry point: "/" → index.html, with the token injected into its
+    // asset URLs. (Issue 26 retired the separate /calibration gallery.)
+    const htmlEntry = pathname === "/" ? "index.html" : null;
     if (htmlEntry) {
       const entryPath = join(d.canvasDistDir, htmlEntry);
       if (!existsSync(entryPath)) {

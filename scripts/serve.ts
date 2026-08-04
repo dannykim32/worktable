@@ -1,7 +1,7 @@
-// Keep-alive canvas server (dev/calibration helper): the Canvas Server is an
-// MCP stdio server, so it lives only while an MCP client holds its stdin open.
-// This script connects a client and idles, keeping the browser canvas + the
-// /calibration gallery reachable for a while so a human can view/interact.
+// Keep-alive canvas server (dev helper): the Canvas Server is an MCP stdio
+// server, so it lives only while an MCP client holds its stdin open. This script
+// connects a client and idles, keeping the browser canvas reachable for a while
+// so a human can view/interact.
 //
 // Run: bun run build && bun scripts/serve.ts   (Ctrl+C to stop)
 // Stays up for VISUAL_CHAT_SERVE_MINUTES (default 60), then exits cleanly.
@@ -36,9 +36,7 @@ async function main(): Promise<void> {
   // open_canvas returns the tokened canvas URL (NO_OPEN suppresses the tab).
   const url = JSON.parse(toolText(await client.callTool({ name: "open_canvas", arguments: {} })));
   const canvasUrl: string = url.url ?? "";
-  const calUrl = canvasUrl.replace("/?", "/calibration?");
   console.log(`\n  Canvas:       ${canvasUrl}`);
-  console.log(`  Calibration:  ${calUrl}`);
   console.log(`\n  Server up for ${MINUTES} min (Ctrl+C to stop sooner).\n`);
 
   await new Promise((resolve) => setTimeout(resolve, MINUTES * 60_000));

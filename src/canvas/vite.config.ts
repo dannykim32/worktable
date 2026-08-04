@@ -12,14 +12,13 @@ export default defineConfig({
     // capability model injects the token into HTML-referenced asset URLs
     // (http.ts), but a cross-chunk ESM `import "./shared.js"` carries no token
     // and would 401 — so no shared chunks. Disabling the module-preload helper
-    // removes the only chunk two entries would otherwise share.
+    // removes any chunk entries would otherwise share.
     modulePreload: false,
     rollupOptions: {
-      // Multi-page: the artifact canvas (index) and the authed legibility
-      // calibration gallery (issue 11) are separate entry points.
+      // Single entry point: the artifact canvas (issue 26 retired the separate
+      // legibility calibration gallery along with the gate).
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
-        calibration: fileURLToPath(new URL("./calibration.html", import.meta.url)),
       },
     },
   },

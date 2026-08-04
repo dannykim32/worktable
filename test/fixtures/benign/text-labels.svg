@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80">
-  <title>Labels &amp; entities</title>
-  <desc>A &lt;text&gt; sample with tspans, quotes &quot; and &apos;, and numeric forms &#38; &#x3C; &#62;.</desc>
-  <text x="10" y="20" font-size="14" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="start">Alpha &amp; Beta &lt;joined&gt;<tspan x="10" y="40" font-style="italic" fill="gray">second line</tspan></text>
-  <text x="10" y="64" dominant-baseline="middle" font-weight="600" fill="purple">metrics — 42% of 5,471</text>
-</svg>

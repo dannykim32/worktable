@@ -47,9 +47,9 @@ async function publishDoc(title: string, text: string): Promise<string> {
     await server.client.callTool({
       name: "publish_artifact",
       arguments: {
-        type: "document",
+        type: "prose",
         title,
-        blocks: [{ kind: "paragraph", text }],
+        markdown: text,
       },
     }),
   );
@@ -114,9 +114,9 @@ describe("ask-back loop", () => {
         name: "update_artifact",
         arguments: {
           artifact_id: id,
-          type: "document",
+          type: "prose",
           title: "Pinning doc",
-          blocks: [{ kind: "paragraph", text: "version two wording here" }],
+          markdown: "version two wording here",
         },
       }),
     );
