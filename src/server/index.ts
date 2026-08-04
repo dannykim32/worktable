@@ -293,24 +293,31 @@ async function main(): Promise<void> {
     {
       name: "publish_artifact",
       description:
-        "Publish a new visual artifact to THIS canvas (not a different rendering " +
-        "surface — only this one carries the select-and-ask-back loop). " +
-        "Three types: for anything visual — a rich, CSS-styled, or theme-aware " +
-        "page or diagram (bespoke layout, custom colors, animation, embedded " +
-        'SVG) — use "html": it renders full model-authored HTML/CSS/SVG isolated ' +
-        'in a locked-down sandbox. "prose" renders a long markdown answer. Use ' +
-        '"absence" to decline honestly (with the reason) instead of fabricating. ' +
-        "Design it, do not dump it: a long answer rendered as an unbroken wall of " +
-        "prose is no better than the terminal. Decide the treatment (a document " +
-        "to read, or a surface to scan), lead with the claim, and mark every " +
-        "literal — file path, identifier, status code, field name — as `code`. " +
-        "Add a diagram ONLY when it shows a mechanism prose can't — one figure, " +
-        "one claim; if a sentence says it faster, write the sentence, and never " +
-        "diagram a whole system as an inventory of boxes. IF A PUBLISH IS " +
-        "REJECTED: the error names exactly what to fix and nothing was stored — " +
-        "fix it and re-publish HERE (e.g. an html page with an external font/link " +
-        "should inline it). Do NOT fall back to another rendering surface — that " +
-        "silently drops the ask-back loop.",
+        "Publish a visual artifact to THIS canvas — the local page that carries " +
+        "the select-and-ask-back loop no other rendering surface has. Three " +
+        'types: "html" (the primary path), "prose", and "absence". ' +
+        "For anything worth designing — an explainer, a diagram or flowchart, a " +
+        "before/after, a dashboard, a walkthrough — use \"html\", and author it " +
+        "the way you would a first-class artifact: apply the artifact-design " +
+        "skill's full process (decide the treatment, a real color/type/layout " +
+        "plan, semantic color, one-figure-one-claim diagrams drawn in HTML/CSS or " +
+        "inline SVG, an anti-default pass). Two hard rules for THIS canvas: (1) " +
+        "the page must be FULLY SELF-CONTAINED — inline all CSS and SVG, embed " +
+        "assets as data: URIs, NO external <link>/fonts/CDN and NO <meta " +
+        "http-equiv> — because the frame has no network; (2) it renders as STATIC " +
+        "rich HTML/CSS/SVG (your own <script> is neutralized), so make diagrams " +
+        "with markup and CSS, not JS. Publish that page HERE via type:html — do " +
+        "NOT send it to the native Artifact tool / claude.ai artifacts instead; " +
+        "that surface can't be asked-back on, which is the entire point of this " +
+        'one. "prose" renders a long markdown answer (plain text, no bespoke ' +
+        'visual). "absence" declines honestly with a reason instead of ' +
+        "fabricating. Design it, don't dump it: lead with the claim, mark every " +
+        "literal (path, identifier, status code) as `code`, and add a diagram " +
+        "ONLY when it shows a mechanism prose can't — one figure, one claim. IF A " +
+        "PUBLISH IS REJECTED: the error names exactly what to fix and nothing was " +
+        "stored — fix it (inline the external resource, drop the <meta " +
+        "http-equiv>) and re-publish HERE. Never fall back to another surface — " +
+        "that drops the ask-back loop.",
       inputSchema: publishArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {

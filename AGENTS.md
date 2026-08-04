@@ -34,40 +34,39 @@ renders artifacts.
 - Call `check_askbacks` at the START of every turn. It returns questions the
   human anchored to specific artifacts, versions, and text spans — answer
   them with the anchor's context, and prefer updating the same artifact.
-- Publish an artifact (`publish_artifact`) when structure beats prose:
-  design notes, comparisons, tabular data, multi-section explanations.
-  Answer in plain text when a sentence or two suffices.
-- Choose the type by what the visual needs, and stay on this canvas:
-  - `html` — a rich, CSS-styled, or theme-aware page or diagram (bespoke
-    layout, custom colors, animation, embedded/hand-authored SVG). It renders
-    full model-authored HTML/CSS/SVG isolated in a locked-down sandbox and is
-    the right home for that kind of visual. Keep it self-contained (inline CSS;
-    fonts/images as `data:` URIs) — the frame has no network.
-  - `svg` — plain **presentation-attribute** diagrams only. No `<style>`,
-    `class`, or `style=` (those belong in an `html` artifact).
-  - `prose` — a long markdown answer. `document`/`dashboard`/`compare` — structured data.
-  If a publish is rejected, the error names exactly what to fix and nothing was
-  stored: fix it and re-publish HERE (a CSS-styled SVG rejected under `svg` →
-  re-send as `html`; an html page with an external font/link → inline it).
-  Never fall back to a different rendering surface — that drops the ask-back loop.
-- When a response would be a terminal wall (long or multi-section),
-  publish it as `type: "prose"` (send your answer as `markdown`) and give a
-  terse terminal pointer ("published to the canvas — read it there, ask about
-  any section"), rather than dumping the full text. The canvas renders the
-  markdown richly and any part is select-and-ask-able.
-- Update artifacts in place (`update_artifact`) rather than republishing:
-  the artifact keeps its identity and readers keep version history.
-- Honest absence: if you cannot render something truthfully (too large, not
-  enough data, would require guessing), publish `type: "absence"` with the
-  reason. Never fabricate a visual.
-- Bound large inputs: render a truthful subset and say so in the artifact
-  itself ("showing 20 of 5,471"), or decline with an absence artifact.
+- Publish an artifact (`publish_artifact`) whenever a response is worth designing —
+  an explainer, a diagram or flowchart, a before/after, a dashboard, a walkthrough,
+  a multi-section answer. Answer in plain text only when a sentence or two suffices.
+  The surface is exactly three types: `html`, `prose`, `absence`.
+- **`html` is the primary path.** Author the page the way you'd author a
+  first-class artifact — run the **artifact-design** skill's full process
+  (treatment → an explicit color/type/layout plan → semantic color →
+  one-figure-one-claim diagrams in HTML/CSS or inline SVG → an anti-default pass) —
+  but publish it HERE via `type: "html"`, **NOT** to the native Artifact tool /
+  claude.ai artifacts. Only this canvas can be selected-and-asked-back on; that is
+  the entire reason to use it. Two hard rules for this canvas:
+  - **Self-contained.** Inline all CSS and SVG; embed assets as `data:` URIs; no
+    external `<link>`/fonts/CDN and no `<meta http-equiv>`. The frame has no network.
+  - **Static.** Your own `<script>` is neutralized — draw diagrams with HTML/CSS
+    and inline SVG, not JS. (Live-JS interactivity is a deferred capability.)
+- `prose` (send `markdown`) for a long plain-text answer with no bespoke visual —
+  the canvas renders it richly and select-and-ask-ably. `absence` (with a `reason`)
+  to decline honestly instead of fabricating. Never fabricate a visual.
+- If a publish is rejected, the error names exactly what to fix and nothing was
+  stored: fix it (inline the external resource, drop the `<meta http-equiv>`) and
+  re-publish HERE. Never fall back to a different rendering surface — that drops the
+  ask-back loop.
+- Update artifacts in place (`update_artifact`) rather than republishing: the
+  artifact keeps its identity and readers keep version history.
+- Bound large inputs: render a truthful subset and say so in the artifact itself
+  ("showing 20 of 5,471"), or decline with an absence artifact.
 
-### Design doctrine (how to make an artifact worth opening)
+### Design doctrine (the artifact-design essentials, baked in)
 
-A page that is just the terminal wall in a browser has bought nothing. Before you
-publish, make these decisions — they are what turn an analytical answer into
-something worth the extra surface:
+Prefer the full **artifact-design** skill when it's available; these are its core
+moves, kept here so quality travels even where the skill isn't installed. A page
+that is just the terminal wall in a browser has bought nothing. Before you publish
+an `html` artifact, make these decisions:
 
 1. **Decide the treatment first.** Is this a *document* (read top-to-bottom —
    craft goes into typography and spacing) or a *decision surface* (scanned and
