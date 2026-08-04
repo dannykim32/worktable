@@ -132,25 +132,4 @@ export class ArtifactStore {
     if (!existsSync(path)) return null;
     return JSON.parse(readFileSync(path, "utf8")) as ArtifactContent;
   }
-
-  /** Store the Legibility Gate's findings next to a Version as
-   *  `v<N>.findings.json` (issue 11). REPORT-ONLY: findings are recorded, never
-   *  consulted to accept or reject — the store keeps whatever the gate produced,
-   *  including an empty array. Kept generic (`unknown[]`) so the store carries
-   *  no dependency on the gate module. */
-  writeFindings(id: string, version: number, findings: unknown[]): void {
-    atomicWriteJson(join(this.root, id, `v${version}.findings.json`), findings);
-  }
-
-  /** The findings recorded for a Version, or [] when none were stored. */
-  getFindings(id: string, version: number): unknown[] {
-    const path = join(this.root, id, `v${version}.findings.json`);
-    if (!existsSync(path)) return [];
-    try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
 }

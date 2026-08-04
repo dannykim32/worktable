@@ -1,6 +1,6 @@
-// Walking-skeleton demo (issue 06): speaks MCP over stdio to a spawned
-// Canvas Server. Publishes a six-block document, updates it to v2, prints
-// the canvas URL, then polls check_askbacks every 2s and prints anything
+// Walking-skeleton demo (issue 06; updated for issue 26): speaks MCP over stdio
+// to a spawned Canvas Server. Publishes a prose artifact, updates it to v2,
+// prints the canvas URL, then polls check_askbacks every 2s and prints anything
 // the human sends from the browser. Exits 0 on Ctrl+C or after the poll
 // window (VISUAL_CHAT_DEMO_TIMEOUT_MS, default 120000).
 //
@@ -41,48 +41,26 @@ async function main(): Promise<void> {
     await client.callTool({
       name: "publish_artifact",
       arguments: {
-        type: "document",
+        type: "prose",
         title: "Walking skeleton: the full loop, demonstrated",
-        blocks: [
-          { kind: "heading", level: 1, text: "What you are looking at" },
-          {
-            kind: "paragraph",
-            text:
-              "This document was published from a terminal process over MCP. " +
-              "Select any sentence in this paragraph to send an anchored " +
-              "ask-back home to that process.",
-          },
-          {
-            kind: "callout",
-            tone: "info",
-            text:
-              "Honest absence doctrine: what cannot be rendered truthfully " +
-              "is declined with a reason, never fabricated.",
-          },
-          {
-            kind: "code",
-            lang: "json",
-            text: '{ "tool": "publish_artifact", "arguments": { "type": "document" } }',
-          },
-          {
-            kind: "table",
-            header: ["Flow", "Channel"],
-            rows: [
-              ["agent → canvas", "publish_artifact / update_artifact + SSE"],
-              ["canvas → agent", "ask-back queue, pulled via check_askbacks"],
-            ],
-          },
-          {
-            kind: "list",
-            ordered: true,
-            items: [
-              "publish (v1)",
-              "update in place (v2, v1 retained)",
-              "select text in the browser and ask",
-              "watch this terminal print your question",
-            ],
-          },
-        ],
+        markdown:
+          "# What you are looking at\n\n" +
+          "This prose artifact was published from a terminal process over MCP. " +
+          "Select any sentence in this paragraph to send an anchored ask-back " +
+          "home to that process.\n\n" +
+          "> Honest absence doctrine: what cannot be rendered truthfully is " +
+          "declined with a reason, never fabricated.\n\n" +
+          "```json\n" +
+          '{ "tool": "publish_artifact", "arguments": { "type": "prose" } }\n' +
+          "```\n\n" +
+          "| Flow | Channel |\n" +
+          "| --- | --- |\n" +
+          "| agent → canvas | publish_artifact / update_artifact + SSE |\n" +
+          "| canvas → agent | ask-back queue, pulled via check_askbacks |\n\n" +
+          "1. publish (v1)\n" +
+          "2. update in place (v2, v1 retained)\n" +
+          "3. select text in the browser and ask\n" +
+          "4. watch this terminal print your question\n",
       },
     }),
   );
@@ -94,41 +72,21 @@ async function main(): Promise<void> {
       name: "update_artifact",
       arguments: {
         artifact_id: artifactId,
-        type: "document",
+        type: "prose",
         title: "Walking skeleton: the full loop, demonstrated (v2)",
-        blocks: [
-          { kind: "heading", level: 1, text: "What you are looking at (updated)" },
-          {
-            kind: "paragraph",
-            text:
-              "Same artifact, new version — scrub back with ‹ to see v1 and " +
-              "the viewing marker. Select any sentence to send an anchored " +
-              "ask-back home to this terminal.",
-          },
-          {
-            kind: "callout",
-            tone: "warn",
-            text: "Ask-backs pin the version you were reading when you asked.",
-          },
-          {
-            kind: "code",
-            lang: "json",
-            text: '{ "tool": "update_artifact", "arguments": { "artifact_id": "' + artifactId + '" } }',
-          },
-          {
-            kind: "table",
-            header: ["Version", "State"],
-            rows: [
-              ["v1", "retained, viewable via the scrubber"],
-              ["v2", "live"],
-            ],
-          },
-          {
-            kind: "list",
-            ordered: true,
-            items: ["you are here", "now ask something from the browser"],
-          },
-        ],
+        markdown:
+          "# What you are looking at (updated)\n\n" +
+          "Same artifact, new version — scrub back with ‹ to see v1 and the " +
+          "viewing marker. Select any sentence to send an anchored ask-back " +
+          "home to this terminal.\n\n" +
+          "> Ask-backs pin the version you were reading when you asked.\n\n" +
+          "```json\n" +
+          '{ "tool": "update_artifact", "arguments": { "artifact_id": "' +
+          artifactId +
+          '" } }\n' +
+          "```\n\n" +
+          "1. you are here\n" +
+          "2. now ask something from the browser\n",
       },
     }),
   );

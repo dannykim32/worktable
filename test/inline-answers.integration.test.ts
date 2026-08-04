@@ -30,9 +30,9 @@ async function publishDoc(title: string, text: string): Promise<string> {
     await server.client.callTool({
       name: "publish_artifact",
       arguments: {
-        type: "document",
+        type: "prose",
         title,
-        blocks: [{ kind: "paragraph", text }],
+        markdown: text,
       },
     }),
   );

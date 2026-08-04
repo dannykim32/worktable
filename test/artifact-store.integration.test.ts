@@ -31,9 +31,9 @@ describe("artifact store + tools + SSE", () => {
       await server.client.callTool({
         name: "publish_artifact",
         arguments: {
-          type: "document",
+          type: "prose",
           title: "Design note v1",
-          blocks: [{ kind: "paragraph", text: "first draft" }],
+          markdown: "first draft",
         },
       }),
     );
@@ -46,9 +46,9 @@ describe("artifact store + tools + SSE", () => {
         name: "update_artifact",
         arguments: {
           artifact_id: id,
-          type: "document",
+          type: "prose",
           title: "Design note v2",
-          blocks: [{ kind: "paragraph", text: "second draft" }],
+          markdown: "second draft",
         },
       }),
     );
@@ -87,13 +87,17 @@ describe("artifact store + tools + SSE", () => {
     const result = (await server.client.callTool({
       name: "publish_artifact",
       arguments: {
-        type: "document",
+        type: "prose",
         title: "bad",
+        markdown: "nope",
         blocks: [{ kind: "marquee", text: "nope" }],
       },
     })) as { isError?: boolean; content: Array<{ text: string }> };
     expect(result.isError).toBe(true);
-    expect(result.content[0]!.text).toContain("/blocks/0/kind");
+    // Reject-not-drop: a cross-type field on a prose artifact fails the whole
+    // call, naming the offending JSON path — nothing is stored.
+    expect(result.content[0]!.text).toContain("/blocks");
+    expect(result.content[0]!.text).toContain("unexpected field");
     expect(readdirSync(join(server.stateDir, "artifacts")).length).toBe(before);
   });
 
@@ -104,9 +108,9 @@ describe("artifact store + tools + SSE", () => {
         await server.client.callTool({
           name: "publish_artifact",
           arguments: {
-            type: "document",
+            type: "prose",
             title: "sse target",
-            blocks: [{ kind: "paragraph", text: "watch me" }],
+            markdown: "watch me",
           },
         }),
       );
@@ -122,9 +126,9 @@ describe("artifact store + tools + SSE", () => {
           name: "update_artifact",
           arguments: {
             artifact_id: id,
-            type: "document",
+            type: "prose",
             title: "sse target",
-            blocks: [{ kind: "paragraph", text: "updated" }],
+            markdown: "updated",
           },
         }),
       );
@@ -133,7 +137,7 @@ describe("artifact store + tools + SSE", () => {
         const data = f.data as ArtifactEvent;
         return data.artifact_id === id && data.version === 2;
       });
-      expect((frame.data as ArtifactEvent).type).toBe("document");
+      expect((frame.data as ArtifactEvent).type).toBe("prose");
     } finally {
       sse.close();
     }

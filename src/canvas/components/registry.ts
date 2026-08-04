@@ -2,15 +2,14 @@
 // pure DOM-building functions over artifact JSON. This interface is the
 // contract a future dedicated visual library must fit behind.
 //
+// The artifact surface is {html, prose, absence} (issue 26). `html` is NOT a
+// component renderer (see below); prose and absence are the two pure renderers.
+//
 // Security invariant: model-influenced strings reach the DOM exclusively via
 // textContent / createElement — never innerHTML.
 import type { ArtifactContent, ArtifactType } from "../../shared/artifacts.js";
 import { renderAbsence } from "./absence.js";
-import { renderCompare } from "./compare.js";
-import { renderDashboard } from "./dashboard.js";
-import { renderDocument } from "./document.js";
 import { renderProse } from "./prose.js";
-import { renderSvg } from "./svg.js";
 
 export type ComponentRenderer = (
   content: ArtifactContent,
@@ -24,10 +23,6 @@ export type ComponentRenderer = (
 export type ComponentType = Exclude<ArtifactType, "html">;
 
 export const componentRegistry: Record<ComponentType, ComponentRenderer> = {
-  document: renderDocument,
-  dashboard: renderDashboard,
-  compare: renderCompare,
   absence: renderAbsence,
-  svg: renderSvg,
   prose: renderProse,
 };

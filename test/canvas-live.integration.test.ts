@@ -76,9 +76,9 @@ describe("gallery live behavior", () => {
         await server.client.callTool({
           name: "publish_artifact",
           arguments: {
-            type: "document",
+            type: "prose",
             title: "Live doc",
-            blocks: [{ kind: "paragraph", text: "first wording" }],
+            markdown: "first wording",
           },
         }),
       );
@@ -98,9 +98,9 @@ describe("gallery live behavior", () => {
           name: "update_artifact",
           arguments: {
             artifact_id: id,
-            type: "document",
+            type: "prose",
             title: "Live doc",
-            blocks: [{ kind: "paragraph", text: "second wording" }],
+            markdown: "second wording",
           },
         }),
       );
@@ -124,9 +124,9 @@ describe("gallery live behavior", () => {
       await server.client.callTool({
         name: "publish_artifact",
         arguments: {
-          type: "document",
+          type: "prose",
           title: "Scrub target",
-          blocks: [{ kind: "paragraph", text: "version one text" }],
+          markdown: "version one text",
         },
       }),
     );
@@ -136,9 +136,9 @@ describe("gallery live behavior", () => {
         name: "update_artifact",
         arguments: {
           artifact_id: id,
-          type: "document",
+          type: "prose",
           title: "Scrub target",
-          blocks: [{ kind: "paragraph", text: "version two text" }],
+          markdown: "version two text",
         },
       }),
     );

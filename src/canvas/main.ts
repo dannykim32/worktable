@@ -5,7 +5,6 @@ import { connectEvents, createApi } from "./api.js";
 import { AskbackUi, wholeArtifactAnchor } from "./askback.js";
 import { Gallery } from "./gallery.js";
 import { ReplyThreads } from "./replies.js";
-import { SettingsPanel } from "./settings.js";
 import type {
   ArtifactEvent,
   AskbackAnsweredEvent,
@@ -42,16 +41,7 @@ function boot(): void {
   const liveLabel = document.createElement("span");
   liveLabel.textContent = "connecting…";
   live.append(dot, liveLabel);
-  // Link to the authed legibility calibration gallery (issue 11). The token
-  // rides the URL so the page can hold it in memory like this one does.
-  const calLink = document.createElement("a");
-  calLink.className = "cal-back";
-  calLink.href = `/calibration?token=${encodeURIComponent(token)}`;
-  calLink.textContent = "calibration gallery →";
-  // Gate settings gear (issue 20): the human's live toggle for report/enforce.
-  const settings = new SettingsPanel(document, api);
-  header.append(h1, ws, live, calLink, settings.mount());
-  void settings.load();
+  header.append(h1, ws, live);
 
   const galleryRoot = document.createElement("main");
   galleryRoot.id = "gallery";

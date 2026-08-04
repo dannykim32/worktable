@@ -1,5 +1,6 @@
-// Issue 03 unit layer: schema validation (accepts each block kind, rejects
-// with JSON paths), artifact id generation, atomic write commit point.
+// Issue 03 unit layer (updated for issue 26): schema validation over the
+// {html, prose, absence} surface (accepts each type, rejects with JSON paths),
+// artifact id generation, atomic write commit point.
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,19 +18,6 @@ import {
   ValidationError,
 } from "../src/server/validate.js";
 
-const allSixKinds = {
-  type: "document",
-  title: "Every block kind",
-  blocks: [
-    { kind: "heading", level: 2, text: "A heading" },
-    { kind: "paragraph", text: "A paragraph." },
-    { kind: "callout", tone: "warn", text: "A warning." },
-    { kind: "code", lang: "ts", text: "const x = 1;" },
-    { kind: "table", header: ["k", "v"], rows: [["a", "1"]] },
-    { kind: "list", ordered: true, items: ["one", "two"] },
-  ],
-};
-
 function rejectPath(input: unknown): string {
   try {
     validateArtifactContent(input);
@@ -41,10 +29,16 @@ function rejectPath(input: unknown): string {
 }
 
 describe("publish_artifact schema validation", () => {
-  test("accepts a document containing all six block kinds", () => {
-    const content = validateArtifactContent(allSixKinds);
-    expect(content.type).toBe("document");
-    if (content.type === "document") expect(content.blocks).toHaveLength(6);
+  test("accepts an html artifact and stores the html verbatim", () => {
+    const content = validateArtifactContent({
+      type: "html",
+      title: "Flowchart",
+      html: "<h1>hi</h1><p>self-contained</p>",
+    });
+    expect(content.type).toBe("html");
+    if (content.type === "html") {
+      expect(content.html).toContain("self-contained");
+    }
   });
 
   test("accepts honest absence as first-class content", () => {
@@ -54,69 +48,6 @@ describe("publish_artifact schema validation", () => {
       reason: "One artifact cannot tell that story truthfully.",
     });
     expect(content.type).toBe("absence");
-  });
-
-  test("rejects an unknown block kind, naming the JSON path", () => {
-    expect(
-      rejectPath({
-        type: "document",
-        title: "t",
-        blocks: [
-          { kind: "paragraph", text: "ok" },
-          { kind: "banner", text: "nope" },
-        ],
-      }),
-    ).toBe("/blocks/1/kind");
-  });
-
-  test("rejects an extra field on a block (additionalProperties: false)", () => {
-    expect(
-      rejectPath({
-        type: "document",
-        title: "t",
-        blocks: [{ kind: "paragraph", text: "ok", html: "<b>no</b>" }],
-      }),
-    ).toBe("/blocks/0/html");
-  });
-
-  test("rejects an extra top-level field", () => {
-    expect(
-      rejectPath({ type: "absence", title: "t", reason: "r", extra: 1 }),
-    ).toBe("/extra");
-  });
-
-  test("rejects an empty title", () => {
-    expect(
-      rejectPath({
-        type: "document",
-        title: "",
-        blocks: [{ kind: "paragraph", text: "x" }],
-      }),
-    ).toBe("/title");
-  });
-
-  test("rejects a bad callout tone and a bad heading level", () => {
-    expect(
-      rejectPath({
-        type: "document",
-        title: "t",
-        blocks: [{ kind: "callout", tone: "danger", text: "x" }],
-      }),
-    ).toBe("/blocks/0/tone");
-    expect(
-      rejectPath({
-        type: "document",
-        title: "t",
-        blocks: [{ kind: "heading", level: 4, text: "x" }],
-      }),
-    ).toBe("/blocks/0/level");
-  });
-
-  test("rejects unknown top-level type and empty blocks", () => {
-    expect(rejectPath({ type: "widget", title: "t" })).toBe("/type");
-    expect(rejectPath({ type: "document", title: "t", blocks: [] })).toBe(
-      "/blocks",
-    );
   });
 
   test("accepts a prose artifact and stores the markdown verbatim", () => {
@@ -145,23 +76,39 @@ describe("publish_artifact schema validation", () => {
     ).toBe("/markdown");
   });
 
-  test("rejects an unknown field on a prose artifact", () => {
+  test("rejects an extra top-level field", () => {
     expect(
-      rejectPath({
-        type: "prose",
-        title: "t",
-        markdown: "hi",
-        html: "<b>no</b>",
-      }),
-    ).toBe("/html");
+      rejectPath({ type: "absence", title: "t", reason: "r", extra: 1 }),
+    ).toBe("/extra");
   });
 
-  test("publish inputSchema is a FLAT MCP object schema with a type enum (no top-level oneOf)", () => {
-    // A top-level `oneOf` of per-type branches (the prior shape) is filled
-    // UNRELIABLY by LLM tool-use — the model defaults to the first branch,
-    // emitting {type:"document", html:"…"} when it means html (reproduced live).
-    // A flat object with a `type` ENUM is filled reliably; the hand-validator
-    // stays authoritative. MCP also needs a top-level `type: "object"` (M5).
+  test("rejects an empty title", () => {
+    expect(
+      rejectPath({ type: "prose", title: "", markdown: "x" }),
+    ).toBe("/title");
+  });
+
+  test("rejects every retired type (document/dashboard/compare/svg) at /type", () => {
+    for (const type of ["document", "dashboard", "compare", "svg", "widget"]) {
+      expect(rejectPath({ type, title: "t" })).toBe("/type");
+    }
+  });
+
+  test("rejects a cross-type field on a prose artifact (reject-not-drop)", () => {
+    // A field belonging to another type fails the whole call, naming its path —
+    // nothing is silently dropped.
+    expect(
+      rejectPath({ type: "prose", title: "t", markdown: "hi", html: "<b>no</b>" }),
+    ).toBe("/html");
+    expect(
+      rejectPath({ type: "html", title: "t", html: "<b>ok</b>", markdown: "x" }),
+    ).toBe("/markdown");
+  });
+
+  test("publish inputSchema is a FLAT MCP object schema with a three-value type enum", () => {
+    // A top-level `oneOf` of per-type branches is filled UNRELIABLY by LLM
+    // tool-use — the model defaults to the first branch. A flat object with a
+    // `type` ENUM is filled reliably; the hand-validator stays authoritative.
     expect(publishArtifactSchema.type).toBe("object");
     expect(
       (publishArtifactSchema as { oneOf?: unknown }).oneOf,
@@ -169,27 +116,13 @@ describe("publish_artifact schema validation", () => {
     const props = (
       publishArtifactSchema as { properties: Record<string, { enum?: string[] }> }
     ).properties;
-    expect(props.type.enum).toEqual([
-      "document",
-      "dashboard",
-      "compare",
-      "svg",
-      "html",
-      "prose",
-      "absence",
-    ]);
-    // Every content field is exposed so any type is expressible in ONE flat call.
-    for (const f of [
-      "blocks",
-      "tiles",
-      "charts",
-      "panes",
-      "svg",
-      "html",
-      "markdown",
-      "reason",
-    ]) {
+    expect(props.type.enum).toEqual(["html", "prose", "absence"]);
+    // Exactly the three types' content fields are exposed — nothing else.
+    for (const f of ["html", "markdown", "reason"]) {
       expect(props[f]).toBeDefined();
+    }
+    for (const f of ["blocks", "tiles", "charts", "panes", "svg", "repair_token"]) {
+      expect(props[f]).toBeUndefined();
     }
     // Update input carries content through with an artifact_id.
     const upd = validateUpdateInput({
@@ -202,12 +135,13 @@ describe("publish_artifact schema validation", () => {
   });
 
   test("update input requires a well-formed artifact_id", () => {
+    const good = { type: "prose", title: "t", markdown: "hi" };
     expect(() =>
-      validateUpdateInput({ ...allSixKinds, artifact_id: "not-an-id" }),
+      validateUpdateInput({ ...good, artifact_id: "not-an-id" }),
     ).toThrow("/artifact_id");
-    const ok = validateUpdateInput({ ...allSixKinds, artifact_id: "a_12ab34cd" });
+    const ok = validateUpdateInput({ ...good, artifact_id: "a_12ab34cd" });
     expect(ok.artifactId).toBe("a_12ab34cd");
-    expect(ok.content.type).toBe("document");
+    expect(ok.content.type).toBe("prose");
   });
 });
 
@@ -240,20 +174,20 @@ describe("atomic version writes", () => {
     const stateDir = mkdtempSync(join(tmpdir(), "visual-chat-typestable-"));
     const store = new ArtifactStore(stateDir);
     const meta = store.publish({
-      type: "document",
-      title: "stays a document",
-      blocks: [{ kind: "paragraph", text: "v1" }],
+      type: "prose",
+      title: "stays prose",
+      markdown: "v1",
     });
     expect(() =>
       store.update(meta.id, {
         type: "absence",
-        title: "stays a document",
+        title: "stays prose",
         reason: "trying to morph",
       }),
     ).toThrow(ArtifactTypeMismatchError);
-    // Nothing was written: still v1, still a document.
+    // Nothing was written: still v1, still prose.
     expect(store.getMeta(meta.id)?.latest).toBe(1);
-    expect(store.getMeta(meta.id)?.type).toBe("document");
+    expect(store.getMeta(meta.id)?.type).toBe("prose");
     expect(store.getVersion(meta.id, 2)).toBeNull();
   });
 
@@ -261,16 +195,16 @@ describe("atomic version writes", () => {
     const stateDir = mkdtempSync(join(tmpdir(), "visual-chat-store-"));
     const store = new ArtifactStore(stateDir);
     const meta = store.publish({
-      type: "document",
+      type: "prose",
       title: "survives restart",
-      blocks: [{ kind: "paragraph", text: "hello" }],
+      markdown: "hello",
     });
     // Simulate a crashed write alongside the good files.
     atomicWriteJson(join(stateDir, "artifacts", meta.id, "v2.json.crash"), {});
     const reloaded = new ArtifactStore(stateDir);
     expect(reloaded.list()).toHaveLength(1);
     expect(reloaded.getMeta(meta.id)?.title).toBe("survives restart");
-    expect(reloaded.getVersion(meta.id, 1)?.type).toBe("document");
+    expect(reloaded.getVersion(meta.id, 1)?.type).toBe("prose");
     expect(reloaded.getVersion(meta.id, 2)).toBeNull();
   });
 });

@@ -59,9 +59,7 @@ await (async () => {
     send({ jsonrpc: "2.0", method: "notifications/initialized" });
     const cases = [
       { type: "html", title: "smoke", html: "<h1>ok</h1>" },
-      { type: "svg", title: "smoke", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="8" height="8" fill="#333"/></svg>` },
       { type: "prose", title: "smoke", markdown: "# ok" },
-      { type: "document", title: "smoke", blocks: [{ kind: "heading", level: 3, text: "ok" }] },
     ];
     let id = 2;
     for (const args of cases) {
@@ -73,7 +71,7 @@ await (async () => {
       }
       id++;
     }
-    console.log("    ✓ html, svg, prose, document all publish through the bundle");
+    console.log("    ✓ html, prose all publish through the bundle");
   } finally {
     srv.kill();
   }

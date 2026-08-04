@@ -295,19 +295,14 @@ export class Gallery {
   private refreshChrome(card: CardState): void {
     const { meta } = card;
     card.title.textContent = meta.title;
-    // Free-form SVG and the HTML hatch wear a distinct provenance badge
-    // (ADR-0009); components show their plain type. The standing caption lives
-    // in the card body.
+    // The HTML hatch wears a distinct provenance badge (ADR-0009); prose and
+    // absence show their plain type. The standing caption lives in the card body.
     card.badge.textContent =
-      meta.type === "svg"
-        ? "svg · free-form"
-        : meta.type === "html"
-          ? "html · sandboxed"
-          : meta.type;
+      meta.type === "html" ? "html · sandboxed" : meta.type;
     card.badge.className = `badge ${
       meta.type === "absence"
         ? "absence"
-        : meta.type === "svg" || meta.type === "html"
+        : meta.type === "html"
           ? "freeform"
           : ""
     }`.trim();

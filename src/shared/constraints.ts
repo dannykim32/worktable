@@ -13,9 +13,6 @@ export const QUESTION_MAX = 2000;
 /** An agent's answer_askback answer longer than this is rejected (issue 22). */
 export const ANSWER_MAX = 4000;
 
-/** A dashboard chart series is capped at this many points (bound large inputs). */
-export const POINTS_MAX = 200;
-
 /** Free-form HTML hatch (issue 25): the model's HTML document is capped at this
  *  many UTF-8 bytes. Served verbatim into a sandboxed, origin-split, CSP-locked
  *  iframe — NEVER sanitized into the host DOM (ADR-0002 exception, issue 15). */

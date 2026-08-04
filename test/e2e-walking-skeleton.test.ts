@@ -26,17 +26,14 @@ afterAll(async () => {
 test(
   "walking skeleton: publish → render → update → ask-back → check_askbacks",
   async () => {
-    // 1. Agent publishes a Document artifact via MCP tool.
+    // 1. Agent publishes a prose artifact via MCP tool.
     const published = toolJson(
       await server.client.callTool({
         name: "publish_artifact",
         arguments: {
-          type: "document",
+          type: "prose",
           title: "Walking skeleton note",
-          blocks: [
-            { kind: "heading", level: 1, text: "The loop" },
-            { kind: "paragraph", text: "publish, read, ask, answer" },
-          ],
+          markdown: "# The loop\n\npublish, read, ask, answer",
         },
       }),
     );
@@ -60,10 +57,10 @@ test(
     });
     expect(v1.status).toBe(200);
     const v1Body = JSON.parse(v1.body) as ArtifactMeta & {
-      content: { blocks: Array<{ text: string }> };
+      content: { markdown: string };
     };
     expect(v1Body.latest).toBe(1);
-    expect(v1Body.content.blocks[1]!.text).toBe("publish, read, ask, answer");
+    expect(v1Body.content.markdown).toBe("# The loop\n\npublish, read, ask, answer");
 
     // 3. Update → v2 live AND v1 still readable.
     const updated = toolJson(
@@ -71,12 +68,9 @@ test(
         name: "update_artifact",
         arguments: {
           artifact_id: id,
-          type: "document",
+          type: "prose",
           title: "Walking skeleton note",
-          blocks: [
-            { kind: "heading", level: 1, text: "The loop" },
-            { kind: "paragraph", text: "publish, read, ask, answer, revise" },
-          ],
+          markdown: "# The loop\n\npublish, read, ask, answer, revise",
         },
       }),
     );
@@ -94,9 +88,8 @@ test(
     expect(latest.status).toBe(200);
     expect(old.status).toBe(200);
     expect(
-      (JSON.parse(old.body) as { blocks: Array<{ text: string }> }).blocks[1]!
-        .text,
-    ).toBe("publish, read, ask, answer");
+      (JSON.parse(old.body) as { markdown: string }).markdown,
+    ).toBe("# The loop\n\npublish, read, ask, answer");
 
     // 4. Human asks about a span of v2 (direct HTTP, simulating the browser).
     const anchor: Anchor = {
