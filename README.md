@@ -85,7 +85,9 @@ capability surface:
   → the agent's reply threads inline (issue 22).
 - Gate mode is a live human setting via a canvas gear panel (issue 20); all four
   legibility checks human-calibrated (round 6).
-- Warm visual identity settled (issue 23); installs behind a firewall (issue 21).
+- Light-mode "Slate" identity — cool near-white ground, deep-teal lead (owner-picked
+  direction A, 2026-08-04; supersedes the warm issue-23 palette). Installs behind a
+  firewall (issue 21).
 
 **Open — the owner's, none are code:**
 - **Flip enforce (or not)** — a click in the canvas gear panel (issue 20).

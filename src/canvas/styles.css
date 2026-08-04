@@ -1,61 +1,63 @@
 /* Canvas theme — structure and mark conventions from the judged prototype
    (prototype/canvas-vocabulary/PROTOTYPE-canvas-mock.html). One clean
-   register (ADR-0009). Committed light-only identity (user direction,
-   2026-07-14): a vanilla ground with burnt orange as the lead color.
-   Burnt orange owns the chrome; warm espresso ink + vanilla-tinted
-   hairlines keep the page native rather than grey-on-cream; data and
-   semantics hold their own lane so the accent never doubles as a warning.
-   Contrast of the text/semantic steps verified with WCAG on #FFFBEE. */
+   register (ADR-0009). Light-only identity "Slate" (owner-picked, direction
+   A, 2026-08-04): a cool near-white ground with a deep-teal lead. The canvas
+   is an instrument, so the ground reads cool rather than paper-warm; teal
+   owns the chrome (masthead/focus/viewing marker); data and semantics hold
+   their own lane so the accent never doubles as a warning. Contrast of the
+   text/semantic steps verified with WCAG on the #FFFFFF surface. */
 :root {
   color-scheme: light;
 
-  /* Grounds — vanilla */
-  --page: #fff4d6;
-  --surface-1: #fffbee;
+  /* Grounds — cool near-white; white cards lift off a slate-tinted page */
+  --page: #eaeef3;
+  --surface-1: #ffffff;
 
-  /* Warm ink (not pure grey/black — reads chosen on vanilla) */
-  --text-primary: #241c12; /* 16.2:1 on surface */
-  --text-secondary: #6b5d48; /* 6.2:1 */
-  --muted: #9a8b70; /* ticks / neutral deltas */
+  /* Slate ink (not pure grey/black — reads chosen on the cool ground) */
+  --text-primary: #141a22; /* 16.3:1 on surface */
+  --text-secondary: #4e5866; /* 7.0:1 */
+  --muted: #8a93a1; /* ticks / neutral deltas */
 
-  /* Warm hairlines — tints of the vanilla, not cool grey */
-  --grid: #eadfc2;
-  --baseline: #d8c7a0;
-  --border: rgba(74, 45, 20, 0.14);
+  /* Cool hairlines — tints of the slate ground, not warm */
+  --grid: #e2e7ee;
+  --baseline: #cdd5df;
+  --border: rgba(20, 26, 34, 0.14);
 
-  /* Hero — burnt orange (fills, focus, large marks) + a legible text step */
-  --accent-warm: #fc6c26;
-  --accent-ink: #b5430f; /* small orange text on vanilla — 5.4:1, AA */
-  --accent-wash: #ffe7d6; /* badge/pill fill, focus glow */
+  /* Hero — deep teal (fills, focus, large marks) + a legible text step. Token
+     name kept --accent-warm to avoid a wide rename; the value is teal. */
+  --accent-warm: #0f766e;
+  --accent-ink: #0b5b55; /* small teal text on white — 7.9:1, AAA */
+  --accent-wash: #d7ece9; /* badge/pill fill, focus glow */
 
-  /* Semantics — warmed so the palette holds one register (issue 23). */
-  --delta-good: #6b7233; /* warm olive — positive deltas, 4.97:1 on surface */
-  --delta-bad: #b23127; /* warm red — negative deltas + warnings, 6.0:1 */
+  /* Semantics — a distinct green/red pair; the redundant +/- glyph and direct
+     value labels carry the signal, so hue is never the sole channel. */
+  --delta-good: #2f6f42; /* green — positive deltas, 5.5:1 on surface */
+  --delta-bad: #c0392b; /* red — negative deltas + warnings, 5.4:1 */
 
-  /* Data series — variant C, a warm monochrome ramp by lightness (issue 23,
-     owner-picked). Validated ≥13 ΔE adjacent even under deuteranopia/
-     protanopia; the mandatory direct value labels carry precise readout. */
-  --series-1: #fc6c26;
-  --series-2: #c9551b;
-  --series-3: #9a4a2a;
-  --series-4: #6e4630;
+  /* Data series — Slate: a cool monochrome ramp by lightness (teal → dark
+     slate). Colorblind-safe by lightness; the mandatory direct value labels
+     carry the precise readout. */
+  --series-1: #0f766e;
+  --series-2: #1f5f66;
+  --series-3: #2b4a5a;
+  --series-4: #33384a;
 
-  /* Warm-brown callout rail — static metadata, kept off the hero (issue 23). */
-  --callout-accent: #a06a3c;
+  /* Slate callout rail — static metadata, kept off the hero. */
+  --callout-accent: #4a5a6b;
 
-  /* Component insets + diff tints — warm-neutral washes; the +/- glyph, not
-     hue, distinguishes add/del (issue 23). */
-  --callout-bg: #f8edcb;
-  --code-bg: #f8edcb;
-  --add-bg: #f0ecd8; /* warm cream */
-  --del-bg: #f5e3d8; /* warm clay */
+  /* Component insets + diff tints — cool-neutral washes; the +/- glyph, not
+     hue, distinguishes add/del. */
+  --callout-bg: #eef2f7;
+  --code-bg: #eef1f6;
+  --add-bg: #e6eef0; /* cool neutral */
+  --del-bg: #f3e7e6; /* quiet clay */
 
-  /* Status dots — the live connection dot is a STATUS signal, not a brand
-     lead: it wears the warm-olive "good" color (keeps the green-family
-     "connected" convention while staying warm). Accent-warm leads only on
-     masthead/focus/viewing-marker. Idle/disconnected stays muted-neutral. */
+  /* Status dots — the live connection dot is a STATUS signal, not the brand
+     lead: it wears the green "good" color (keeps the green-family "connected"
+     convention). Teal leads only on masthead/focus/viewing-marker.
+     Idle/disconnected stays muted-neutral. */
   --dot-live: var(--delta-good);
-  --dot-dead: #9a8b70;
+  --dot-dead: #8a93a1;
 }
 
 * {
@@ -83,7 +85,7 @@ header.canvas-chrome {
   max-width: 880px;
   margin: 24px auto 8px;
   padding: 0 20px 12px;
-  /* Burnt orange masthead rule — the accent's most prominent placement. */
+  /* Teal masthead rule — the accent's most prominent placement. */
   border-bottom: 2px solid var(--accent-warm);
 }
 header.canvas-chrome h1 {
@@ -144,7 +146,7 @@ header.canvas-chrome .live {
   font-weight: 650;
 }
 /* Quiet type metadata (issue 23): the badge names the component register,
-   it does not lead. Muted uppercase on a hairline border — no orange fill. */
+   it does not lead. Muted uppercase on a hairline border — no accent fill. */
 .badge {
   font-size: 10.5px;
   font-weight: 600;
@@ -165,8 +167,8 @@ header.canvas-chrome .live {
   font-style: italic;
 }
 /* Free-form SVG provenance badge (ADR-0009) — still distinguishable from
-   component badges, but warm-neutral: an accent-ink text step + a hairline
-   accent rule, not a filled orange pill. Provenance is carried by the text. */
+   component badges, but quiet: an accent-ink text step + a hairline
+   accent rule, not a filled accent pill. Provenance is carried by the text. */
 .badge.freeform {
   border-color: var(--accent-warm);
   color: var(--accent-ink);
@@ -199,7 +201,7 @@ header.canvas-chrome .live {
 }
 .viewing-marker {
   font-size: 11px;
-  color: var(--accent-ink); /* small text — the legible orange step */
+  color: var(--accent-ink); /* small text — the legible teal step */
   border: 1px solid var(--accent-warm);
   border-radius: 999px;
   padding: 1px 8px;
@@ -278,7 +280,7 @@ header.canvas-chrome .live {
 
 /* ── Prose / markdown component (issue 24) ──────────────────────────── */
 /* Rendered by the own-built, textContent-only markdown→DOM builder. Shares
-   the warm register: espresso ink, vanilla-tinted code inset, orange links. */
+   the Slate register: slate ink, cool-tinted code inset, teal links. */
 .prose {
   color: var(--text-primary);
 }
@@ -324,7 +326,7 @@ header.canvas-chrome .live {
 .prose a:hover {
   color: var(--accent-warm);
 }
-/* Inline code — small vanilla-tinted chip. */
+/* Inline code — small cool-tinted chip. */
 .prose :not(pre) > code {
   background: var(--code-bg);
   border: 1px solid var(--border);
@@ -952,7 +954,7 @@ header.canvas-chrome .live {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(74, 45, 20, 0.18);
+  box-shadow: 0 8px 28px rgba(20, 26, 34, 0.18);
   text-align: left;
 }
 .settings-title {
