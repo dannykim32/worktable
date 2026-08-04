@@ -15,6 +15,7 @@ import {
   isArtifactId,
   POINTS_MAX,
 } from "../shared/constraints.js";
+import { scanHtmlForEgress } from "./frameGuard.js";
 
 export class ValidationError extends Error {
   constructor(
@@ -644,6 +645,24 @@ export function validateArtifactContent(input: unknown): ArtifactContent {
       rejectUnknownFields(input, ["type", "title", "html"], "");
       requireString(input.title, "/title", { min: 1, max: TITLE_MAX });
       requireString(input.html, "/html", { min: 1, max: HTML_MAX });
+      // REJECT-NOT-DROP (issue 25 security review): no-click network-egress
+      // constructs (<meta http-equiv=refresh>, connection-hint / external
+      // <link>) fire in the allow-scripts sandbox with no click and are NOT
+      // governed by the header CSP. A regex strip proved bypassable, so we
+      // reject the whole artifact naming the offending construct — nothing is
+      // stored. The scanner is quote-aware + entity-decoding and fails closed.
+      const egress = scanHtmlForEgress(input.html as string);
+      if (egress.length > 0) {
+        const lines = egress
+          .map((e) => `  · [${e.code}] ${e.detail}`)
+          .join("\n");
+        throw new ValidationError(
+          "/html",
+          "contains disallowed no-click network-egress construct(s) — nothing " +
+            "was stored. Remove them and retry (the sandboxed frame has no " +
+            `network by design):\n${lines}`,
+        );
+      }
       return input as unknown as ArtifactContent;
     }
     case "prose": {

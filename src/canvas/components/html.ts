@@ -45,6 +45,12 @@ export class HtmlBridge {
   private readonly channel: MessageChannel;
   private transferred = false;
   private disposed = false;
+  /** How many times the iframe has fired `load`. The WindowProxy identity
+   *  (event.source === contentWindow) SURVIVES a navigation, so identity alone
+   *  is not enough: a navigated frame could post {v:"ready"} and grab the port.
+   *  The port is transferred ONLY during the FIRST load generation (issue 25
+   *  security review, Finding 2). */
+  private loadCount = 0;
 
   constructor(private readonly deps: HtmlBridgeDeps) {
     this.channel = new MessageChannel();
@@ -54,24 +60,31 @@ export class HtmlBridge {
 
   /** Begin listening for the frame's identity-checked handshake. */
   start(): void {
-    this.deps.iframe.ownerDocument.defaultView?.addEventListener(
-      "message",
-      this.onWindowMessage,
-    );
+    const view = this.deps.iframe.ownerDocument.defaultView;
+    view?.addEventListener("message", this.onWindowMessage);
+    this.deps.iframe.addEventListener("load", this.onFrameLoad);
   }
 
   dispose(): void {
     this.disposed = true;
-    this.deps.iframe.ownerDocument.defaultView?.removeEventListener(
-      "message",
-      this.onWindowMessage,
-    );
+    const view = this.deps.iframe.ownerDocument.defaultView;
+    view?.removeEventListener("message", this.onWindowMessage);
+    this.deps.iframe.removeEventListener("load", this.onFrameLoad);
     try {
       this.channel.port1.onmessage = null;
       this.channel.port1.close();
     } catch {
       /* no-op */
     }
+  }
+
+  private readonly onFrameLoad = (): void => {
+    this.loadCount++;
+  };
+
+  /** True once the frame has navigated (fired more than one load). */
+  hasNavigated(): boolean {
+    return this.loadCount >= 2;
   }
 
   /** Identity gate: a window message is trusted ONLY when it originates from our
@@ -85,6 +98,10 @@ export class HtmlBridge {
    *  the channel port to it (targetOrigin "*" — opaque origin) exactly once. */
   private readonly onWindowMessage = (e: MessageEvent): void => {
     if (this.disposed || this.transferred) return;
+    // Refuse to hand the port to a navigated frame: the WindowProxy identity
+    // survives navigation, so a document loaded AFTER the first (our trusted
+    // frame document) must never receive the bridge port (Finding 2).
+    if (this.hasNavigated()) return;
     if (!this.acceptsSource(e.source)) return; // identity mismatch → ignore
     const data = e.data as { v?: unknown } | null;
     if (!data || data.v !== "ready") return;

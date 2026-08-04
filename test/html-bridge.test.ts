@@ -181,4 +181,75 @@ describe("bridge token canary + identity-gated port transfer", () => {
     expect(sent.length).toBe(1);
     bridge.dispose();
   });
+
+  test("a post-navigation (second load) 'ready' gets NO port (Finding 2)", () => {
+    const { document: doc, mount } = makeDom();
+    const { api } = fakeApi();
+    const iframe = doc.createElement("iframe");
+    mount.appendChild(iframe);
+    const sent: unknown[][] = [];
+    (iframe.contentWindow as unknown as { postMessage: (...a: unknown[]) => void }).postMessage =
+      (...args: unknown[]) => sent.push(args);
+
+    const bridge = new HtmlBridge({
+      iframe,
+      api,
+      artifactId: "a_0000000d",
+      version: 1,
+    });
+    bridge.start(); // registers the iframe 'load' counter
+
+    // Simulate the frame navigating: two load events → a second generation.
+    iframe.dispatchEvent(
+      new (iframe.ownerDocument.defaultView as unknown as { Event: typeof Event }).Event("load"),
+    );
+    iframe.dispatchEvent(
+      new (iframe.ownerDocument.defaultView as unknown as { Event: typeof Event }).Event("load"),
+    );
+    expect(bridge.hasNavigated()).toBe(true);
+
+    // Even with the correct WindowProxy identity (which survives navigation),
+    // the post-navigation document's 'ready' must be refused.
+    const onWindowMessage = (bridge as unknown as {
+      onWindowMessage: (e: MessageEvent) => void;
+    }).onWindowMessage;
+    onWindowMessage({
+      source: iframe.contentWindow,
+      data: { v: "ready" },
+    } as MessageEvent);
+    expect(sent.length).toBe(0);
+    bridge.dispose();
+  });
+
+  test("first-generation 'ready' (single load) still transfers (positive control)", () => {
+    const { document: doc, mount } = makeDom();
+    const { api } = fakeApi();
+    const iframe = doc.createElement("iframe");
+    mount.appendChild(iframe);
+    const sent: unknown[][] = [];
+    (iframe.contentWindow as unknown as { postMessage: (...a: unknown[]) => void }).postMessage =
+      (...args: unknown[]) => sent.push(args);
+
+    const bridge = new HtmlBridge({
+      iframe,
+      api,
+      artifactId: "a_0000000e",
+      version: 1,
+    });
+    bridge.start();
+    iframe.dispatchEvent(
+      new (iframe.ownerDocument.defaultView as unknown as { Event: typeof Event }).Event("load"),
+    ); // first (trusted) load only
+    expect(bridge.hasNavigated()).toBe(false);
+    const onWindowMessage = (bridge as unknown as {
+      onWindowMessage: (e: MessageEvent) => void;
+    }).onWindowMessage;
+    onWindowMessage({
+      source: iframe.contentWindow,
+      data: { v: "ready" },
+    } as MessageEvent);
+    expect(sent.length).toBe(1);
+    expect(sent[0]![0]).toEqual({ v: "port" });
+    bridge.dispose();
+  });
 });
