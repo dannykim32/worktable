@@ -95,7 +95,25 @@ Add the flags you want, e.g. the full Claude Code setup:
 node scripts/register.mjs /path/to/your/project --guidance --hook
 ```
 
-## The easy path — download a release bundle (recommended)
+## The one-command install (recommended)
+
+Once you have the bundle on the target machine (download or transfer — see below),
+it's a single command. The bundle carries an `install.sh` that checks node, registers
+`visual-chat` for **every** Claude Code session (user scope), and optionally wires a
+specific project:
+
+```sh
+tar xzf visual-chat-*.tar.gz
+cd visual-chat-*
+./install.sh                      # every Claude Code session gets the tools
+./install.sh /path/to/your/repo   # ALSO drop guidance + the ask-back hook into that repo
+```
+
+Then restart Claude Code and run `/mcp` — `visual-chat` should show connected. The only
+requirement it can't carry is **node** (any recent version); `install.sh` fails clearly
+if it's missing. Everything below is the manual breakdown of what that script does.
+
+## The easy path — download a release bundle
 
 Instead of building + copying yourself, grab a pre-built self-contained tarball from
 the private repo's GitHub Releases. This is the no-npm, firewall-friendly path (git /

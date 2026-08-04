@@ -33,18 +33,26 @@ for (const d of ["install.md", "agent-guidance.md"]) {
   if (existsSync(src)) cpSync(src, join(stage, "docs", d));
 }
 cpSync(join(repo, "README.md"), join(stage, "README.md"));
+// One-command installer at the tarball root (executable).
+cpSync(join(repo, "install.sh"), join(stage, "install.sh"));
+const { chmodSync } = await import("node:fs");
+chmodSync(join(stage, "install.sh"), 0o755);
 // a dead-simple quickstart at the root of the tarball
-const quickstart = `# visual-chat v${version} — install (no npm needed)
+const quickstart = `# visual-chat v${version} — install (no npm, no network needed)
 
 Runtime: just \`node\`. This tarball is the self-contained bundle.
 
-1. Extract it anywhere:  tar xzf ${root}.tar.gz
-2. Register into a project (writes its .mcp.json, no network):
-     node ${root}/scripts/register.mjs /path/to/your/project --guidance
-   (add --hook for Claude Code ask-back auto-inject; --print-codex for the Codex snippet)
-3. Or register for EVERY Claude Code session (user scope):
-     claude mcp add -s user visual-chat -- node "$(pwd)/${root}/dist/server/index.js"
-4. Restart Claude Code. See docs/install.md for the full walkthrough.
+EASIEST — one command (registers for every Claude Code session):
+
+  tar xzf ${root}.tar.gz
+  cd ${root}
+  ./install.sh                      # + a repo path to also wire that project:
+  ./install.sh /path/to/your/repo   #   ./install.sh ~/code/myproject
+
+Then restart Claude Code and run  /mcp  — 'visual-chat' should be connected.
+
+Manual alternatives (if you prefer): see docs/install.md — per-repo
+register.mjs, the raw \`claude mcp add\` command, and the Codex snippet.
 `;
 const { writeFileSync } = await import("node:fs");
 writeFileSync(join(stage, "INSTALL.txt"), quickstart);
