@@ -468,7 +468,15 @@ async function main(): Promise<void> {
       description:
         "Publish a new visual artifact to the canvas. Component Artifacts are " +
         "structured data drawn by the trusted Component Vocabulary. Use type " +
-        '"absence" to decline honestly (with the reason) instead of fabricating.',
+        '"absence" to decline honestly (with the reason) instead of fabricating. ' +
+        "Design it, do not dump it: a long answer rendered as an unbroken wall " +
+        "of prose is no better than the terminal. Decide the treatment (a " +
+        "document to read, or a surface to scan), lead with the claim, and mark " +
+        "every literal — file path, identifier, status code, field name — as " +
+        "`code` so it renders monospace. Add an SVG diagram ONLY when it shows a " +
+        "mechanism prose can't — one figure, one claim; if a sentence says it " +
+        "faster, write the sentence, and never diagram a whole system as an " +
+        "inventory of boxes.",
       inputSchema: publishArtifactSchema as Record<string, unknown>,
       handler: (args) =>
         mapErrors(() => {
@@ -595,7 +603,9 @@ async function main(): Promise<void> {
       description:
         "Pull the pending ask-backs the human sent from the canvas: each is a " +
         "question anchored to an artifact, version, and text span. Call this " +
-        "at the start of every turn. Returned items are marked delivered.",
+        "at the start of every turn. Returned items are marked delivered. For " +
+        "each item you must BOTH answer in your reply AND call answer_askback " +
+        "so the reply lands where they asked — see that tool.",
       inputSchema: {
         type: "object",
         properties: {},
@@ -609,7 +619,15 @@ async function main(): Promise<void> {
             hint: "no pending questions from the canvas",
           };
         }
-        return { askbacks: drained.map(enrichAskback) };
+        return {
+          askbacks: drained.map(enrichAskback),
+          hint:
+            "For EACH question: answer it in your reply, then call " +
+            "answer_askback(askback_id, answer) so the reply appears inline on " +
+            "the canvas exactly where the human asked. Calling answer_askback is " +
+            "required to close the loop, not optional — a terminal-only answer " +
+            "never reaches the browser where they're reading.",
+        };
       },
     },
     {
@@ -706,10 +724,11 @@ async function main(): Promise<void> {
     {
       name: "answer_askback",
       description:
-        "Answer a specific ask-back the human sent from the canvas, so your " +
-        "reply also shows inline next to the anchored selection in the browser. " +
-        "You still answer in the terminal; this is the extra step that closes " +
-        "the loop where they asked. Pass the askback_id from check_askbacks and " +
+        "Always call this after answering an ask-back: it shows your reply " +
+        "inline next to the anchored selection in the browser, where the human " +
+        "is reading. A terminal-only answer never reaches them there, so this " +
+        "is the step that actually closes the loop — not optional. You still " +
+        "answer in the terminal too. Pass the askback_id from check_askbacks and " +
         "your answer text. The reply appears live on the canvas and survives a " +
         "reload. This does NOT re-open or re-deliver the ask-back.",
       inputSchema: {

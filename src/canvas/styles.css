@@ -1021,6 +1021,35 @@ header.canvas-chrome .live {
 .reply-thread {
   margin: 6px 0 10px;
 }
+.reply-pending {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+.reply-pending-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-warm);
+  animation: reply-pending-pulse 1.4s ease-in-out infinite;
+}
+@keyframes reply-pending-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reply-pending-dot {
+    animation: none;
+  }
+}
 .reply-toggle {
   border: 1px solid var(--border);
   background: var(--accent-wash);

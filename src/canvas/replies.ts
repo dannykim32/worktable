@@ -32,11 +32,14 @@ export class ReplyThreads {
     private readonly api: CanvasApi,
   ) {}
 
-  /** On submit, remember the ask-back locally (id + anchor + question) so its
-   *  eventual answer can be threaded back to the right selection. */
+  /** On submit, remember the ask-back locally (id + anchor + question) and
+   *  render a "waiting for the agent" marker at the selection immediately, so
+   *  the human sees where the reply will land — the eventual answer replaces
+   *  the marker in place. */
   track(id: string, anchor: Anchor, question: string): void {
     const existing = this.entries.get(id);
     this.entries.set(id, { anchor, question, answer: existing?.answer });
+    this.render();
   }
 
   /** Boot + refresh: load answered ask-backs from the server and render them,
@@ -63,11 +66,13 @@ export class ReplyThreads {
    *  after the gallery re-renders a card (which wipes body-mounted threads). */
   render(): void {
     for (const [id, entry] of this.entries) {
-      if (!entry.answer) continue;
-      // Drop any stale mount first so placement is always recomputed.
+      // Drop any stale mount first so placement is always recomputed (and a
+      // pending marker is cleanly replaced once its answer lands).
       this.mounted.get(id)?.remove();
       this.mounted.delete(id);
-      const thread = this.buildThread(id, entry, entry.answer);
+      const thread = entry.answer
+        ? this.buildThread(id, entry, entry.answer)
+        : this.buildPending(id, entry);
       if (this.mount(entry.anchor, thread)) this.mounted.set(id, thread);
     }
   }
@@ -105,16 +110,17 @@ export class ReplyThreads {
     thread.className = "reply-thread";
     thread.dataset.askbackId = id;
 
-    // Unobtrusive affordance: a subtle "1 reply" toggle, collapsed by default.
+    // Expanded on arrival so the reply is noticed the moment it lands (the
+    // whole point is that the human finds it); the toggle still collapses it.
     const toggle = doc.createElement("button");
     toggle.className = "reply-toggle";
     toggle.type = "button";
-    toggle.textContent = "1 reply";
-    toggle.setAttribute("aria-expanded", "false");
+    toggle.textContent = "agent replied";
+    toggle.setAttribute("aria-expanded", "true");
 
     const body = doc.createElement("div");
     body.className = "reply-body";
-    body.hidden = true;
+    body.hidden = false;
 
     // The human's question (textContent — agent never authored this, but keep
     // the whole thread innerHTML-free for one consistent rule).
@@ -142,6 +148,30 @@ export class ReplyThreads {
     });
 
     thread.append(toggle, body);
+    return thread;
+  }
+
+  /** Placeholder shown between submitting an ask-back and its answer arriving,
+   *  mounted at the same anchor so the human knows where the reply will land. */
+  private buildPending(id: string, entry: ThreadEntry): HTMLElement {
+    const doc = this.doc;
+    const thread = doc.createElement("div");
+    thread.className = "reply-thread reply-thread--pending";
+    thread.dataset.askbackId = id;
+
+    const marker = doc.createElement("div");
+    marker.className = "reply-pending";
+    const dot = doc.createElement("span");
+    dot.className = "reply-pending-dot";
+    dot.setAttribute("aria-hidden", "true");
+    const label = doc.createElement("span");
+    label.className = "reply-pending-label";
+    // entry.question is human-authored; textContent-only keeps the one rule.
+    label.textContent = "Waiting for the agent's reply…";
+    label.title = entry.question;
+    marker.append(dot, label);
+
+    thread.append(marker);
     return thread;
   }
 }

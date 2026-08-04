@@ -184,7 +184,8 @@ export class AskbackUi {
       if (res && this.deps.onSubmitted) {
         this.deps.onSubmitted(res.id, anchor, question);
       }
-      this.status.textContent = "sent — reaches the agent next turn ✓";
+      this.status.textContent =
+        "sent — the agent's reply will appear here under your selection ✓";
       setTimeout(() => this.closeComposer(), 2000);
     } catch (err) {
       this.input.disabled = false;

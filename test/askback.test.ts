@@ -198,7 +198,7 @@ describe("composer keyboard behavior", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]!.question).toBe("Why queue + pull instead of push?");
     expect((sent[0]!.anchor as Anchor).version).toBe(3);
-    expect(ui.status.textContent).toContain("reaches the agent next turn");
+    expect(ui.status.textContent).toContain("will appear here under your selection");
   });
 
   test("Esc closes the composer without sending", () => {

@@ -80,13 +80,13 @@ describe("ReplyThreads (issue 22)", () => {
     expect(thread.querySelector(".reply-text")!.textContent).toBe(
       "it is the anchor.",
     );
-    // Unobtrusive: collapsed by default behind a "1 reply" toggle.
+    // Expanded on arrival so the reply is noticed; the toggle still collapses it.
     const toggle = thread.querySelector(".reply-toggle") as HTMLElement;
-    expect(toggle.textContent).toBe("1 reply");
-    expect((thread.querySelector(".reply-body") as HTMLElement).hidden).toBe(true);
+    expect(toggle.textContent).toBe("agent replied");
+    expect((thread.querySelector(".reply-body") as HTMLElement).hidden).toBe(false);
     (toggle as HTMLButtonElement).click();
     expect((thread.querySelector(".reply-body") as HTMLElement).hidden).toBe(
-      false,
+      true,
     );
   });
 
@@ -108,10 +108,15 @@ describe("ReplyThreads (issue 22)", () => {
     // Nothing answered yet at boot.
     const api = stubApi([]);
     const replies = new ReplyThreads(document, galleryRoot, api);
-    // Human submits → the canvas tracks it locally (id + anchor).
+    // Human submits → the canvas tracks it locally (id + anchor) and shows a
+    // "waiting for the agent" marker at the selection immediately, so the human
+    // sees where the reply will land. No answer text yet.
     replies.track("ab_11112222", blockAnchor, "what is this?");
     await replies.loadAnswered();
-    expect(galleryRoot.querySelector(".reply-thread")).toBeNull();
+    const pending = galleryRoot.querySelector(".reply-thread--pending");
+    expect(pending).not.toBeNull();
+    expect(pending!.querySelector(".reply-pending")).not.toBeNull();
+    expect(galleryRoot.querySelector(".reply-text")).toBeNull();
 
     // The agent answers: the read route now returns it; the SSE event drives a
     // fetch + render.
