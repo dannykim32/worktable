@@ -3,11 +3,13 @@
 // client-local and invisible to the agent (ADR-0010).
 import type { CanvasApi } from "./api.js";
 import type {
+  Anchor,
   ArtifactContent,
   ArtifactEvent,
   ArtifactMeta,
 } from "../shared/artifacts.js";
 import { componentRegistry } from "./components/registry.js";
+import { renderHtmlCard } from "./components/html.js";
 
 export function relativeTime(iso: string, nowMs: number = Date.now()): string {
   const seconds = Math.max(0, Math.floor((nowMs - Date.parse(iso)) / 1000));
@@ -33,6 +35,9 @@ interface CardState {
   next: HTMLButtonElement;
   /** Review Moment banner (issue 14); hidden until a review is requested. */
   banner: HTMLElement;
+  /** html hatch (issue 25): the live frame bridge for the rendered version,
+   *  disposed before any re-render to drop its window listener. */
+  htmlBridge?: { dispose(): void };
 }
 
 export interface GalleryOptions {
@@ -40,11 +45,17 @@ export interface GalleryOptions {
   onAskArtifact?: (meta: ArtifactMeta, viewing: number) => void;
   /** Review banner "Looks good — continue" (issue 14): approve the artifact. */
   onApproveReview?: (meta: ArtifactMeta, viewing: number) => void;
+  /** html hatch (issue 25): an ask-back raised from inside a sandboxed frame was
+   *  accepted — thread its eventual answer back onto the card (issue 22). */
+  onAskbackSubmitted?: (id: string, anchor: Anchor, question: string) => void;
 }
 
 export class Gallery {
   private readonly cards = new Map<string, CardState>();
   private readonly emptyNote: HTMLElement;
+  /** The frame-serving origin for html artifacts (issue 25), fetched once at
+   *  init from /api/health. null until known (html cards show a note). */
+  private frameOrigin: string | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -60,6 +71,12 @@ export class Gallery {
   }
 
   async init(): Promise<void> {
+    // Learn the frame origin before rendering any html card (issue 25).
+    try {
+      this.frameOrigin = (await this.api.health()).frameOrigin;
+    } catch {
+      this.frameOrigin = null;
+    }
     const metas = await this.api.listArtifacts();
     for (const meta of metas) {
       const artifact = await this.api.getArtifact(meta.id);
@@ -230,21 +247,69 @@ export class Gallery {
     version: number,
   ): void {
     card.viewing = version;
+    // Drop the previous frame bridge (if any) before wiping the body, so its
+    // window 'message' listener never leaks across a scrub/update (issue 25).
+    card.htmlBridge?.dispose();
+    card.htmlBridge = undefined;
     card.body.replaceChildren();
     card.body.className = "body";
     card.body.dataset.version = String(version);
-    componentRegistry[content.type](content, card.body);
+    if (content.type === "html") {
+      this.renderHtml(card, content, version);
+    } else {
+      componentRegistry[content.type](content, card.body);
+    }
     this.refreshChrome(card);
+  }
+
+  /** Render an html artifact as a sandboxed iframe card (issue 25). The model's
+   *  HTML never enters this DOM — only an <iframe src> to the frame origin. */
+  private renderHtml(
+    card: CardState,
+    content: ArtifactContent,
+    version: number,
+  ): void {
+    if (content.type !== "html") return;
+    const doc = this.root.ownerDocument;
+    const slug = content.frameSlug;
+    if (!this.frameOrigin || !slug) {
+      const note = doc.createElement("p");
+      note.className = "canvas-error";
+      note.textContent =
+        "This HTML artifact needs the live canvas frame server, which is not " +
+        "available. Reload the canvas from the agent's URL.";
+      card.body.appendChild(note);
+      return;
+    }
+    card.htmlBridge = renderHtmlCard(card.body, {
+      api: this.api,
+      frameOrigin: this.frameOrigin,
+      frameSlug: slug,
+      artifactId: card.meta.id,
+      version,
+      title: content.title,
+      onAskbackSubmitted: this.options.onAskbackSubmitted,
+    });
   }
 
   private refreshChrome(card: CardState): void {
     const { meta } = card;
     card.title.textContent = meta.title;
-    // Free-form SVG wears a distinct provenance badge (ADR-0009); components
-    // show their plain type. The standing caption lives in the card body.
-    card.badge.textContent = meta.type === "svg" ? "svg · free-form" : meta.type;
+    // Free-form SVG and the HTML hatch wear a distinct provenance badge
+    // (ADR-0009); components show their plain type. The standing caption lives
+    // in the card body.
+    card.badge.textContent =
+      meta.type === "svg"
+        ? "svg · free-form"
+        : meta.type === "html"
+          ? "html · sandboxed"
+          : meta.type;
     card.badge.className = `badge ${
-      meta.type === "absence" ? "absence" : meta.type === "svg" ? "freeform" : ""
+      meta.type === "absence"
+        ? "absence"
+        : meta.type === "svg" || meta.type === "html"
+          ? "freeform"
+          : ""
     }`.trim();
     card.vlabel.textContent = `v${card.viewing} · ${relativeTime(meta.updated_at)}`;
     card.prev.disabled = card.viewing <= 1;

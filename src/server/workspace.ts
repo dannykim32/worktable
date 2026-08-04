@@ -25,6 +25,8 @@ export interface Workspace {
   rotateToken(): string;
   /** Record the bound HTTP port at <dir>/port. */
   recordPort(port: number): void;
+  /** Record the frame-origin server port at <dir>/frame-port (issue 25). */
+  recordFramePort(port: number): void;
 }
 
 export interface OpenWorkspaceOptions {
@@ -71,6 +73,9 @@ export function openWorkspace(opts: OpenWorkspaceOptions = {}): Workspace {
     },
     recordPort(port: number) {
       atomicWriteFile(join(dir, "port"), String(port));
+    },
+    recordFramePort(port: number) {
+      atomicWriteFile(join(dir, "frame-port"), String(port));
     },
   };
 }

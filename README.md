@@ -11,16 +11,17 @@ Cold-start for any agent or human: this file + the map below is everything you n
 same change.** This document must always let a fresh session resume without any
 prior conversation context.
 
-## Status (updated 2026-07-15) — v1 FEATURE-COMPLETE
+## Status (updated 2026-08-04) — v1 FEATURE-COMPLETE + HTML hatch (Tier 1)
 
 Every issue in the v1 spec (01–14, 16) is built, two-axis reviewed, and merged to
 `main`. Full loop works: agent publishes versioned artifacts (document / dashboard /
-compare / SVG / honest-absence) to a capability-gated local canvas; the human sends
-selection-anchored ask-backs home; the SVG legibility gate runs (report-only by
+compare / SVG / prose / **html** / honest-absence) to a capability-gated local canvas;
+the human sends selection-anchored ask-backs home — now including ask-backs from
+*inside* a model-authored HTML page; the SVG legibility gate runs (report-only by
 default, human-calibrated, opt-in enforcement); and Claude Code gets an ask-back
 auto-inject hook plus an agent-opt-in `request_review` Review Moment. Deferred by
-design: free-form HTML hatch (issue 15, security model pre-decided), structured
-Diagram component, native MCP Apps hosting, sketch aesthetic register.
+design: HTML hatch **Tier 2** (live model JavaScript — Tier 1 static HTML is built),
+structured Diagram component, native MCP Apps hosting, sketch aesthetic register.
 
 ### Milestone history
 
@@ -29,10 +30,12 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
   absence renderers; ask-back queue with anchors; demo + E2E.
 - **M2 — Dashboard + Compare: DONE, merged, both review axes passed.** Single-axis
   bar/line + stat tiles; two-pane compare. Points capped at 200/series.
-- **Visual identity: committed light-only** (owner direction) — vanilla ground,
-  burnt orange as the lead/brand color, warm espresso ink, warm red reserved for
-  bad-state (orange never means "bad"), data-series colors held out of the brand
-  lane. No dark mode. Canvas theme lives in `src/canvas/styles.css`.
+- **Visual identity: "Slate", light-only** (owner direction; the warm
+  vanilla/burnt-orange identity was replaced 2026-08-04, direction A) — cool
+  near-white ground, deep teal as the lead/brand color, slate ink, a distinct
+  green/red semantic pair (redundantly encoded by +/- glyph + labels), and a cool
+  teal→dark-slate data-series ramp held out of the brand lane. No dark mode (a
+  labeled later increment). Canvas theme lives in `src/canvas/styles.css`.
 - **M3 — SVG sanitizer + image-isolated SVG type: DONE, merged, security review
   passed (no bypass found).** Zero-dep reject-not-drop sanitizer (16 hostile
   fixtures + 10k fuzz), SVG rendered only as inert `<img>` data: URL. The one
@@ -70,19 +73,37 @@ Diagram component, native MCP Apps hosting, sketch aesthetic register.
   `.mcp.json`) published a design doc, a dashboard, and an SVG architecture diagram;
   ask-backs landed anchored to the exact selection; the gate + calibration gallery
   ran live. Concept proven end-to-end.
+- **M7 — HTML hatch Tier 1 + reply-loop/doctrine + Slate: DONE, merged,
+  adversarially reviewed (issue 25).** Free-form model-authored *static* HTML
+  (bespoke type/layout/CSS-motion/SVG) served verbatim from a SECOND 127.0.0.1
+  origin into a `sandbox="allow-scripts"` iframe (no `allow-same-origin`) under a
+  header CSP (`default-src 'none'`, nonce'd prelude so model scripts are inert),
+  with a MessageChannel bridge and select-and-ask-back from *inside* the page. A
+  zero-dep, hostile-fixture `frameGuard` **reject-not-drops** no-click egress
+  constructs (`<meta http-equiv>`, hint/external `<link>`) at ingest — after review
+  the strip approach was replaced with quote-aware, entity-decoded, tokenizer-
+  faithful comment parsing (found→fixed→re-verified clean across 84 adversarial
+  cases). Tier 2 (live model JS) deferred, labeled. Also: reply loop now reliably
+  threads the agent's answer back into the browser (answer_askback required via the
+  tool results, waiting-marker at the selection); the Opus-5 design doctrine is
+  baked into the tool descriptions + AGENTS.md; "Slate" light palette. 374 tests green.
 
 ## ▶ RESUME HERE (next session)
 
-**v1 complete, and extended.** 315 tests green on `main` (also pushed to the private
-GitHub remote `dannykim32/visual-chat`, release v0.1.0 has a firewall-friendly
-self-contained tarball). The build history is in the milestone log below; the current
-capability surface:
+**v1 complete, and extended (through M7).** 374 tests green on `main` (also pushed to
+the private GitHub remote `dannykim32/visual-chat`; a firewall-friendly self-contained
+tarball ships as a release). The build history is in the milestone log below; the
+current capability surface:
 
 - Artifacts: document, dashboard, compare, SVG (sanitized + image-isolated + legibility
-  gated), honest-absence, and **prose/markdown** (issue 24 — the agent renders a long
-  answer as a safe rich webpage; own-built zero-dep markdown→DOM renderer, no HTML hole).
+  gated), **prose/markdown** (issue 24 — own-built zero-dep markdown→DOM renderer),
+  **html** (issue 25 — free-form model-authored *static* HTML in a sandboxed second-
+  origin iframe under a locked-down CSP; `frameGuard` reject-not-drops no-click egress
+  at ingest; Tier 2 live-JS deferred), and honest-absence.
 - Ask-back loop closes in the browser: select a section → question home to the terminal
-  → the agent's reply threads inline (issue 22).
+  → the agent's reply threads inline (issue 22), and `answer_askback` is now required
+  (delivered via the tool results) so the reply reliably reaches the browser. Works from
+  *inside* an html artifact too, via the frame MessageChannel bridge.
 - Gate mode is a live human setting via a canvas gear panel (issue 20); all four
   legibility checks human-calibrated (round 6).
 - Light-mode "Slate" identity — cool near-white ground, deep-teal lead (owner-picked
@@ -96,9 +117,13 @@ capability surface:
 
 **Known follow-ups (non-blocking):** prose relative/in-page-anchor links render as
 literal text (issue 24 comments — allowing safe `#fragment` links is a clean win);
-prose deep-blockquote depth cap (hardening). **Deferred, labeled:** free-form HTML
-hatch for animations/interactivity (issue 15, security pre-decided — the "add motion"
-decision), structured Diagram component, native MCP Apps hosting, sketch register.
+prose deep-blockquote depth cap (hardening); the html hatch's "inert/CSP-blocks" and
+cross-frame MessageChannel invariants are proven structurally (served bytes + CSP
+header + direct handler calls), so one real-browser confirmation is worth doing before
+heavy real-world use. **Deferred, labeled:** HTML hatch **Tier 2** — live model
+JavaScript (needs deeper isolation; carries a forged-ask-back residual, documented in
+issue 25); Slate dark mode; structured Diagram component; native MCP Apps hosting;
+sketch register.
 
 ## Run it
 

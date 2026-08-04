@@ -17,7 +17,13 @@ export type ComponentRenderer = (
   mount: HTMLElement,
 ) => void;
 
-export const componentRegistry: Record<ArtifactType, ComponentRenderer> = {
+// `html` is deliberately NOT a component renderer: it is not trusted structured
+// data drawn into the host DOM, but a sandboxed, origin-split iframe (issue 25).
+// The gallery special-cases it (renderHtmlCard) because it needs live deps (api,
+// frame origin, ask-back threading) a pure renderer cannot carry.
+export type ComponentType = Exclude<ArtifactType, "html">;
+
+export const componentRegistry: Record<ComponentType, ComponentRenderer> = {
   document: renderDocument,
   dashboard: renderDashboard,
   compare: renderCompare,

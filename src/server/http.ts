@@ -11,9 +11,18 @@ import type { Workspace } from "./workspace.js";
 export const PORT_SCAN_START = 8787;
 export const PORT_SCAN_END = 8887;
 
-const CSP =
-  "default-src 'self'; img-src 'self' data:; script-src 'self'; " +
-  "connect-src 'self'; style-src 'self' 'unsafe-inline'";
+/** The canvas page's CSP. `frameOrigin` (the second, frame-serving 127.0.0.1
+ *  origin, issue 25) is added to `frame-src` so the canvas may embed the
+ *  sandboxed html iframe; without it `default-src 'self'` would block the
+ *  cross-origin frame. When there is no frame origin yet, no frame-src is
+ *  emitted (frame-src falls back to `default-src 'self'` → no frames). */
+function canvasCsp(frameOrigin: string | null): string {
+  const frameSrc = frameOrigin ? ` frame-src ${frameOrigin};` : "";
+  return (
+    "default-src 'self'; img-src 'self' data:; script-src 'self'; " +
+    `connect-src 'self'; style-src 'self' 'unsafe-inline';${frameSrc}`
+  );
+}
 
 /** Host allowlist (DNS-rebinding defense): 127.0.0.1[:port] or localhost[:port]. */
 export function hostAllowed(
@@ -136,6 +145,10 @@ export interface CanvasHttpDeps {
   canvasDistDir: string;
   /** Extra bearer-authed routes (artifacts in 03, ask-backs in 05). */
   apiRoutes?: ApiRoute[];
+  /** The frame-serving origin (issue 25), resolved after BOTH servers bind —
+   *  a getter, not a value, so the canvas CSP's `frame-src` can name it once
+   *  the second listener has a port. */
+  frameOrigin?: () => string | null;
 }
 
 export interface RunningHttpServer {
@@ -166,7 +179,10 @@ export async function startCanvasHttpServer(
     res: ServerResponse,
   ): Promise<void> {
     // Security headers on every response, including errors.
-    res.setHeader("Content-Security-Policy", CSP);
+    res.setHeader(
+      "Content-Security-Policy",
+      canvasCsp(deps.frameOrigin?.() ?? null),
+    );
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("Cache-Control", "no-store");
@@ -202,6 +218,10 @@ export async function startCanvasHttpServer(
         sendJson(res, 200, {
           workspaceId: deps.workspace.id,
           version: deps.version,
+          // The frame-serving origin (issue 25); the canvas builds html iframe
+          // srcs as `${frameOrigin}/f/${slug}`. null until the second listener
+          // has bound.
+          frameOrigin: deps.frameOrigin?.() ?? null,
         });
         return;
       }
@@ -282,7 +302,7 @@ export async function startCanvasHttpServer(
     return match ? match[1]! : null;
   }
 
-  boundPort = await bindFirstFreePort(server);
+  boundPort = await bindFirstFreePort(server, PORT_SCAN_START, PORT_SCAN_END);
   return {
     server,
     port: boundPort,
@@ -294,8 +314,14 @@ export async function startCanvasHttpServer(
   };
 }
 
-async function bindFirstFreePort(server: http.Server): Promise<number> {
-  for (let port = PORT_SCAN_START; port <= PORT_SCAN_END; port++) {
+/** Bind 127.0.0.1 on the first free port in [start, end]. Shared by the canvas
+ *  server and the frame-origin server (issue 25), which scan disjoint ranges. */
+export async function bindFirstFreePort(
+  server: http.Server,
+  start: number,
+  end: number,
+): Promise<number> {
+  for (let port = start; port <= end; port++) {
     const bound = await new Promise<boolean>((resolveBind, rejectBind) => {
       const onError = (err: NodeJS.ErrnoException) => {
         server.removeListener("listening", onListening);
@@ -312,7 +338,5 @@ async function bindFirstFreePort(server: http.Server): Promise<number> {
     });
     if (bound) return port;
   }
-  throw new Error(
-    `no free port between ${PORT_SCAN_START} and ${PORT_SCAN_END}`,
-  );
+  throw new Error(`no free port between ${start} and ${end}`);
 }

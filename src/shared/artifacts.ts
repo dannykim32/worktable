@@ -139,14 +139,54 @@ export interface ProseContent {
   markdown: string;
 }
 
+/** Free-form HTML hatch (issue 25, ADR-0002 exception): agent-authored HTML
+ *  served VERBATIM into a sandboxed, origin-split, CSP-locked iframe from a
+ *  SECOND 127.0.0.1 port — never sanitized into the host DOM (issue 15). The
+ *  `html` body is the model input; it is stored verbatim and travels ONLY to
+ *  the frame-serving origin, never to the parent canvas JS. `frameSlug` is set
+ *  ONLY on the parent-canvas API response (a fresh 128-bit slug per version)
+ *  and is NEVER accepted from the model. */
+export interface HtmlContent {
+  type: "html";
+  title: string;
+  /** Model-authored HTML (≤256KB). Present in storage + on the model-input
+   *  path; OMITTED from the parent-canvas API response. */
+  html?: string;
+  /** 128-bit frame slug for this version; present ONLY on the client-facing
+   *  API response, so the canvas can build the iframe src. */
+  frameSlug?: string;
+}
+
 export type ArtifactContent =
   | DocumentContent
   | DashboardContent
   | CompareContent
   | AbsenceContent
   | SvgContent
-  | ProseContent;
+  | ProseContent
+  | HtmlContent;
 export type ArtifactType = ArtifactContent["type"];
+
+// ── HTML hatch bridge (issue 25) ────────────────────────────────────────
+// The ONLY messages that cross the frame→parent MessageChannel bridge. A
+// closed, schema-validated verb set; the capability token NEVER crosses it
+// (ADR-0010: the ask-back queue stays the single browser→agent write door —
+// the parent re-POSTs a validated ask-back through it, host-side).
+
+/** Frame asks the parent to open an ask-back for a selection inside the frame. */
+export interface AskbackVerb {
+  v: "askback";
+  quote: string;
+  question: string;
+}
+
+/** Frame asks the parent to resize its iframe to fit content height. */
+export interface ResizeVerb {
+  v: "resize";
+  px: number;
+}
+
+export type FrameVerb = AskbackVerb | ResizeVerb;
 
 export interface ArtifactMeta {
   id: string;
