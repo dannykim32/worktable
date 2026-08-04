@@ -276,6 +276,123 @@ header.canvas-chrome .live {
   margin: 2px 0;
 }
 
+/* ── Prose / markdown component (issue 24) ──────────────────────────── */
+/* Rendered by the own-built, textContent-only markdown→DOM builder. Shares
+   the warm register: espresso ink, vanilla-tinted code inset, orange links. */
+.prose {
+  color: var(--text-primary);
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  margin: 18px 0 6px;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+.prose > :first-child {
+  margin-top: 0;
+}
+.prose h1 {
+  font-size: 19px;
+}
+.prose h2 {
+  font-size: 17px;
+}
+.prose h3 {
+  font-size: 15.5px;
+}
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.prose p {
+  margin: 8px 0;
+}
+.prose strong {
+  font-weight: 650;
+}
+.prose a {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose a:hover {
+  color: var(--accent-warm);
+}
+/* Inline code — small vanilla-tinted chip. */
+.prose :not(pre) > code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.prose pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 12px 0;
+}
+.prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.prose blockquote {
+  border-left: 3px solid var(--callout-accent);
+  background: var(--callout-bg);
+  padding: 8px 14px;
+  border-radius: 0 6px 6px 0;
+  margin: 12px 0;
+  color: var(--text-secondary);
+}
+.prose blockquote > :first-child {
+  margin-top: 0;
+}
+.prose ul,
+.prose ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+.prose li {
+  margin: 2px 0;
+}
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 13.5px;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--grid);
+  padding: 6px 10px;
+  text-align: left;
+}
+.prose th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: var(--callout-bg);
+}
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+.prose-fallback {
+  white-space: pre-wrap;
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-secondary);
+}
+
 /* ── Dashboard component ────────────────────────────────────────────── */
 /* Categorical palette slots, assigned in fixed order (never cycled). */
 .dash .s1 {

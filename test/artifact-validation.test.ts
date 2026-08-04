@@ -11,6 +11,7 @@ import {
   mintArtifactId,
 } from "../src/server/store.js";
 import {
+  publishArtifactSchema,
   validateArtifactContent,
   validateUpdateInput,
   ValidationError,
@@ -116,6 +117,64 @@ describe("publish_artifact schema validation", () => {
     expect(rejectPath({ type: "document", title: "t", blocks: [] })).toBe(
       "/blocks",
     );
+  });
+
+  test("accepts a prose artifact and stores the markdown verbatim", () => {
+    const content = validateArtifactContent({
+      type: "prose",
+      title: "Design rationale",
+      markdown: "# Heading\n\nSome **bold** prose with `code`.",
+    });
+    expect(content.type).toBe("prose");
+    if (content.type === "prose") {
+      expect(content.markdown).toContain("**bold**");
+    }
+  });
+
+  test("accepts empty-markdown prose but rejects oversize markdown at /markdown", () => {
+    // Empty markdown is allowed (renders nothing); only the size ceiling bites.
+    expect(
+      validateArtifactContent({ type: "prose", title: "t", markdown: "" }).type,
+    ).toBe("prose");
+    expect(
+      rejectPath({
+        type: "prose",
+        title: "t",
+        markdown: "x".repeat(100 * 1024 + 1),
+      }),
+    ).toBe("/markdown");
+  });
+
+  test("rejects an unknown field on a prose artifact", () => {
+    expect(
+      rejectPath({
+        type: "prose",
+        title: "t",
+        markdown: "hi",
+        html: "<b>no</b>",
+      }),
+    ).toBe("/html");
+  });
+
+  test("prose inputSchema stays MCP-compliant: top-level object with a prose branch", () => {
+    // MCP requires a top-level `type: "object"` (the M5 fix); the per-type
+    // schemas hang under it as `oneOf` branches. listTools breaks without this.
+    expect(publishArtifactSchema.type).toBe("object");
+    const branches = publishArtifactSchema.oneOf as Array<{
+      type: string;
+      properties: { type: { const: string } };
+    }>;
+    const prose = branches.find((b) => b.properties.type.const === "prose");
+    expect(prose).toBeDefined();
+    expect(prose!.type).toBe("object");
+    // Update input carries the prose content through with an artifact_id.
+    const upd = validateUpdateInput({
+      type: "prose",
+      title: "t",
+      markdown: "hi",
+      artifact_id: "a_12ab34cd",
+    });
+    expect(upd.content.type).toBe("prose");
   });
 
   test("update input requires a well-formed artifact_id", () => {
