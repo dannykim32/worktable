@@ -139,3 +139,14 @@ pass / 0 fail across 28 files. Both tsconfigs typecheck clean. Zero new deps.
 - Disallowed-scheme links render the WHOLE literal `[text](url)` construct (not just
   the label) so nothing is silently hidden — matches "everything appears as literal
   text".
+
+## Known minor / follow-ups (from review 2026-08-03, non-blocking)
+- **Relative + in-page anchor links render as literal text.** The href allowlist is
+  http/https/mailto only, so `[jump](#section)` and site-relative links show as ugly
+  literal `[text](url)`. Common in long structured answers (TOCs). In-page `#fragment`
+  links are safe (same-page jumps) — allowing those specifically is a clean UX win.
+- **Deep-blockquote stack overflow degrades via try/catch.** A pathological single-line
+  blockquote of ~100k `>` recurses parseBlocks and hits RangeError; it's CAUGHT and
+  degrades to literal text (~1s, nothing escapes, spec-compliant). Add a defensive
+  blockquote-depth cap so it degrades cleanly instead of relying on catching a stack
+  overflow — hardening, not a vulnerability.
