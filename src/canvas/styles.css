@@ -528,6 +528,24 @@ body {
   overflow-x: auto;
   font-size: 12px;
 }
+/* Follow-up affordance under an answered entry. */
+.drawer-followup {
+  all: unset;
+  cursor: pointer;
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-warm);
+  color: var(--accent-ink);
+  background: var(--accent-wash);
+}
+.drawer-followup:hover {
+  filter: brightness(0.97);
+}
+.drawer-followup:focus-visible {
+  outline: 2px solid var(--accent-warm);
+}
 
 .drawer-head {
   display: flex;
@@ -609,6 +627,13 @@ body {
   color: var(--text-primary);
   font: inherit;
   font-size: 13px;
+  /* Textarea: grows downward with the question (JS caps at 160px, then
+     scrolls vertically) — never a horizontal scroll. */
+  resize: none;
+  overflow-y: auto;
+  max-height: 160px;
+  min-height: 34px;
+  line-height: 1.45;
 }
 .drawer-hint {
   font-size: 11px;

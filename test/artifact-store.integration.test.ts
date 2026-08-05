@@ -175,6 +175,9 @@ describe("artifact store + tools + SSE", () => {
         arguments: { type: "prose", title: "Quarterly report", markdown: "v1" },
       }),
     );
+    // Same-millisecond publishes tie on updated_at and fall to the random-id
+    // tiebreak — give the clock a tick so newest-first is deterministic.
+    await new Promise((r) => setTimeout(r, 25));
     const second = toolJson(
       await server.client.callTool({
         name: "publish_artifact",

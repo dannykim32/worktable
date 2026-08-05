@@ -215,6 +215,74 @@ describe("Drawer composer + submit (issue 27)", () => {
     ).toBe("430px");
   });
 
+  test("composer is a textarea: Enter sends, shift+Enter does not", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api, posts } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    drawer.startAsk(blockAnchor, { isHtml: false });
+
+    const input = drawer.panel.querySelector(".drawer-input") as HTMLTextAreaElement;
+    expect(input.tagName).toBe("TEXTAREA");
+    input.value = "line one";
+    const KE = galleryRoot.ownerDocument!.defaultView!.KeyboardEvent;
+    input.dispatchEvent(new KE("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
+    await Promise.resolve();
+    expect(posts).toHaveLength(0); // shift+Enter = newline, not send
+
+    input.dispatchEvent(new KE("keydown", { key: "Enter", bubbles: true }));
+    await Promise.resolve();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.question).toBe("line one");
+  });
+
+  test("Follow up reopens the composer with the SAME anchor and posts with it", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api, posts } = fakeApi([
+      answeredItem(blockAnchor, "first question?", "first answer."),
+    ]);
+    const drawer = makeDrawer(galleryRoot, api);
+    await drawer.loadAnswered();
+
+    const follow = drawer.panel.querySelector(".drawer-followup") as HTMLButtonElement;
+    expect(follow).not.toBeNull();
+    follow.click();
+    expect((drawer.panel.querySelector(".drawer-composer") as HTMLElement).hidden).toBe(false);
+    expect(drawer.panel.querySelector(".drawer-quote")!.textContent).toBe(
+      blockAnchor.quote,
+    );
+    (drawer.panel.querySelector(".drawer-input") as HTMLTextAreaElement).value =
+      "and a follow up?";
+    await drawer.submit();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.anchor).toEqual(blockAnchor); // threads to the same selection
+  });
+
+  test("a fresh 'Ask about this' cleanly replaces an open follow-up composer", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api, posts } = fakeApi([
+      answeredItem(blockAnchor, "first?", "answered."),
+    ]);
+    const drawer = makeDrawer(galleryRoot, api);
+    await drawer.loadAnswered();
+
+    (drawer.panel.querySelector(".drawer-followup") as HTMLButtonElement).click();
+    (drawer.panel.querySelector(".drawer-input") as HTMLTextAreaElement).value =
+      "half-typed follow up";
+
+    // The human goes back to the artifact and selects something NEW.
+    const newAnchor: Anchor = { ...blockAnchor, quote: "a different selection" };
+    drawer.startAsk(newAnchor, { isHtml: false });
+    expect(drawer.panel.querySelector(".drawer-quote")!.textContent).toBe(
+      "a different selection",
+    );
+    const input = drawer.panel.querySelector(".drawer-input") as HTMLTextAreaElement;
+    expect(input.value).toBe(""); // stale draft never leaks into the new ask
+    input.value = "about the new selection?";
+    await drawer.submit();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.anchor).toEqual(newAnchor); // posts the NEW anchor, not the old
+  });
+
   test("XSS canary: html-shaped quote + answer render as literal text, no nodes", async () => {
     const { galleryRoot } = makeGallery();
     const payload = '<img src=x onerror="window.__pwned=1">';

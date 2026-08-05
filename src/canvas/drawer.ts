@@ -65,7 +65,7 @@ export class Drawer {
   readonly panel: HTMLElement;
   private readonly composer: HTMLElement;
   private readonly quoteBox: HTMLElement;
-  private readonly input: HTMLInputElement;
+  private readonly input: HTMLTextAreaElement;
   private readonly status: HTMLElement;
   private readonly list: HTMLElement;
   private readonly emptyNote: HTMLElement;
@@ -133,17 +133,24 @@ export class Drawer {
     composerLabel.textContent = "Ask about:";
     this.quoteBox = doc.createElement("div");
     this.quoteBox.className = "drawer-quote";
-    this.input = doc.createElement("input");
+    // A textarea, not an <input>: real questions wrap and grow DOWNWARD (auto-
+    // sized up to a cap) instead of scrolling away horizontally.
+    this.input = doc.createElement("textarea");
     this.input.className = "drawer-input";
+    this.input.rows = 1;
     this.input.placeholder = "Ask the agent about this selection…";
     this.input.setAttribute("aria-label", "ask-back question");
     this.status = doc.createElement("div");
     this.status.className = "drawer-hint";
-    this.status.textContent = "↵ to send · esc to cancel";
+    this.status.textContent = "↵ to send · shift+↵ for a new line · esc to cancel";
     this.input.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (e.key === "Enter") void this.submit();
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault(); // Enter sends; shift+Enter falls through to newline
+        void this.submit();
+      }
       if (e.key === "Escape") this.cancelComposer();
     });
+    this.input.addEventListener("input", () => this.autoGrow());
     this.composer.append(composerLabel, this.quoteBox, this.input, this.status);
 
     // Terminal-turn nudge: an idle agent can't be woken from here, so once a
@@ -279,11 +286,15 @@ export class Drawer {
   // ── starting a question (both paths land here) ────────────────────────
   /** PROSE / ABSENCE: the parent-side pill was clicked with a live selection. */
   startAsk(anchor: Anchor, opts: { isHtml: boolean; markerId?: string }): void {
+    // Replaces any in-progress composer wholesale (a follow-up someone started
+    // but abandoned, an earlier selection): pending anchor, quote, and text all
+    // reset together, so what you see is exactly what will be asked about.
     this.pending = { anchor, isHtml: opts.isHtml, markerId: opts.markerId };
     this.quoteBox.textContent = anchor.quote;
     this.input.value = "";
+    this.autoGrow(); // collapse back to one line
     this.input.disabled = false;
-    this.status.textContent = "↵ to send · esc to cancel";
+    this.status.textContent = "↵ to send · shift+↵ for a new line · esc to cancel";
     this.composer.hidden = false;
     this.open();
     this.input.focus();
@@ -309,6 +320,13 @@ export class Drawer {
   private cancelComposer(): void {
     this.composer.hidden = true;
     this.pending = null;
+  }
+
+  /** Grow the composer downward with its content, capped (then scroll). */
+  private autoGrow(): void {
+    this.input.style.height = "auto";
+    const h = Math.min(this.input.scrollHeight, 160);
+    if (h > 0) this.input.style.height = `${h}px`;
   }
 
   async submit(): Promise<void> {
@@ -466,6 +484,23 @@ export class Drawer {
       renderMarkdownInto(entry.answer.text, text);
       a.append(who, text);
       el.appendChild(a);
+
+      // Follow up: reopen the composer with THIS entry's exact anchor, so the
+      // next question threads to the same selection. It rides the ordinary
+      // startAsk path — a later "Ask about this" from the artifact replaces
+      // the composer context wholesale, never mixes with it.
+      const follow = doc.createElement("button");
+      follow.type = "button";
+      follow.className = "drawer-followup";
+      follow.textContent = "Follow up";
+      follow.addEventListener("click", (ev) => {
+        ev.stopPropagation(); // the entry's own click means "locate the marker"
+        this.startAsk(entry.anchor, {
+          isHtml: entry.isHtml,
+          markerId: entry.markerId,
+        });
+      });
+      el.appendChild(follow);
     } else {
       const pending = doc.createElement("div");
       pending.className = "drawer-pending";

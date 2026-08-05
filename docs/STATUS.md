@@ -8,7 +8,18 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-05) — v0.5.4: dogfood round two (M11)
+## Status (updated 2026-08-05) — v0.5.5: conversation polish
+
+- **Composer grows downward**: a textarea (Enter sends, shift+Enter newlines,
+  auto-sized to a 160px cap) replaces the horizontally-scrolling one-line input.
+- **Follow up** button under every answered drawer entry: reopens the composer
+  with that entry's exact anchor, so the next question threads to the same
+  selection; a fresh "Ask about this" from the artifact replaces the composer
+  context wholesale (tested — no stale drafts or mixed anchors).
+- Browser-verified: composer 35px → 108px on a four-line question; follow-up
+  opens with the right quote. 196 tests green.
+
+## Previous status (2026-08-05) — v0.5.4: dogfood round two (M11)
 
 Same-day fixes from live dogfooding, all end-to-end verified in a real browser:
 
