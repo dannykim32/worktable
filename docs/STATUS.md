@@ -8,7 +8,27 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-04) — open-source prep
+## Status (updated 2026-08-05) — v0.5.0: the poll-wake listener (M10)
+
+**The keystroke constraint is dissolved.** The terminal agent can now arm a
+**listener** — `node dist/hooks/await-askback.js` run as a backgrounded Bash job.
+The server parks the long-poll (`GET /api/askbacks/await`, token-gated, strictly
+read-only over the queue, 8-waiter cap) and resolves it the instant a canvas
+question arrives; the exiting job makes the Agent Host re-invoke the agent, which
+answers with full conversation context — no keystroke. The canvas shows an honest
+delivery state: while a listener is parked, the drawer banner says the agent is
+listening; otherwise it still asks for a terminal nudge. The `UserPromptSubmit`
+hook remains as the fallback path. (Mechanism proven in the owner's earlier
+git-reviewer project; one brain, no spawned answerers.)
+
+Alongside it (same release): the canonical guidance snippet was rebuilt — it had
+drifted to pre-pivot content — and now leads with canvas-by-default publish
+heuristics, the listener arm/re-arm protocol, and the **less-is-more glossary
+convention** (a compact "Terms" section for coined/never-agreed terms only);
+`register.mjs` substitutes the install path into the listener command; tool
+results nudge arming/re-arming with a ready-to-run command. 166 tests green.
+
+## Previous status (2026-08-04) — open-source prep
 
 The product is at its core value: **the model's native artifact-design quality,
 rendered on a local page you can select-and-ask-back on.** The artifact surface is
@@ -105,8 +125,7 @@ retired **M3–M5** and **ADR-0009 / ADR-0011**, which remain for historical rec
 
 ## Backlog
 
-Future product ideas live outside the tracker; ask the owner. The nearest one on deck:
-a **self-surfacing glossary** section inside an html artifact — the model lists the
-terms/phrases it introduced with a one-line plain meaning, so the reader can grasp and
-audit its vocabulary without a back-and-forth (same thesis as the canvas, applied to
-language).
+Future product ideas live outside the tracker; ask the owner. (The glossary
+convention, the listener, and the guidance-level nudging all shipped in v0.5.0;
+deeper nudging — packaging Worktable as a Claude Code plugin/skill so intent
+matching pulls the canvas in proactively — remains open.)
