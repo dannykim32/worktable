@@ -4,5 +4,5 @@
     "noEmit": true,
     "rootDir": ".."
   },
-  "include": ["askback-hook.ts", "../src/shared/**/*"]
+  "include": ["askback-hook.ts", "await-askback.ts", "../src/shared/**/*"]
 }

@@ -6,7 +6,8 @@
 //   dist/server/index.js — server bundle; @modelcontextprotocol/sdk + all imports
 //                          inlined, node:* external, VERSION inlined at build time
 //                          so the bundle never reads package.json at runtime.
-//   dist/hooks/askback-hook.js — the Claude Code ask-back hook, bundled the same way.
+//   dist/hooks/askback-hook.js  — the Claude Code ask-back hook, bundled the same way.
+//   dist/hooks/await-askback.js — the poll-wake listener CLI, bundled the same way.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -40,6 +41,12 @@ run("bun", [
   "hooks/askback-hook.ts",
   "--target=node",
   "--outfile=dist/hooks/askback-hook.js",
+]);
+run("bun", [
+  "build",
+  "hooks/await-askback.ts",
+  "--target=node",
+  "--outfile=dist/hooks/await-askback.js",
 ]);
 
 process.stdout.write(`\n✓ standalone dist/ built (version ${version})\n`);

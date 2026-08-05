@@ -72,6 +72,10 @@ export class Drawer {
   private readonly nudge: HTMLElement;
 
   private open_ = false;
+  /** True while the agent has a poll-wake listener parked on the server (SSE
+   *  `listening`): a question reaches it with no terminal keystroke, so the
+   *  nudge banner switches to the calmer "listening" copy. */
+  private listening = false;
   /** The in-progress question, before submit. */
   private pending:
     | { anchor: Anchor; isHtml: boolean; markerId?: string }
@@ -298,11 +302,22 @@ export class Drawer {
     this.refreshNudge();
   }
 
-  /** Show the terminal-turn nudge iff a question is still waiting for its answer
-   *  — an idle agent can't be woken from here, so make the next step obvious. */
+  /** SSE `listening` (and its connect-time snapshot): the agent armed or
+   *  dropped its poll-wake listener — swap the nudge copy accordingly. */
+  setListening(on: boolean): void {
+    if (this.listening === on) return;
+    this.listening = on;
+    this.refreshNudge();
+  }
+
+  /** Show the nudge iff a question is still waiting for its answer. Two static
+   *  copies for the same banner: while the agent is LISTENING (a parked
+   *  poll-wake waiter) the question arrives automatically; otherwise an idle
+   *  agent can't be woken from here, so make the terminal keystroke obvious. */
   private refreshNudge(): void {
     let waiting = 0;
     for (const e of this.entries.values()) if (!e.answer) waiting++;
+    this.nudge.classList.toggle("drawer-nudge--listening", this.listening);
     if (waiting === 0) {
       this.nudge.hidden = true;
       this.nudge.replaceChildren();
@@ -312,13 +327,18 @@ export class Drawer {
     const icon = this.doc.createElement("span");
     icon.className = "drawer-nudge-icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "⌨";
+    icon.textContent = this.listening ? "●" : "⌨";
     const text = this.doc.createElement("span");
     text.className = "drawer-nudge-text";
-    text.textContent =
-      waiting === 1
-        ? "Type anything in your terminal to send this question to the agent."
-        : `Type anything in your terminal to send your ${waiting} pending questions.`;
+    if (this.listening) {
+      text.textContent =
+        "The agent is listening — your question will reach it automatically.";
+    } else {
+      text.textContent =
+        waiting === 1
+          ? "Type anything in your terminal to send this question to the agent."
+          : `Type anything in your terminal to send your ${waiting} pending questions.`;
+    }
     this.nudge.append(icon, text);
     this.nudge.hidden = false;
   }

@@ -13,6 +13,7 @@ import {
   validateAskbackBody,
 } from "./askbacks.js";
 import { ReviewCoordinator } from "./reviews.js";
+import { clampAwaitTimeoutMs, ListenerPark } from "./listeners.js";
 import {
   readJsonBody,
   sendJson,
@@ -57,6 +58,9 @@ async function main(): Promise<void> {
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
   const reviews = new ReviewCoordinator();
+  // Poll-wake listeners (GET /api/askbacks/await): the park's 0↔≥1 transitions
+  // ARE the canvas "listening" indicator.
+  const listeners = new ListenerPark((on) => sse.broadcast("listening", { on }));
   const askbackLimiter = new RateLimiter(
     ASKBACK_RATE_LIMIT,
     ASKBACK_RATE_WINDOW_MS,
@@ -165,7 +169,35 @@ async function main(): Promise<void> {
     {
       method: "GET",
       template: "/api/events",
-      handler: ({ res }) => sse.attach(res),
+      handler: ({ res }) => {
+        sse.attach(res);
+        // A freshly-loaded page must know the current listening state at once;
+        // the broadcast only fires on 0↔≥1 transitions.
+        sse.send(res, "listening", { on: listeners.listening });
+      },
+    },
+    {
+      // Poll-wake listener (the backgrounded await-askback CLI): long-poll that
+      // resolves the moment an ask-back is enqueued, so the exiting job wakes
+      // the idle agent without a keystroke. READ-ONLY over the queue: it never
+      // marks delivery — check_askbacks stays the only drain, and ADR-0010's
+      // single write door (POST /api/askbacks) is untouched.
+      method: "GET",
+      template: "/api/askbacks/await",
+      handler: ({ res, url }) => {
+        const timeoutMs = clampAwaitTimeoutMs(url.searchParams.get("timeout_ms"));
+        const pendingNow = askbacks.pending().length;
+        if (pendingNow > 0) {
+          sendJson(res, 200, { status: "ask", pending: pendingNow });
+          return;
+        }
+        const unpark = listeners.park(timeoutMs, (result) =>
+          sendJson(res, 200, result),
+        );
+        // A killed job / dropped socket must not linger as "listening".
+        // (After a normal resolve this close fires too; drop() is idempotent.)
+        res.on("close", unpark);
+      },
     },
     {
       // Read-only peek for the Claude Code hook (issue 13): returns pending
@@ -220,6 +252,11 @@ async function main(): Promise<void> {
           // Wake any request_review blocked on this artifact (issue 14). The
           // item is already on disk; the waiter marks it delivered.
           reviews.onAskback(askback);
+          // Wake the poll-wake listeners with what is STILL pending: if a
+          // blocked request_review just consumed this item there is nothing
+          // for a listener to fetch, so the park stays parked.
+          const pendingCount = askbacks.pending().length;
+          if (pendingCount > 0) listeners.wake(pendingCount);
           sendJson(res, 201, { id: askback.id, state: askback.state });
         } catch (err) {
           if (err instanceof AskbackValidationError) {
@@ -560,6 +597,7 @@ async function main(): Promise<void> {
   });
 
   const shutdown = async () => {
+    listeners.close(); // end parked long-polls cleanly before the sockets go
     sse.close();
     await running.close().catch(() => {});
     await frameServer.close().catch(() => {});
