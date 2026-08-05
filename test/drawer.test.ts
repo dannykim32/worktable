@@ -263,6 +263,53 @@ describe("Drawer markers + click-to-locate (issue 27)", () => {
   });
 });
 
+describe("Drawer listening state (poll-wake listener)", () => {
+  test("setListening switches the nudge copy while a question waits, and back", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    drawer.startAsk(blockAnchor, { isHtml: false });
+    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
+    await drawer.submit();
+
+    const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
+    expect(nudge.hidden).toBe(false);
+    // Not listening: the existing type-in-your-terminal copy.
+    expect(nudge.textContent).toContain("terminal");
+    expect(nudge.classList.contains("drawer-nudge--listening")).toBe(false);
+
+    // SSE said the agent armed its listener → calmer, automatic-delivery copy.
+    drawer.setListening(true);
+    expect(nudge.hidden).toBe(false);
+    expect(nudge.textContent).toContain("The agent is listening");
+    expect(nudge.textContent).toContain("automatically");
+    expect(nudge.textContent).not.toContain("terminal");
+    expect(nudge.classList.contains("drawer-nudge--listening")).toBe(true);
+
+    // Listener gone (timeout / job exit) → back to the keystroke copy.
+    drawer.setListening(false);
+    expect(nudge.textContent).toContain(
+      "Type anything in your terminal to send this question",
+    );
+    expect(nudge.classList.contains("drawer-nudge--listening")).toBe(false);
+  });
+
+  test("listening with nothing waiting keeps the banner hidden; it appears in listening copy once a question is asked", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
+    drawer.setListening(true);
+    expect(nudge.hidden).toBe(true); // no waiting question → no banner at all
+
+    drawer.startAsk(blockAnchor, { isHtml: false });
+    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
+    await drawer.submit();
+    expect(nudge.hidden).toBe(false);
+    expect(nudge.textContent).toContain("The agent is listening");
+  });
+});
+
 describe("Drawer open/close reflow (issue 27)", () => {
   test("toggling sets the reflow class so the artifact column narrows", () => {
     const { galleryRoot, document } = makeGallery();
