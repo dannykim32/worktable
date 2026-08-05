@@ -15,7 +15,7 @@
   },
   "scripts": {
     "dev": "vite --config src/canvas/vite.config.ts",
-    "build": "tsc -p tsconfig.json && tsc -p src/canvas/tsconfig.json && tsc -p hooks/tsconfig.json && vite build --config src/canvas/vite.config.ts && bun build hooks/askback-hook.ts --target=node --outfile=dist/hooks/askback-hook.js",
+    "build": "tsc -p tsconfig.json && tsc -p src/canvas/tsconfig.json && tsc -p hooks/tsconfig.json && vite build --config src/canvas/vite.config.ts && bun build hooks/askback-hook.ts --target=node --outfile=dist/hooks/askback-hook.js && bun build hooks/await-askback.ts --target=node --outfile=dist/hooks/await-askback.js",
     "build:standalone": "node scripts/build-standalone.mjs",
     "register": "node scripts/register.mjs",
     "test": "bun test",
