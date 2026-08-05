@@ -167,7 +167,10 @@ export class ReplyThreads {
     const label = doc.createElement("span");
     label.className = "reply-pending-label";
     // entry.question is human-authored; textContent-only keeps the one rule.
-    label.textContent = "Waiting for the agent's reply…";
+    // Be explicit that an idle terminal agent won't wake on its own — the reply
+    // lands on its next terminal turn (the ask-back hook, or check_askbacks).
+    label.textContent =
+      "Sent — the agent replies on its next terminal turn (type anything there to nudge it).";
     label.title = entry.question;
     marker.append(dot, label);
 

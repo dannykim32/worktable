@@ -454,8 +454,12 @@ async function main(): Promise<void> {
     {
       name: "open_canvas",
       description:
-        "Open the workspace's canvas page in the default browser and return " +
-        "its capability URL.",
+        "Open the workspace's canvas page in the default browser and return its " +
+        "capability URL. You rarely need this: the FIRST publish_artifact of a " +
+        "session auto-opens the canvas with the artifact already on it. Do NOT " +
+        "open the canvas before you have something to show — an empty page while " +
+        "you're still working is worse than no page. Use this only to re-open a " +
+        "canvas the human closed.",
       inputSchema: {
         type: "object",
         properties: {},

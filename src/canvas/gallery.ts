@@ -66,7 +66,8 @@ export class Gallery {
     this.emptyNote = doc.createElement("p");
     this.emptyNote.className = "gallery-empty";
     this.emptyNote.textContent =
-      "No artifacts yet — ask the agent to publish something to the canvas.";
+      "Nothing here yet — this page fills in the moment the agent publishes. " +
+      "You can leave it open while it works.";
     root.appendChild(this.emptyNote);
   }
 
@@ -254,6 +255,10 @@ export class Gallery {
     card.body.replaceChildren();
     card.body.className = "body";
     card.body.dataset.version = String(version);
+    // An html artifact is a full model-authored webpage, not a structured
+    // component — let its card break out of the narrow reading column and use
+    // the viewport, so diagrams and wide layouts aren't cramped or clipped.
+    card.root.classList.toggle("artifact-html", content.type === "html");
     if (content.type === "html") {
       this.renderHtml(card, content, version);
     } else {

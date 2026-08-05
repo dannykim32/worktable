@@ -329,10 +329,19 @@ header.canvas-chrome .live {
 }
 
 /* ── Free-form HTML hatch (issue 25): sandboxed, origin-split iframe ──── */
+/* An html artifact is a full webpage — give its card the viewport, not the
+   narrow 880px reading column that structured components use. */
+.artifact.artifact-html {
+  max-width: min(1440px, 94vw);
+}
+/* Let the iframe use the full card width (structured bodies keep their padding). */
+.artifact.artifact-html > .body {
+  padding: 12px 12px 14px;
+}
 .html-frame {
   width: 100%;
-  min-height: 120px;
-  height: 240px; /* replaced live by the frame's reported height */
+  min-height: 200px;
+  height: 70vh; /* generous default; replaced live by the frame's reported height */
   border: 1px solid var(--hairline, #0002);
   border-radius: 6px;
   background: #fff;
