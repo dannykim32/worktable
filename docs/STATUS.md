@@ -23,10 +23,13 @@ canvas; the human sends selection-anchored ask-backs home — including from *in
 model-authored HTML page; Claude Code gets an ask-back auto-inject hook plus an
 agent-opt-in `request_review` Review Moment. 154 tests green on `main`.
 
-Currently in flight: **open-source release prep** (renamed `visual-chat` → **Worktable**;
-MIT LICENSE added; dependency vulnerabilities cleared; README rewritten as a public
-front door; git history AI-attribution trailer stripped). See the branch
-`release-prep-worktable`.
+**Open-source release prep: MERGED to `main` (2026-08-04).** Renamed `visual-chat` →
+**Worktable** ("Purview" was tried and dropped — Microsoft Purview collision); MIT
+LICENSE; dependency advisories cleared (`bun audit` clean); README rewritten as a
+public front door; git history rewritten to drop the AI-attribution trailer (the old
+v0.1.0 release/tag, which preserved pre-rewrite history, was deleted). Remaining
+before the repo flips public: rename the GitHub repo to `worktable`, cut a fresh
+release tarball, and capture a README screenshot.
 
 Deferred by design: HTML hatch **Tier 2** (live model JavaScript — Tier 1 static HTML
 is built), Slate dark mode, native MCP Apps hosting.
