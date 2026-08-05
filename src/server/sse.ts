@@ -27,6 +27,13 @@ export class SseHub {
     res.on("close", () => this.clients.delete(res));
   }
 
+  /** Send one event to a single attached client — for initial-state snapshots
+   *  a late joiner would otherwise miss (e.g. the current `listening` state). */
+  send(res: ServerResponse, event: string, data: unknown): void {
+    if (!this.clients.has(res)) return;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
   broadcast(event: string, data: unknown): void {
     const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const res of this.clients) res.write(frame);
