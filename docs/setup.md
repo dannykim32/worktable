@@ -101,29 +101,13 @@ the terminal interrupts the call safely — the queue keeps your feedback.
 
 ## Agent guidance (add to the host project's AGENTS.md / CLAUDE.md)
 
-The canonical, marker-wrapped copy lives in [agent-guidance.md](./agent-guidance.md)
-(what `register.mjs --guidance` appends). Reproduced here for convenience:
-
-```markdown
-## Worktable
-
-A companion canvas is available via the worktable MCP tools. The terminal
-stays the conversation driver; the canvas renders artifacts.
-
-- Call `check_askbacks` at the START of every turn. It returns questions the
-  human anchored to specific artifacts, versions, and text spans — answer
-  them with the anchor's context, and prefer updating the same artifact.
-- Publish an artifact (`publish_artifact`) when structure beats prose:
-  design notes, comparisons, tabular data, multi-section explanations.
-  Answer in plain text when a sentence or two suffices.
-- Update artifacts in place (`update_artifact`) rather than republishing:
-  the artifact keeps its identity and readers keep version history.
-- Honest absence: if you cannot render something truthfully (too large,
-  not enough data, would require guessing), publish `type: "absence"` with
-  the reason. Never fabricate a visual.
-- Bound large inputs: render a truthful subset and say so in the artifact
-  itself ("showing 20 of 5,471"), or decline with an absence artifact.
-```
+The canonical, marker-wrapped snippet lives in
+[agent-guidance.md](./agent-guidance.md) — it's what `register.mjs --guidance`
+appends (substituting the install path into the listener command). It covers the
+canvas-by-default heuristic, the listener protocol, the `html` authoring rules,
+and the glossary convention. It is deliberately not reproduced here: two copies of
+it already exist (that file and this repo's own `AGENTS.md`), and a third drifted
+out of date once before.
 
 ## Manual walkthrough checklist (issue 06, criteria 2–3)
 

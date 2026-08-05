@@ -132,7 +132,13 @@ function guidancePayload() {
   if (start === -1 || end === -1 || end < start) {
     fail(`guidance markers not found (as whole lines) in ${guidanceDoc}`);
   }
-  return lines.slice(start, end + 1).join("\n").trimEnd();
+  return lines
+    .slice(start, end + 1)
+    .join("\n")
+    .trimEnd()
+    // The snippet references the listener CLI by absolute path; the doc keeps a
+    // placeholder so one canonical copy serves every install location.
+    .replaceAll("<abs-path-to-worktable>", repoRoot);
 }
 
 /** Append the guidance snippet to AGENTS.md (preferred), else CLAUDE.md, else a

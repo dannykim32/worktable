@@ -29,24 +29,41 @@ See `docs/agents/domain.md`.
 
 ## Worktable
 
+The canonical copy of this block is `docs/agent-guidance.md` (what
+`register.mjs --guidance` installs into target repos); when you change one, change
+both. In this repo the listener path is simply `dist/hooks/await-askback.js`.
+
 A companion canvas is available via the worktable MCP tools (register per
-`docs/setup.md`). The terminal stays the conversation driver; the canvas
-renders artifacts.
+`docs/setup.md`). The terminal stays the conversation driver; the canvas renders
+artifacts the human reads, selects, and asks about.
+
+**Default to the canvas for anything structural.** If an answer explains how
+something works or what changed — an architecture, a code walkthrough, a bug
+postmortem, a plan, a comparison, anything that would have two or more sections —
+publish it as an artifact and leave a terse terminal pointer ("published to the
+canvas — ask about any part"). Answer in plain terminal text only when a sentence
+or two suffices. A visual the human can interrogate beats a wall of text they
+have to trust.
 
 - Call `check_askbacks` at the START of every turn. It returns questions the
   human anchored to specific artifacts, versions, and text spans — answer
   them with the anchor's context, and prefer updating the same artifact.
-- Publish an artifact (`publish_artifact`) whenever a response is worth designing —
-  an explainer, a diagram or flowchart, a before/after, a dashboard, a walkthrough,
-  a multi-section answer. Answer in plain text only when a sentence or two suffices.
-  The surface is exactly three types: `html`, `prose`, `absence`.
+- **Arm the listener after every publish**, so canvas questions reach you without
+  the human touching the terminal: run `node dist/hooks/await-askback.js` as a
+  BACKGROUND Bash job — never foreground; it waits up to four minutes. When it
+  completes reporting questions, call `check_askbacks`, answer, then re-arm. When
+  it completes on a quiet timeout, re-arm if the human is still reading the
+  canvas; otherwise let it rest.
+- After answering an ask-back, also call `answer_askback` with its `askback_id` —
+  your reply then appears in the canvas drawer, threaded under the exact
+  selection, so the loop closes where the human asked.
 - **`html` is the primary path.** Author the page the way you'd author a
   first-class artifact — run the **artifact-design** skill's full process
   (treatment → an explicit color/type/layout plan → semantic color →
   one-figure-one-claim diagrams in HTML/CSS or inline SVG → an anti-default pass) —
   but publish it HERE via `type: "html"`, **NOT** to the native Artifact tool /
   claude.ai artifacts. Only this canvas can be selected-and-asked-back on; that is
-  the entire reason to use it. Two hard rules for this canvas:
+  the entire reason to use it. Three hard rules for this canvas:
   - **Self-contained.** Inline all CSS and SVG; embed assets as `data:` URIs; no
     external `<link>`/fonts/CDN and no `<meta http-equiv>`. The frame has no network.
   - **Static.** Your own `<script>` is neutralized — draw diagrams with HTML/CSS
@@ -55,6 +72,10 @@ renders artifacts.
     `width:100%; height:auto` (never a hard-coded pixel width wider than the page);
     wrap or put `overflow-x:auto` on any table or diagram that could exceed the
     viewport. A diagram the reader can't fully see is worse than a sentence.
+- **Glossary, sparingly.** If the artifact leans on a term you coined or one that
+  was never agreed on with the human, add a compact "Terms" section: one line per
+  term, ONLY the few the reader genuinely needs. Skip anything obvious — the
+  reader can select any phrase and ask.
 - `prose` (send `markdown`) for a long plain-text answer with no bespoke visual —
   the canvas renders it richly and select-and-ask-ably. `absence` (with a `reason`)
   to decline honestly instead of fabricating. Never fabricate a visual.

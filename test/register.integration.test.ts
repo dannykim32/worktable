@@ -74,6 +74,16 @@ describe("register.mjs", () => {
     expect(agents.startsWith("<!-- worktable-guidance -->")).toBe(true);
   });
 
+  test("--guidance substitutes the install path into the listener command", () => {
+    const target = scratch();
+    run(target, "--guidance");
+    const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
+    // The canonical doc's placeholder never reaches a target repo…
+    expect(agents).not.toContain("<abs-path-to-worktable>");
+    // …the resolved absolute listener path does.
+    expect(agents).toContain(join(repoRoot, "dist/hooks/await-askback.js"));
+  });
+
   test("--guidance appends to an existing CLAUDE.md when no AGENTS.md exists", () => {
     const target = scratch();
     writeFileSync(join(target, "CLAUDE.md"), "# Existing\n\nkeep me\n");
