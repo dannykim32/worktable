@@ -1,39 +1,20 @@
-// Issue 25 — free-form HTML hatch: PARENT-side bridge + structural iframe tests
-// (happy-dom). These enforce the security invariants as tests, not aspirations:
+// Issue 25 + 27 — HTML hatch bridge: PARENT-side bridge + structural iframe
+// tests (happy-dom). These enforce the security invariants as tests, not
+// aspirations:
 //  · the rendered iframe is sandbox="allow-scripts" with NO allow-same-origin;
 //  · the bridge accepts messages ONLY from its own iframe (event.source);
-//  · the verb set is closed + schema-validated;
+//  · the verb set is CLOSED + schema-validated — frame→parent {resize, askstart,
+//    focusEntry}; parent→frame {port, focusMarker} (issue 27);
 //  · the capability token never crosses the bridge (the parent only ever sends
-//    {v:"port"}).
+//    {v:"port"} and {v:"focusMarker",markerId} — neither carries a token).
 import { describe, expect, test } from "bun:test";
-import type { Anchor } from "../src/shared/artifacts.js";
 import { HtmlBridge, renderHtmlCard } from "../src/canvas/components/html.js";
 import { makeDom } from "./dom.js";
-
-interface AskbackCall {
-  anchor: Anchor;
-  question: string;
-}
-
-function fakeApi() {
-  const calls: AskbackCall[] = [];
-  return {
-    calls,
-    api: {
-      postAskback: (body: { anchor: unknown; question: string }) => {
-        calls.push({ anchor: body.anchor as Anchor, question: body.question });
-        return Promise.resolve({ id: "ab_1", state: "pending" });
-      },
-    },
-  };
-}
 
 describe("html iframe (structural)", () => {
   test('sandbox="allow-scripts" with NO allow-same-origin, src → frame origin', () => {
     const { document: doc, mount } = makeDom();
-    const { api } = fakeApi();
     const handle = renderHtmlCard(mount, {
-      api,
       frameOrigin: "http://127.0.0.1:8888",
       frameSlug: "a".repeat(32),
       artifactId: "a_0000000a",
@@ -52,24 +33,23 @@ describe("html iframe (structural)", () => {
   });
 });
 
-describe("html bridge auth + verb set", () => {
+describe("html bridge auth + verb set (issue 27)", () => {
   function setup() {
     const { document: doc, mount } = makeDom();
-    const { api, calls } = fakeApi();
     const iframe = doc.createElement("iframe");
     mount.appendChild(iframe);
     const resizes: number[] = [];
-    const submitted: Array<{ id: string; anchor: Anchor; question: string }> = [];
+    const askstarts: Array<{ quote: string; markerId: string }> = [];
+    const focusEntries: string[] = [];
     const bridge = new HtmlBridge({
       iframe,
-      api,
       artifactId: "a_0000000b",
       version: 5,
       onResize: (px) => resizes.push(px),
-      onAskbackSubmitted: (id, anchor, question) =>
-        submitted.push({ id, anchor, question }),
+      onAskStart: (quote, markerId) => askstarts.push({ quote, markerId }),
+      onFocusEntry: (markerId) => focusEntries.push(markerId),
     });
-    return { doc, iframe, bridge, calls, resizes, submitted };
+    return { doc, iframe, bridge, resizes, askstarts, focusEntries };
   }
 
   test("acceptsSource: only the iframe's own contentWindow", () => {
@@ -79,42 +59,37 @@ describe("html bridge auth + verb set", () => {
     expect(bridge.acceptsSource(null)).toBe(false);
   });
 
-  test("valid askback → postAskback with a null-block whole-artifact anchor", () => {
-    const { bridge, calls } = setup();
+  test("valid askstart → onAskStart with a trimmed quote + the frame markerId", () => {
+    const { bridge, askstarts } = setup();
     bridge.handleFrameMessage({
-      v: "askback",
+      v: "askstart",
       quote: "  selected words  ",
-      question: "  what is this?  ",
+      markerId: "m3",
     });
-    expect(calls.length).toBe(1);
-    expect(calls[0]!.question).toBe("what is this?");
-    expect(calls[0]!.anchor).toEqual({
-      artifact_id: "a_0000000b",
-      version: 5,
-      block_index: null,
-      quote: "selected words",
-    });
+    expect(askstarts).toEqual([{ quote: "selected words", markerId: "m3" }]);
   });
 
-  test("onAskbackSubmitted fires after the POST resolves", async () => {
-    const { bridge, submitted } = setup();
-    bridge.handleFrameMessage({ v: "askback", quote: "q", question: "why?" });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(submitted.length).toBe(1);
-    expect(submitted[0]!.id).toBe("ab_1");
-    expect(submitted[0]!.question).toBe("why?");
+  test("valid focusEntry → onFocusEntry with the markerId", () => {
+    const { bridge, focusEntries } = setup();
+    bridge.handleFrameMessage({ v: "focusEntry", markerId: "m7" });
+    expect(focusEntries).toEqual(["m7"]);
   });
 
   test("out-of-set and malformed verbs are dropped", () => {
-    const { bridge, calls, resizes } = setup();
-    bridge.handleFrameMessage({ v: "evil", quote: "q", question: "x" });
-    bridge.handleFrameMessage({ v: "askback", quote: 123, question: "x" });
-    bridge.handleFrameMessage({ v: "askback", quote: "q", question: "   " });
+    const { bridge, resizes, askstarts, focusEntries } = setup();
+    bridge.handleFrameMessage({ v: "evil", quote: "q", markerId: "m1" });
+    // The retired composer verb no longer exists → dropped.
+    bridge.handleFrameMessage({ v: "askback", quote: "q", question: "x" });
+    bridge.handleFrameMessage({ v: "askstart", quote: 123, markerId: "m1" });
+    bridge.handleFrameMessage({ v: "askstart", quote: "q" }); // no markerId
+    bridge.handleFrameMessage({ v: "askstart", quote: "   ", markerId: "m1" });
+    bridge.handleFrameMessage({ v: "focusEntry", markerId: 123 });
+    bridge.handleFrameMessage({ v: "focusEntry" });
     bridge.handleFrameMessage({ v: "resize", px: "500" });
     bridge.handleFrameMessage("not-an-object");
     bridge.handleFrameMessage(null);
-    expect(calls.length).toBe(0);
+    expect(askstarts.length).toBe(0);
+    expect(focusEntries.length).toBe(0);
     expect(resizes.length).toBe(0);
   });
 
@@ -125,23 +100,33 @@ describe("html bridge auth + verb set", () => {
     bridge.handleFrameMessage({ v: "resize", px: 999999 }); // above ceiling
     expect(resizes).toEqual([640, 80, 20000]);
   });
+
+  test("focusMarker (parent→frame) posts {v:'focusMarker',markerId} + no token", () => {
+    const { bridge } = setup();
+    const sent: unknown[] = [];
+    (
+      bridge as unknown as { channel: { port1: { postMessage(m: unknown): void } } }
+    ).channel.port1.postMessage = (m: unknown) => sent.push(m);
+    bridge.focusMarker("m9");
+    expect(sent).toEqual([{ v: "focusMarker", markerId: "m9" }]);
+    // Canary: the parent→frame verb never carries the capability token.
+    expect(JSON.stringify(sent[0])).not.toContain("token");
+  });
 });
 
 describe("bridge token canary + identity-gated port transfer", () => {
   test("port transfer happens ONLY on an identity-verified 'ready', and carries no token", () => {
     const { document: doc, mount } = makeDom();
-    const { api } = fakeApi();
     const iframe = doc.createElement("iframe");
     mount.appendChild(iframe);
     const sent: unknown[][] = [];
     // Spy on the frame's postMessage — this is the ONLY thing the parent sends
-    // the frame. It must never carry the capability token.
+    // the frame over the window channel. It must never carry the token.
     (iframe.contentWindow as unknown as { postMessage: (...a: unknown[]) => void }).postMessage =
       (...args: unknown[]) => sent.push(args);
 
     const bridge = new HtmlBridge({
       iframe,
-      api,
       artifactId: "a_0000000c",
       version: 1,
     });
@@ -184,7 +169,6 @@ describe("bridge token canary + identity-gated port transfer", () => {
 
   test("a post-navigation (second load) 'ready' gets NO port (Finding 2)", () => {
     const { document: doc, mount } = makeDom();
-    const { api } = fakeApi();
     const iframe = doc.createElement("iframe");
     mount.appendChild(iframe);
     const sent: unknown[][] = [];
@@ -193,7 +177,6 @@ describe("bridge token canary + identity-gated port transfer", () => {
 
     const bridge = new HtmlBridge({
       iframe,
-      api,
       artifactId: "a_0000000d",
       version: 1,
     });
@@ -223,7 +206,6 @@ describe("bridge token canary + identity-gated port transfer", () => {
 
   test("first-generation 'ready' (single load) still transfers (positive control)", () => {
     const { document: doc, mount } = makeDom();
-    const { api } = fakeApi();
     const iframe = doc.createElement("iframe");
     mount.appendChild(iframe);
     const sent: unknown[][] = [];
@@ -232,7 +214,6 @@ describe("bridge token canary + identity-gated port transfer", () => {
 
     const bridge = new HtmlBridge({
       iframe,
-      api,
       artifactId: "a_0000000e",
       version: 1,
     });

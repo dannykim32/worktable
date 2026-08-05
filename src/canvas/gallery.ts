@@ -3,13 +3,12 @@
 // client-local and invisible to the agent (ADR-0010).
 import type { CanvasApi } from "./api.js";
 import type {
-  Anchor,
   ArtifactContent,
   ArtifactEvent,
   ArtifactMeta,
 } from "../shared/artifacts.js";
 import { componentRegistry } from "./components/registry.js";
-import { renderHtmlCard } from "./components/html.js";
+import { renderHtmlCard, type HtmlCardHandle } from "./components/html.js";
 
 export function relativeTime(iso: string, nowMs: number = Date.now()): string {
   const seconds = Math.max(0, Math.floor((nowMs - Date.parse(iso)) / 1000));
@@ -35,9 +34,10 @@ interface CardState {
   next: HTMLButtonElement;
   /** Review Moment banner (issue 14); hidden until a review is requested. */
   banner: HTMLElement;
-  /** html hatch (issue 25): the live frame bridge for the rendered version,
-   *  disposed before any re-render to drop its window listener. */
-  htmlBridge?: { dispose(): void };
+  /** html hatch (issue 25): the live frame handle for the rendered version,
+   *  disposed before any re-render to drop its window listener. Also carries
+   *  `focusMarker` so the drawer can locate an in-frame marker (issue 27). */
+  htmlBridge?: HtmlCardHandle;
 }
 
 export interface GalleryOptions {
@@ -45,9 +45,17 @@ export interface GalleryOptions {
   onAskArtifact?: (meta: ArtifactMeta, viewing: number) => void;
   /** Review banner "Looks good — continue" (issue 14): approve the artifact. */
   onApproveReview?: (meta: ArtifactMeta, viewing: number) => void;
-  /** html hatch (issue 25): an ask-back raised from inside a sandboxed frame was
-   *  accepted — thread its eventual answer back onto the card (issue 22). */
-  onAskbackSubmitted?: (id: string, anchor: Anchor, question: string) => void;
+  /** html hatch (issue 27): an "Ask about this" started INSIDE a sandboxed frame
+   *  — open the parent drawer composer, tracking the frame's markerId. */
+  onAskStart?: (
+    artifactId: string,
+    version: number,
+    quote: string,
+    markerId: string,
+  ) => void;
+  /** html hatch (issue 27): an in-frame marker was clicked — highlight its
+   *  drawer entry (frame marker → drawer locate). */
+  onFocusEntry?: (artifactId: string, markerId: string) => void;
 }
 
 export class Gallery {
@@ -98,6 +106,13 @@ export class Gallery {
 
   metaFor(artifactId: string): ArtifactMeta | null {
     return this.cards.get(artifactId)?.meta ?? null;
+  }
+
+  /** Drawer → marker locate for an html artifact (issue 27): drive the card's
+   *  frame to draw/scroll/highlight the marker. No-op if the card or its bridge
+   *  is not present. */
+  focusMarkerInFrame(artifactId: string, markerId: string): void {
+    this.cards.get(artifactId)?.htmlBridge?.focusMarker(markerId);
   }
 
   /** SSE `review_requested`: the agent is blocking on this artifact's review.
@@ -287,13 +302,13 @@ export class Gallery {
       return;
     }
     card.htmlBridge = renderHtmlCard(card.body, {
-      api: this.api,
       frameOrigin: this.frameOrigin,
       frameSlug: slug,
       artifactId: card.meta.id,
       version,
       title: content.title,
-      onAskbackSubmitted: this.options.onAskbackSubmitted,
+      onAskStart: this.options.onAskStart,
+      onFocusEntry: this.options.onFocusEntry,
     });
   }
 

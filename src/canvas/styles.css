@@ -354,7 +354,7 @@ header.canvas-chrome .live {
   margin-top: 10px;
 }
 
-/* ── Ask-back pill + composer (prototype pattern) ───────────────────── */
+/* ── Ask-back pill (the trigger — the composer moved to the drawer) ──── */
 .askback-pill {
   position: absolute;
   z-index: 30;
@@ -368,41 +368,247 @@ header.canvas-chrome .live {
   cursor: pointer;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
-.askback-composer {
-  position: absolute;
-  z-index: 31;
-  width: 340px;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-  padding: 12px;
+
+/* ── Ask-back side drawer (issue 27) ─────────────────────────────────────
+   A right-side drawer holding the composer + the whole conversation. When
+   open the artifact column reflows narrower (body padding), so asking never
+   covers the selected content. */
+.drawer-toggle {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-warm);
+  color: var(--accent-ink);
+  background: var(--accent-wash);
+  white-space: nowrap;
 }
-.askback-composer .anchor {
-  font: 11px/1.5 ui-monospace, Menlo, monospace;
-  background: var(--code-bg);
+.drawer-toggle:hover {
+  filter: brightness(0.97);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  max-width: 92vw;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.12);
+}
+/* Reflow: shove the whole page left by the drawer width while it is open. The
+   cards stay centered in the remaining space, so the artifact column narrows
+   instead of being occluded. */
+.drawer-open body,
+body {
+  transition: padding-right 220ms ease;
+}
+.drawer-open body {
+  padding-right: 360px;
+}
+@media (max-width: 720px) {
+  .drawer-open body {
+    padding-right: 0;
+  } /* narrow viewports: the drawer overlays instead of reflowing */
+}
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-title {
+  font-size: 15px;
+  font-weight: 650;
+  flex: 1;
+}
+.drawer-close {
+  all: unset;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+  padding: 0 6px;
   border-radius: 6px;
-  padding: 8px;
+}
+.drawer-close:hover {
+  background: var(--callout-bg);
+  color: var(--text-primary);
+}
+
+.drawer-composer {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--callout-bg);
+}
+.drawer-composer-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.drawer-quote {
+  font-size: 12.5px;
   color: var(--text-secondary);
-  max-height: 90px;
-  overflow: auto;
+  border-left: 3px solid var(--accent-warm);
+  padding: 4px 10px;
   margin-bottom: 8px;
+  max-height: 96px;
+  overflow: auto;
   white-space: pre-wrap;
 }
-.askback-composer input {
+.drawer-input {
   width: 100%;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--page);
+  background: var(--surface-1);
   color: var(--text-primary);
   font: inherit;
   font-size: 13px;
 }
-.askback-composer .hint {
+.drawer-hint {
   font-size: 11px;
   color: var(--muted);
   margin-top: 6px;
+}
+
+.drawer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px 24px;
+}
+.drawer-empty {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 16px;
+}
+.drawer-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.drawer-entry:hover {
+  border-color: var(--accent-warm);
+  background: var(--callout-bg);
+}
+.drawer-entry--flash {
+  border-color: var(--accent-warm);
+  background: var(--accent-wash);
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-entry {
+    transition: none;
+  }
+}
+.drawer-entry-quote {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+}
+.drawer-entry-num {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-warm);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 18px;
+}
+.drawer-entry-quote-text {
+  font-style: italic;
+}
+.drawer-entry-q {
+  font-size: 13.5px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.drawer-entry-a {
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.drawer-entry-who {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.drawer-pending {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.drawer-pending-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-warm);
+  animation: reply-pending-pulse 1.4s ease-in-out infinite;
+}
+
+/* ── In-content anchor markers (issue 27) ────────────────────────────────
+   Placed in the parent DOM for prose/absence at each asked location; clicking
+   one highlights its drawer entry (marker → drawer locate). The html path
+   draws its own marker inside the frame (prelude). */
+.anchor-marker {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin: 0 0 0 4px;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-warm);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  vertical-align: super;
+}
+.anchor-marker:hover,
+.anchor-marker--flash {
+  background: var(--accent-warm);
+  color: #fff;
 }
 
 /* Card ⋯ menu (whole-artifact ask affordance) */
@@ -495,26 +701,7 @@ header.canvas-chrome .live {
   opacity: 0.7;
 }
 
-/* Inline canvas answers (issue 22): the agent's reply threaded under the
-   anchored selection. Unobtrusive by default — a small "1 reply" toggle. */
-.reply-thread {
-  margin: 6px 0 10px;
-}
-.reply-pending {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  font-style: italic;
-  color: var(--muted);
-}
-.reply-pending-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-warm);
-  animation: reply-pending-pulse 1.4s ease-in-out infinite;
-}
+/* Pending-dot pulse — shared by the drawer's pending entry (issue 27). */
 @keyframes reply-pending-pulse {
   0%,
   100% {
@@ -525,43 +712,7 @@ header.canvas-chrome .live {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .reply-pending-dot {
+  .drawer-pending-dot {
     animation: none;
   }
-}
-.reply-toggle {
-  border: 1px solid var(--border);
-  background: var(--accent-wash);
-  color: var(--accent-ink);
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.reply-toggle:hover {
-  border-color: var(--accent-warm);
-}
-.reply-body {
-  margin-top: 6px;
-  border-left: 2px solid var(--accent-wash);
-  padding-left: 10px;
-}
-.reply-question {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-.reply-answer {
-  font-size: 13px;
-  color: var(--text-secondary);
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-}
-.reply-who {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-ink);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }

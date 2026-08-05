@@ -17,7 +17,6 @@ import {
   wholeArtifactAnchor,
 } from "../src/canvas/askback.js";
 import type { Anchor } from "../src/shared/artifacts.js";
-import type { CanvasApi } from "../src/canvas/api.js";
 import type { Gallery } from "../src/canvas/gallery.js";
 import { makeDom } from "./dom.js";
 
@@ -166,52 +165,62 @@ describe("ask-back rate limiter", () => {
   });
 });
 
-describe("composer keyboard behavior", () => {
+describe("AskbackUi pill → drawer (issue 27)", () => {
+  // The parent-side pill is now only the TRIGGER: on a valid selection it shows,
+  // and clicking it hands the Anchor to the drawer (onAsk). The composer + the
+  // conversation moved into the drawer, so there is no in-place composer here.
   function makeUi() {
     const dom = makeDom();
-    const sent: Array<{ anchor: unknown; question: string }> = [];
-    const api = {
-      postAskback: async (body: { anchor: unknown; question: string }) => {
-        sent.push(body);
-      },
-    } as unknown as CanvasApi;
-    const gallery = { viewingVersion: () => 1 } as unknown as Gallery;
-    const ui = new AskbackUi(dom.document, { api, gallery });
-    return { ...dom, ui, sent };
+    const asked: Anchor[] = [];
+    const gallery = { viewingVersion: () => 3 } as unknown as Gallery;
+    const ui = new AskbackUi(dom.document, {
+      gallery,
+      onAsk: (anchor) => asked.push(anchor),
+    });
+    return { ...dom, ui, asked };
   }
 
-  test("Enter submits the ask-back and shows the optimistic sent state", async () => {
-    const { window, ui, sent } = makeUi();
-    ui.openComposer(goodAnchor);
-    expect(ui.composer.hidden).toBe(false);
-    expect(ui.quoteBox.textContent).toContain("v3");
-    expect(ui.quoteBox.textContent).toContain(goodAnchor.quote);
+  function selectIn(dom: ReturnType<typeof makeDom>): HTMLElement {
+    const { document, mount } = dom;
+    const card = document.createElement("section");
+    card.dataset.artifactId = "a_12ab34cd";
+    const block = document.createElement("p");
+    block.dataset.blockIndex = "4";
+    block.textContent = "the exact words the human selected here";
+    card.appendChild(block);
+    mount.appendChild(card);
+    const sel = (document.defaultView as unknown as Window).getSelection()!;
+    const range = document.createRange();
+    range.setStart(block.firstChild!, 0);
+    range.setEnd(block.firstChild!, 9); // "the exact"
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return block;
+  }
 
-    ui.input.value = "Why queue + pull instead of push?";
-    ui.input.dispatchEvent(
-      new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent(
-        "keydown",
-        { key: "Enter", bubbles: true },
-      ),
-    );
-    await new Promise((r) => setTimeout(r, 0));
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.question).toBe("Why queue + pull instead of push?");
-    expect((sent[0]!.anchor as Anchor).version).toBe(3);
-    expect(ui.status.textContent).toContain("will appear here under your selection");
+  test("a valid selection shows the pill; clicking it hands the Anchor to onAsk", () => {
+    const dom = makeUi();
+    selectIn(dom);
+    dom.ui.handleSelection();
+    expect(dom.ui.pill.hidden).toBe(false);
+
+    (dom.ui.pill as HTMLButtonElement).click();
+    expect(dom.asked).toHaveLength(1);
+    expect(dom.asked[0]!.artifact_id).toBe("a_12ab34cd");
+    expect(dom.asked[0]!.block_index).toBe(4);
+    expect(dom.asked[0]!.version).toBe(3);
+    expect(dom.asked[0]!.quote).toBe("the exact");
+    // The pill hides once the composer takes over.
+    expect(dom.ui.pill.hidden).toBe(true);
   });
 
-  test("Esc closes the composer without sending", () => {
-    const { window, ui, sent } = makeUi();
-    ui.openComposer(goodAnchor);
-    ui.input.value = "never sent";
-    ui.input.dispatchEvent(
-      new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent(
-        "keydown",
-        { key: "Escape", bubbles: true },
-      ),
-    );
-    expect(ui.composer.hidden).toBe(true);
-    expect(sent).toHaveLength(0);
+  test("a collapsed selection keeps the pill hidden and asks nothing", () => {
+    const dom = makeUi();
+    const { document } = dom;
+    (document.defaultView as unknown as Window).getSelection()!.removeAllRanges();
+    dom.ui.handleSelection();
+    expect(dom.ui.pill.hidden).toBe(true);
+    (dom.ui.pill as HTMLButtonElement).click();
+    expect(dom.asked).toHaveLength(0);
   });
 });

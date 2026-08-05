@@ -108,10 +108,18 @@ iframe-isolated hatch (a stricter boundary for the visual use case). This retire
   tool-use fills reliably — a prior top-level `oneOf` made the model emit the wrong
   type). The agent authors html via the artifact-design skill's process but
   publishes here, not to the native Artifact tool. Supersedes M3–M5. 148 tests green.
+- **M9 — ask-back side drawer + in-content anchor markers: DONE, merged (issue 27).**
+  Replaced the composer-over-content popover and inline reply threads with a
+  right-side **drawer** (composer + a quote-tagged conversation); the artifact
+  column reflows so nothing is hidden. Each question drops an **anchor marker** at
+  its spot with **click-to-locate both ways** — parent-drawn for prose, drawn by
+  the frame prelude and synced over the bridge for html. Bridge stays a closed,
+  schema-validated verb set (added `askstart`/`focusMarker`/`focusEntry`; token
+  never crosses — canary retained). 154 tests green.
 
 ## ▶ RESUME HERE (next session)
 
-**The surface is `{html, prose, absence}`.** 148 tests green on `main` (pushed to the
+**The surface is `{html, prose, absence}`.** 154 tests green on `main` (pushed to the
 private GitHub remote `dannykim32/visual-chat`; a firewall-friendly self-contained
 tarball ships as a release). The current capability surface:
 
@@ -122,10 +130,11 @@ tarball ships as a release). The current capability surface:
   ask-back loop. Tier 2 (live model JS) deferred, labeled.
 - **`prose`** (issue 24) — a long markdown answer via the own-built zero-dep
   markdown→DOM renderer. **`absence`** — first-class Honest Absence.
-- Ask-back loop closes in the browser: select a section → question home to the
-  terminal → the agent's reply threads inline (issue 22); `answer_askback` is
-  required (delivered via the tool results). Works from *inside* an html artifact
-  via the frame MessageChannel bridge.
+- Ask-back loop closes in the browser: select a section → the pill hands off to a
+  right-side **drawer** with the composer + a quote-tagged conversation and
+  in-content anchor markers (issue 27); the question goes home to the terminal;
+  `answer_askback` fills the drawer entry live (delivered via the tool results).
+  Works from *inside* an html artifact via the frame MessageChannel bridge.
 - Light-mode "Slate" identity (`src/canvas/styles.css`). Installs behind a firewall
   (issue 21).
 

@@ -4,7 +4,7 @@ import "./styles.css";
 import { connectEvents, createApi } from "./api.js";
 import { AskbackUi, wholeArtifactAnchor } from "./askback.js";
 import { Gallery } from "./gallery.js";
-import { ReplyThreads } from "./replies.js";
+import { Drawer } from "./drawer.js";
 import type {
   ArtifactEvent,
   AskbackAnsweredEvent,
@@ -56,14 +56,25 @@ function boot(): void {
       ws.textContent = "workspace: unavailable";
     });
 
-  // Inline canvas answers (issue 22): threads the agent's replies to ask-backs
-  // back under the anchored selection.
-  const replies = new ReplyThreads(document, galleryRoot, api);
+  // Ask-back side drawer (issue 27): the composer + the whole conversation +
+  // in-content markers. Gallery ⇄ drawer are wired by callbacks (forward ref).
+  let gallery!: Gallery;
+  const drawer = new Drawer(document, {
+    api,
+    galleryRoot,
+    // Drawer → marker locate for an html entry: drive the frame over the bridge.
+    locateInFrame: (artifactId, markerId) =>
+      gallery.focusMarkerInFrame(artifactId, markerId),
+    // So a reloaded answer knows prose (parent-drawn markers) vs html (frame).
+    artifactType: (id) => gallery.metaFor(id)?.type ?? null,
+  });
+  drawer.attach(header, document.body);
 
-  const gallery: Gallery = new Gallery(galleryRoot, api, {
-    onAskArtifact: (meta, viewing) => {
-      askbackUi.openComposer(wholeArtifactAnchor(meta.id, viewing, meta.title));
-    },
+  gallery = new Gallery(galleryRoot, api, {
+    onAskArtifact: (meta, viewing) =>
+      drawer.startAsk(wholeArtifactAnchor(meta.id, viewing, meta.title), {
+        isHtml: meta.type === "html",
+      }),
     // Review Moment approval (issue 14): travels the single ask-back channel
     // as a kind:"approval" item (ADR-0010) — no new browser→agent surface.
     onApproveReview: (meta, viewing) => {
@@ -73,19 +84,20 @@ function boot(): void {
         kind: "approval",
       });
     },
-    // html hatch (issue 25): an ask-back raised from inside a sandboxed frame
-    // was accepted — track it so the agent's reply threads back onto the card.
-    onAskbackSubmitted: (id, anchor, question) =>
-      replies.track(id, anchor, question),
+    // html hatch (issue 27): "Ask about this" started inside a sandboxed frame.
+    onAskStart: (artifactId, version, quote, markerId) =>
+      drawer.onFrameAskStart(artifactId, version, quote, markerId),
+    // html hatch (issue 27): an in-frame marker was clicked.
+    onFocusEntry: (artifactId, markerId) =>
+      drawer.highlightEntryByMarker(artifactId, markerId),
   });
   const askbackUi = new AskbackUi(document, {
-    api,
     gallery,
-    onSubmitted: (id, anchor, question) => replies.track(id, anchor, question),
+    onAsk: (anchor) => drawer.startAsk(anchor, { isHtml: false }),
   });
   void gallery
     .init()
-    .then(() => replies.loadAnswered())
+    .then(() => drawer.loadAnswered())
     .catch((err: unknown) => {
       const note = document.createElement("p");
       note.className = "canvas-error";
@@ -98,10 +110,10 @@ function boot(): void {
       if (event === "artifact") {
         void gallery
           .handleArtifactEvent(data as ArtifactEvent)
-          // A card re-render wipes body-mounted threads; re-attach them.
-          .then(() => replies.render());
+          // A card re-render wipes parent-drawn markers; re-attach them.
+          .then(() => drawer.renderMarkers());
       } else if (event === "askback_answered") {
-        void replies.handleAnswered(data as AskbackAnsweredEvent);
+        void drawer.handleAnswered(data as AskbackAnsweredEvent);
       } else if (event === "review_requested") {
         gallery.showReviewBanner((data as { artifact_id: string }).artifact_id);
       } else if (event === "review_resolved") {

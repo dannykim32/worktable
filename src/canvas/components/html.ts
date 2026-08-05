@@ -13,9 +13,10 @@
 //    private MessageChannel port.
 //  · The capability token NEVER crosses the bridge — the parent re-POSTs a
 //    schema-validated ask-back through the existing /api/askbacks door
-//    (ADR-0010). The only message the parent ever sends the frame is {v:"port"}.
-import type { Anchor } from "../../shared/artifacts.js";
-import { QUESTION_MAX, QUOTE_MAX } from "../../shared/constraints.js";
+//    (ADR-0010). The messages the parent sends the frame are the one-time
+//    {v:"port"} transfer and the closed {v:"focusMarker",markerId} verb (issue
+//    27) — neither carries a token.
+import { QUOTE_MAX } from "../../shared/constraints.js";
 import type { CanvasApi } from "../api.js";
 
 /** Clamp a frame-reported height to a sane range (parent is the final word). */
@@ -26,14 +27,17 @@ function clampHeight(px: number): number {
 
 export interface HtmlBridgeDeps {
   iframe: HTMLIFrameElement;
-  api: Pick<CanvasApi, "postAskback">;
   artifactId: string;
   version: number;
   /** Called with the frame's reported content height (already clamped). */
   onResize?: (px: number) => void;
-  /** Called after an ask-back from the frame is accepted, so its eventual
-   *  answer can thread back onto the card (issue 22 whole-artifact path). */
-  onAskbackSubmitted?: (id: string, anchor: Anchor, question: string) => void;
+  /** Issue 27: the human clicked "Ask about this" inside the frame. The parent
+   *  opens the drawer composer pre-filled with `quote`, tracking `markerId` so a
+   *  later locate can drive `focusMarker` back into the frame. */
+  onAskStart?: (quote: string, markerId: string) => void;
+  /** Issue 27: the human clicked an in-frame marker. The parent highlights the
+   *  matching drawer entry (marker → drawer locate). */
+  onFocusEntry?: (markerId: string) => void;
 }
 
 /**
@@ -113,13 +117,18 @@ export class HtmlBridge {
     this.transferred = true;
   };
 
-  /** Process one verb from the frame (over the private port). Closed set:
-   *  {v:"resize",px} and {v:"askback",quote,question}; anything else is dropped.
-   *  Exposed for direct unit testing. */
+  /** Process one verb from the frame (over the private port). CLOSED set:
+   *  {v:"resize",px}, {v:"askstart",quote,markerId}, {v:"focusEntry",markerId};
+   *  anything else is dropped. Exposed for direct unit testing. */
   handleFrameMessage(data: unknown): void {
     if (this.disposed) return;
     if (!data || typeof data !== "object") return;
-    const verb = data as { v?: unknown; px?: unknown; quote?: unknown; question?: unknown };
+    const verb = data as {
+      v?: unknown;
+      px?: unknown;
+      quote?: unknown;
+      markerId?: unknown;
+    };
 
     if (verb.v === "resize") {
       if (typeof verb.px === "number" && Number.isFinite(verb.px)) {
@@ -128,54 +137,75 @@ export class HtmlBridge {
       return;
     }
 
-    if (verb.v === "askback") {
-      if (typeof verb.quote !== "string" || typeof verb.question !== "string") {
+    if (verb.v === "askstart") {
+      // The human started a question inside the frame. The composer lives in the
+      // parent drawer now; only the quote + the frame-assigned markerId cross —
+      // NO question text, NO token. The question is typed + POSTed host-side.
+      if (typeof verb.quote !== "string" || typeof verb.markerId !== "string") {
         return;
       }
       const quote = verb.quote.trim().slice(0, QUOTE_MAX);
-      const question = verb.question.trim().slice(0, QUESTION_MAX);
-      if (quote === "" || question === "") return;
-      // block_index is null: the frame is opaque, there are no host-DOM block
-      // indices — so this is a whole-artifact anchor, and the agent's reply
-      // mounts on the card (replies.ts whole-artifact path).
-      const anchor: Anchor = {
-        artifact_id: this.deps.artifactId,
-        version: this.deps.version,
-        block_index: null,
-        quote,
-      };
-      void this.deps.api
-        .postAskback({ anchor, question })
-        .then((res) => {
-          if (res && this.deps.onAskbackSubmitted) {
-            this.deps.onAskbackSubmitted(res.id, anchor, question);
-          }
-        })
-        .catch(() => {
-          /* surfaced elsewhere; never throw out of the bridge */
-        });
+      const markerId = verb.markerId.slice(0, 64);
+      if (quote === "" || markerId === "") return;
+      this.deps.onAskStart?.(quote, markerId);
+      return;
+    }
+
+    if (verb.v === "focusEntry") {
+      if (typeof verb.markerId !== "string") return;
+      const markerId = verb.markerId.slice(0, 64);
+      if (markerId === "") return;
+      this.deps.onFocusEntry?.(markerId);
       return;
     }
     // Unknown verb → dropped.
   }
+
+  /** Parent → frame: ask the frame to draw (if needed), scroll to, and highlight
+   *  the marker for `markerId` (issue 27). Carries no token. Sent over the
+   *  private port only after the port has been transferred. */
+  focusMarker(markerId: string): void {
+    if (this.disposed) return;
+    try {
+      this.channel.port1.postMessage({ v: "focusMarker", markerId });
+    } catch {
+      /* never throw out of the bridge */
+    }
+  }
 }
 
 export interface HtmlCardDeps {
-  api: Pick<CanvasApi, "postAskback">;
   frameOrigin: string;
   frameSlug: string;
   artifactId: string;
   version: number;
   title: string;
-  onAskbackSubmitted?: (id: string, anchor: Anchor, question: string) => void;
+  /** Issue 27: an "Ask about this" started inside the frame — open the parent
+   *  drawer composer for this artifact/version, tracking the frame's markerId. */
+  onAskStart?: (
+    artifactId: string,
+    version: number,
+    quote: string,
+    markerId: string,
+  ) => void;
+  /** Issue 27: an in-frame marker was clicked — highlight its drawer entry. */
+  onFocusEntry?: (artifactId: string, markerId: string) => void;
 }
 
-/** Build the sandboxed iframe card body + its bridge. Returns a disposer the
- *  gallery calls before re-rendering (scrub/update) to drop window listeners. */
+/** The live handle for an html card: a disposer (drop window listeners before a
+ *  re-render) plus `focusMarker` so the drawer can drive drawer → marker locate
+ *  into the frame (issue 27). */
+export interface HtmlCardHandle {
+  dispose(): void;
+  focusMarker(markerId: string): void;
+}
+
+/** Build the sandboxed iframe card body + its bridge. Returns the card handle;
+ *  the gallery calls `dispose` before re-rendering (scrub/update). */
 export function renderHtmlCard(
   mount: HTMLElement,
   deps: HtmlCardDeps,
-): { dispose(): void } {
+): HtmlCardHandle {
   const doc = mount.ownerDocument;
   mount.classList.add("html-body");
 
@@ -199,14 +229,18 @@ export function renderHtmlCard(
 
   const bridge = new HtmlBridge({
     iframe,
-    api: deps.api,
     artifactId: deps.artifactId,
     version: deps.version,
     onResize: (px) => {
       iframe.style.height = `${px}px`;
     },
-    onAskbackSubmitted: deps.onAskbackSubmitted,
+    onAskStart: (quote, markerId) =>
+      deps.onAskStart?.(deps.artifactId, deps.version, quote, markerId),
+    onFocusEntry: (markerId) => deps.onFocusEntry?.(deps.artifactId, markerId),
   });
   bridge.start();
-  return { dispose: () => bridge.dispose() };
+  return {
+    dispose: () => bridge.dispose(),
+    focusMarker: (markerId) => bridge.focusMarker(markerId),
+  };
 }

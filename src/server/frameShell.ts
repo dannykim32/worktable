@@ -13,7 +13,7 @@
 //  · nonce= attributes on model tags — the nonce is fresh per response and never
 //    shown to the model, so it cannot be guessed; strip anyway so no model tag
 //    can carry a literal `nonce=` that a browser quirk might honor.
-import { QUESTION_MAX, QUOTE_MAX } from "../shared/constraints.js";
+import { QUOTE_MAX } from "../shared/constraints.js";
 
 /** Remove `<meta http-equiv=refresh …>` tags (any attribute order/quoting). */
 export function stripMetaRefresh(html: string): string {
@@ -34,11 +34,19 @@ export function sanitizeModelHtmlMarkup(html: string): string {
 }
 
 /** The capture prelude, parameterized by the per-response nonce. Trusted code:
- *  it sets up the frame→parent MessageChannel bridge (receives the transferred
+ *  it sets up the frame↔parent MessageChannel bridge (receives the transferred
  *  port from the parent), reports its content height for auto-resize, and offers
- *  an "Ask about this" affordance on text selection that sends a closed
- *  `{v:"askback"}` verb over the port. It NEVER sends anything else, and no
- *  capability token exists in this origin to leak. */
+ *  an "Ask about this" affordance on text selection.
+ *
+ *  Issue 27: the in-frame composer BOX is gone — the composer + the whole
+ *  conversation now live in the PARENT drawer. On pill click the prelude assigns
+ *  a `markerId` (its own counter), stashes the selection Range under it, and
+ *  sends the closed `{v:"askstart",quote,markerId}` verb. It draws the persistent
+ *  in-content marker only when the parent later confirms the asked question with
+ *  `{v:"focusMarker",markerId}` (which also scrolls + highlights it). Clicking a
+ *  drawn marker sends `{v:"focusEntry",markerId}` so the parent can highlight the
+ *  matching drawer entry. It sends nothing else, and no capability token exists
+ *  in this origin to leak. */
 function capturePrelude(): string {
   // Plain string (no backtick template) so the served <script> can never
   // contain a stray `${…}` or an accidental `</script>`.
@@ -46,19 +54,38 @@ function capturePrelude(): string {
     "(function () {",
     "  'use strict';",
     "  var QUOTE_MAX = " + QUOTE_MAX + ";",
-    "  var QUESTION_MAX = " + QUESTION_MAX + ";",
     "  var port = null;",
     "  function send(msg) { if (port) { try { port.postMessage(msg); } catch (e) {} } }",
+    "  // markerId -> { range: Range, el: HTMLElement|null }. The counter is the",
+    "  // prelude's own; a marker is DRAWN only once its question is confirmed",
+    "  // (parent -> focusMarker), so a cancelled composer leaves nothing behind.",
+    "  var markers = Object.create(null);",
+    "  var markerSeq = 0;",
+    "  var reduceMotion = false;",
+    "  try { reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}",
     "  // Receive the transferred MessageChannel port from the parent. Accept it",
     "  // ONLY from our own parent window; ignore any other source.",
     "  function onInit(e) {",
     "    if (e.source !== window.parent) return;",
     "    if (!e.data || e.data.v !== 'port' || !e.ports || !e.ports[0]) return;",
     "    port = e.ports[0];",
+    "    port.onmessage = onPortMessage;",
     "    window.removeEventListener('message', onInit);",
     "    reportHeight();",
     "  }",
     "  window.addEventListener('message', onInit);",
+    "  // Parent -> frame verbs over the private port. CLOSED set: focusMarker.",
+    "  // Anything else is dropped.",
+    "  function onPortMessage(e) {",
+    "    var d = e && e.data;",
+    "    if (!d || typeof d !== 'object') return;",
+    "    if (d.v === 'focusMarker') {",
+    "      if (typeof d.markerId !== 'string') return;",
+    "      focusMarker(d.markerId);",
+    "      return;",
+    "    }",
+    "    // Unknown verb -> dropped.",
+    "  }",
     "  // Announce readiness to the parent so it can identity-check us",
     "  // (event.source === our iframe) and transfer the bridge port.",
     "  function announce() { try { window.parent.postMessage({ v: 'ready' }, '*'); } catch (e) {} }",
@@ -90,28 +117,52 @@ function capturePrelude(): string {
     "  if (document.fonts && document.fonts.ready && document.fonts.ready.then) {",
     "    document.fonts.ready.then(reportHeight).catch(function () {});",
     "  }",
-    "  // Ask-about-this affordance on text selection.",
+    "  // Draw the persistent in-content marker for markerId from its stashed",
+    "  // Range: try to wrap the selection; fall back to a caret glyph at its",
+    "  // start. Clicking it asks the parent to highlight the drawer entry.",
+    "  function drawMarker(id) {",
+    "    var m = markers[id];",
+    "    if (!m || m.el) return m ? m.el : null;",
+    "    var el = document.createElement('span');",
+    "    el.setAttribute('data-vc-marker', id);",
+    "    el.setAttribute('role', 'button');",
+    "    el.setAttribute('tabindex', '0');",
+    "    el.setAttribute('aria-label', 'asked about this — show in the conversation');",
+    "    el.setAttribute('style', 'background:#fde68a;outline:1px solid #f59e0b;border-radius:2px;cursor:pointer;');",
+    "    try {",
+    "      m.range.surroundContents(el);",
+    "    } catch (e) {",
+    "      try {",
+    "        var r2 = m.range.cloneRange();",
+    "        r2.collapse(true);",
+    "        el.textContent = '\\u25C6';",
+    "        el.setAttribute('style', 'color:#b45309;cursor:pointer;font-size:0.8em;vertical-align:super;');",
+    "        r2.insertNode(el);",
+    "      } catch (e2) { return null; }",
+    "    }",
+    "    el.addEventListener('click', function () { send({ v: 'focusEntry', markerId: id }); });",
+    "    m.el = el;",
+    "    return el;",
+    "  }",
+    "  function focusMarker(id) {",
+    "    var el = drawMarker(id);",
+    "    if (!el) return;",
+    "    try { el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }",
+    "    el.setAttribute('data-vc-flash', '1');",
+    "    setTimeout(function () { if (el) el.removeAttribute('data-vc-flash'); }, 1600);",
+    "  }",
+    "  // Ask-about-this affordance on text selection (pill only — the composer",
+    "  // lives in the parent drawer now).",
     "  var host = document.createElement('div');",
     "  host.setAttribute('style', 'position:fixed;z-index:2147483647;top:0;left:0;');",
     "  var pill = document.createElement('button');",
     "  pill.type = 'button';",
     "  pill.textContent = 'Ask about this';",
-    "  pill.setAttribute('style', 'position:fixed;display:none;font:13px/1.4 system-ui,sans-serif;padding:4px 10px;border-radius:14px;border:1px solid #8883;background:#1f6feb;color:#fff;cursor:pointer;box-shadow:0 2px 8px #0004;');",
-    "  var box = document.createElement('div');",
-    "  box.setAttribute('style', 'position:fixed;display:none;font:13px/1.4 system-ui,sans-serif;background:#fff;color:#111;border:1px solid #0002;border-radius:8px;padding:8px;box-shadow:0 4px 16px #0003;max-width:320px;');",
-    "  var input = document.createElement('input');",
-    "  input.type = 'text';",
-    "  input.setAttribute('aria-label', 'ask the agent about this selection');",
-    "  input.placeholder = 'Ask the agent about this selection…';",
-    "  input.setAttribute('style', 'width:260px;padding:4px 6px;border:1px solid #0003;border-radius:5px;font:inherit;');",
-    "  var sendBtn = document.createElement('button');",
-    "  sendBtn.type = 'button';",
-    "  sendBtn.textContent = 'Send';",
-    "  sendBtn.setAttribute('style', 'margin-left:6px;padding:4px 10px;border-radius:5px;border:0;background:#1f6feb;color:#fff;cursor:pointer;font:inherit;');",
-    "  box.appendChild(input); box.appendChild(sendBtn);",
-    "  host.appendChild(pill); host.appendChild(box);",
+    "  pill.setAttribute('style', 'position:fixed;display:none;font:13px/1.4 system-ui,sans-serif;padding:4px 10px;border-radius:14px;border:1px solid #8883;background:#0f766e;color:#fff;cursor:pointer;box-shadow:0 2px 8px #0004;');",
+    "  host.appendChild(pill);",
     "  var currentQuote = '';",
-    "  function hideAll() { pill.style.display = 'none'; box.style.display = 'none'; }",
+    "  var currentRange = null;",
+    "  function hideAll() { pill.style.display = 'none'; }",
     "  function place(el, x, y) { el.style.left = Math.max(4, x) + 'px'; el.style.top = Math.max(4, y) + 'px'; }",
     "  document.addEventListener('mouseup', function (ev) {",
     "    if (host.contains(ev.target)) return;",
@@ -120,28 +171,19 @@ function capturePrelude(): string {
     "    var text = String(sel.toString()).trim();",
     "    if (text === '') { hideAll(); return; }",
     "    currentQuote = text.slice(0, QUOTE_MAX);",
+    "    currentRange = sel.getRangeAt(0).cloneRange();",
     "    var rect = sel.getRangeAt(0).getBoundingClientRect();",
-    "    box.style.display = 'none';",
     "    place(pill, rect.left, Math.max(4, rect.top - 34));",
     "    pill.style.display = 'inline-block';",
     "  });",
     "  pill.addEventListener('click', function () {",
-    "    pill.style.display = 'none';",
-    "    place(box, parseFloat(pill.style.left) || 8, (parseFloat(pill.style.top) || 8) + 30);",
-    "    box.style.display = 'block';",
-    "    input.value = '';",
-    "    input.focus();",
-    "  });",
-    "  function submitAsk() {",
-    "    var q = String(input.value).trim().slice(0, QUESTION_MAX);",
-    "    if (q === '' || currentQuote === '') return;",
-    "    send({ v: 'askback', quote: currentQuote, question: q });",
+    "    if (currentQuote === '' || !currentRange) { hideAll(); return; }",
+    "    markerSeq++;",
+    "    var markerId = 'm' + markerSeq;",
+    "    // Stash the Range so a later focusMarker can draw the persistent marker.",
+    "    markers[markerId] = { range: currentRange, el: null };",
+    "    send({ v: 'askstart', quote: currentQuote, markerId: markerId });",
     "    hideAll();",
-    "  }",
-    "  sendBtn.addEventListener('click', submitAsk);",
-    "  input.addEventListener('keydown', function (e) {",
-    "    if (e.key === 'Enter') submitAsk();",
-    "    if (e.key === 'Escape') hideAll();",
     "  });",
     "  function attachHost() { if (document.body) document.body.appendChild(host); }",
     "  if (document.body) attachHost();",
