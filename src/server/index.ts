@@ -306,7 +306,11 @@ async function main(): Promise<void> {
         "assets as data: URIs, NO external <link>/fonts/CDN and NO <meta " +
         "http-equiv> — because the frame has no network; (2) it renders as STATIC " +
         "rich HTML/CSS/SVG (your own <script> is neutralized), so make diagrams " +
-        "with markup and CSS, not JS. Publish that page HERE via type:html — do " +
+        "with markup and CSS, not JS; (3) it must FIT ITS WIDTH — scale inline " +
+        "SVG with a viewBox + width:100%/height:auto (never a hard-coded pixel " +
+        "width wider than the page), and wrap or put overflow-x:auto on any wide " +
+        "table/diagram, so nothing is clipped. Publish that page HERE via " +
+        "type:html — do " +
         "NOT send it to the native Artifact tool / claude.ai artifacts instead; " +
         "that surface can't be asked-back on, which is the entire point of this " +
         'one. "prose" renders a long markdown answer (plain text, no bespoke ' +

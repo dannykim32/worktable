@@ -49,6 +49,10 @@ renders artifacts.
     external `<link>`/fonts/CDN and no `<meta http-equiv>`. The frame has no network.
   - **Static.** Your own `<script>` is neutralized — draw diagrams with HTML/CSS
     and inline SVG, not JS. (Live-JS interactivity is a deferred capability.)
+  - **Fit the width.** The page must not clip. Scale inline SVG with a `viewBox` +
+    `width:100%; height:auto` (never a hard-coded pixel width wider than the page);
+    wrap or put `overflow-x:auto` on any table or diagram that could exceed the
+    viewport. A diagram the reader can't fully see is worse than a sentence.
 - `prose` (send `markdown`) for a long plain-text answer with no bespoke visual —
   the canvas renders it richly and select-and-ask-ably. `absence` (with a `reason`)
   to decline honestly instead of fabricating. Never fabricate a visual.
