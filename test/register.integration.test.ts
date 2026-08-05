@@ -74,6 +74,38 @@ describe("register.mjs", () => {
     expect(agents.startsWith("<!-- worktable-guidance -->")).toBe(true);
   });
 
+  test("migration: a stale visual-chat .mcp.json entry is dropped, others kept", () => {
+    const target = scratch();
+    writeFileSync(
+      join(target, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          "visual-chat": { command: "node", args: ["/old/dist/server/index.js"] },
+          other: { command: "foo", args: ["bar"] },
+        },
+      }),
+    );
+    run(target);
+    const mcp = readJson(join(target, ".mcp.json"));
+    expect(mcp.mcpServers["visual-chat"]).toBeUndefined();
+    expect(mcp.mcpServers["worktable"].command).toBe("node");
+    expect(mcp.mcpServers.other).toEqual({ command: "foo", args: ["bar"] });
+  });
+
+  test("migration: a stale visual-chat guidance block is stripped before the new one lands", () => {
+    const target = scratch();
+    writeFileSync(
+      join(target, "AGENTS.md"),
+      "# My project\n\nkeep me\n\n<!-- visual-chat-guidance -->\n## Visual Chat\n\nold instructions referencing visual-chat tools\n<!-- /visual-chat-guidance -->\n",
+    );
+    run(target, "--guidance");
+    const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
+    expect(agents).toContain("keep me");
+    expect(agents).not.toContain("visual-chat-guidance");
+    expect(agents).not.toContain("old instructions");
+    expect(agents.match(/<!-- worktable-guidance -->/g)?.length).toBe(1);
+  });
+
   test("--guidance substitutes the install path into the listener command", () => {
     const target = scratch();
     run(target, "--guidance");

@@ -106,6 +106,11 @@ function mergeMcpJson(target, summary) {
   }
   const servers = config.mcpServers ?? {};
   const existed = Object.prototype.hasOwnProperty.call(servers, "worktable");
+  // Migration: this project shipped as "visual-chat" before the rename. A
+  // stale entry would register a second (identically-pathed or dead) server,
+  // so drop it when we write the current one.
+  const hadStale = Object.prototype.hasOwnProperty.call(servers, "visual-chat");
+  if (hadStale) delete servers["visual-chat"];
   servers["worktable"] = {
     command: "node",
     args: [distServer],
@@ -116,6 +121,9 @@ function mergeMcpJson(target, summary) {
     `${existed ? "updated" : "added"} worktable in ${path}\n` +
       `    → node ${distServer}`,
   );
+  if (hadStale) {
+    summary.push(`removed stale visual-chat entry from ${path} (renamed project)`);
+  }
 }
 
 /** Return the guidance payload (marker block, inclusive) from the repo doc.
@@ -151,14 +159,40 @@ function appendGuidance(target, summary) {
     : existsSync(claude)
       ? claude
       : agents;
-  const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
+  let existing = existsSync(path) ? readFileSync(path, "utf8") : "";
+  // Migration: strip a pre-rename visual-chat guidance block first — it
+  // instructs the agent to use tools under the old server name, so leaving it
+  // beside the new block would give the agent two conflicting protocols.
+  const stripped = stripMarkerBlock(
+    existing,
+    "<!-- visual-chat-guidance -->",
+    "<!-- /visual-chat-guidance -->",
+  );
+  if (stripped !== null) {
+    existing = stripped;
+    summary.push(`removed stale visual-chat guidance block from ${path}`);
+  }
   if (existing.includes(MARKER)) {
+    if (stripped !== null) writeFileSync(path, existing);
     summary.push(`guidance already present in ${path} (no-op)`);
     return;
   }
   const sep = existing === "" ? "" : existing.endsWith("\n") ? "\n" : "\n\n";
   writeFileSync(path, existing + sep + guidancePayload() + "\n");
   summary.push(`appended guidance snippet to ${path}`);
+}
+
+/** Remove a whole-line marker block (inclusive) from `text`. Returns the new
+ *  text, or null when no complete block is present. */
+function stripMarkerBlock(text, startMarker, endMarker) {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.trim() === startMarker);
+  const end = lines.findIndex((l) => l.trim() === endMarker);
+  if (start === -1 || end === -1 || end < start) return null;
+  // Also swallow ONE leading blank line so the removal doesn't leave a gap.
+  const from = start > 0 && lines[start - 1].trim() === "" ? start - 1 : start;
+  lines.splice(from, end - from + 1);
+  return lines.join("\n");
 }
 
 /** Merge the Claude Code UserPromptSubmit ask-back hook into

@@ -22,7 +22,12 @@ if [ ! -f "$SERVER" ]; then
 fi
 
 # Register for every Claude Code session (user scope). Idempotent: remove then add.
+# Also drop the pre-rename "visual-chat" registration if this machine has one —
+# left behind, it registers a second (usually dead) copy of this same server.
 if command -v claude >/dev/null 2>&1; then
+  if claude mcp remove visual-chat -s user >/dev/null 2>&1; then
+    echo "  ✓ removed stale 'visual-chat' registration (project renamed)"
+  fi
   claude mcp remove worktable -s user >/dev/null 2>&1 || true
   if claude mcp add -s user worktable -- node "$SERVER"; then
     echo "  ✓ registered 'worktable' for every Claude Code session"
@@ -43,6 +48,11 @@ if [ "${1:-}" != "" ]; then
   else
     echo "  ! '$1' is not a directory — skipped project setup"
   fi
+fi
+
+if [ -d "$HOME/.visual-chat" ]; then
+  echo "  ! pre-rename state found at ~/.visual-chat (old tokens/artifacts) —"
+  echo "    the server now uses ~/.worktable. Safe to delete: rm -rf ~/.visual-chat"
 fi
 
 echo
