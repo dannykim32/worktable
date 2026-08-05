@@ -454,6 +454,23 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--callout-bg);
 }
+/* Terminal-turn nudge — a solid accent bar so it's unmissable that the queued
+   question needs a terminal keystroke to be delivered. */
+.drawer-nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--accent-warm);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1.35;
+}
+.drawer-nudge-icon {
+  font-size: 15px;
+  flex: none;
+}
 .drawer-composer-label {
   font-size: 11px;
   text-transform: uppercase;

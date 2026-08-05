@@ -67,6 +67,9 @@ export class Drawer {
   private readonly status: HTMLElement;
   private readonly list: HTMLElement;
   private readonly emptyNote: HTMLElement;
+  /** Prominent "the ball is in the terminal's court" banner, shown whenever a
+   *  question is waiting for the human to submit a terminal turn (issue 27). */
+  private readonly nudge: HTMLElement;
 
   private open_ = false;
   /** The in-progress question, before submit. */
@@ -126,6 +129,14 @@ export class Drawer {
     });
     this.composer.append(composerLabel, this.quoteBox, this.input, this.status);
 
+    // Terminal-turn nudge: an idle agent can't be woken from here, so once a
+    // question is waiting, make it unmissable that the human must submit a
+    // terminal turn to deliver it. Hidden until there's a pending question.
+    this.nudge = doc.createElement("div");
+    this.nudge.className = "drawer-nudge";
+    this.nudge.hidden = true;
+    this.nudge.setAttribute("role", "status");
+
     // Conversation list.
     this.list = doc.createElement("div");
     this.list.className = "drawer-list";
@@ -135,7 +146,7 @@ export class Drawer {
       "Select text in an artifact and choose “Ask about this” — your questions " +
       "and the agent's answers gather here.";
 
-    this.panel.append(header, this.composer, this.list);
+    this.panel.append(header, this.composer, this.nudge, this.list);
     this.renderList();
     this.refreshToggle();
   }
@@ -274,6 +285,7 @@ export class Drawer {
     if (this.entries.size === 0) {
       this.list.appendChild(this.emptyNote);
       this.refreshToggle();
+      this.refreshNudge();
       return;
     }
     let n = 0;
@@ -283,6 +295,32 @@ export class Drawer {
       this.list.appendChild(entry.entryEl);
     }
     this.refreshToggle();
+    this.refreshNudge();
+  }
+
+  /** Show the terminal-turn nudge iff a question is still waiting for its answer
+   *  — an idle agent can't be woken from here, so make the next step obvious. */
+  private refreshNudge(): void {
+    let waiting = 0;
+    for (const e of this.entries.values()) if (!e.answer) waiting++;
+    if (waiting === 0) {
+      this.nudge.hidden = true;
+      this.nudge.replaceChildren();
+      return;
+    }
+    this.nudge.replaceChildren();
+    const icon = this.doc.createElement("span");
+    icon.className = "drawer-nudge-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⌨";
+    const text = this.doc.createElement("span");
+    text.className = "drawer-nudge-text";
+    text.textContent =
+      waiting === 1
+        ? "Type anything in your terminal to send this question to the agent."
+        : `Type anything in your terminal to send your ${waiting} pending questions.`;
+    this.nudge.append(icon, text);
+    this.nudge.hidden = false;
   }
 
   private buildEntry(entry: DrawerEntry, num: number): HTMLElement {

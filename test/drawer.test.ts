@@ -123,6 +123,11 @@ describe("Drawer composer + submit (issue 27)", () => {
       "why this sentence?",
     );
 
+    // The terminal-turn nudge banner is shown (unmissable) while a question waits.
+    const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
+    expect(nudge.hidden).toBe(false);
+    expect(nudge.textContent).toContain("terminal");
+
     // A parent marker is drawn right after the anchored block.
     const marker = galleryRoot.querySelector(".anchor-marker") as HTMLElement;
     expect(marker).not.toBeNull();
@@ -151,6 +156,10 @@ describe("Drawer composer + submit (issue 27)", () => {
     expect(drawer.panel.querySelector(".drawer-entry-text")!.textContent).toBe(
       "the answer.",
     );
+    // Nothing waiting → the terminal-turn nudge clears.
+    expect(
+      (drawer.panel.querySelector(".drawer-nudge") as HTMLElement).hidden,
+    ).toBe(true);
   });
 
   test("boot re-render: answered ask-backs appear after a reload with no prior tracking", async () => {
