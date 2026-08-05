@@ -263,6 +263,66 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
     sse.close();
   }, 20_000);
 
+  test("budget loops inner windows; exit message biases toward re-arming", async () => {
+    const started = Date.now();
+    const run = spawnSync(
+      "bun",
+      [cliEntry, "--timeout-ms", "5000", "--budget-ms", "11000"],
+      {
+        cwd: repoRoot,
+        env: { ...(process.env as Record<string, string>), HOME: server.home },
+        encoding: "utf8",
+      },
+    );
+    const elapsed = Date.now() - started;
+    expect(run.status).toBe(0);
+    // Two full 5s windows fit; the ~1s remainder is under the poll floor.
+    expect(elapsed).toBeGreaterThanOrEqual(9_500);
+    expect(run.stdout).toContain("listened ~");
+    expect(run.stdout).toContain("RE-ARM");
+  }, 25_000);
+
+  test("an ask in a LATER inner window still wakes; listening never flaps between windows", async () => {
+    // The PREVIOUS test's arming ended inside the off-grace window; let it
+    // lapse so this test's connect snapshot starts from a clean off.
+    await sleep(2_600);
+    const sse = await openSse(server.port, server.token());
+    const snapshot = await sse.waitFor("listening"); // connect snapshot
+    expect(snapshot.data).toEqual({ on: false });
+
+    const child = spawn(
+      "bun",
+      [cliEntry, "--timeout-ms", "5000", "--budget-ms", "60000"],
+      {
+        cwd: repoRoot,
+        env: { ...(process.env as Record<string, string>), HOME: server.home },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stdout = "";
+    child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+    const exited = new Promise<number | null>((resolve) =>
+      child.on("close", (code) => resolve(code)),
+    );
+
+    await waitListeningCount(sse, 2, 10_000); // armed (on:true)
+    await sleep(6_000); // cross into the SECOND inner window
+    await postAskback("wake during window two");
+
+    expect(await exited).toBe(0);
+    expect(stdout).toContain("call check_askbacks");
+
+    // One continuous session on the canvas: snapshot(off), armed(on), then off
+    // ONLY at the wake — the 5s window boundary produced no flap (the server's
+    // off-grace outlives the CLI's re-poll gap).
+    const frames = await waitListeningCount(sse, 3, 10_000);
+    expect(frames.map((f) => f.on)).toEqual([false, true, false]);
+
+    expect(await pendingCount()).toBe(1);
+    await drainQueue();
+    sse.close();
+  }, 30_000);
+
   test("server not running (stale state files) → 'Do not re-arm', exit 0", async () => {
     const doomed = await spawnServer();
     const home = doomed.home;

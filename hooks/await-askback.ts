@@ -21,15 +21,40 @@ const TIMEOUT_DEFAULT_MS = 240_000;
 /** Fetch slack past the poll window: the server must win the timeout race. */
 const FETCH_SLACK_MS = 10_000;
 
+// One ARMING listens far longer than one HTTP poll: the route caps a single
+// long-poll at 240s, so this CLI loops polls internally and only exits (waking
+// the agent) on a question or when the whole budget runs out. Dogfood showed
+// why: with 4-minute exits the agent woke empty three times while the human
+// was simply reading, concluded they'd left, and stopped listening at the
+// exact moment an artifact was waiting on their decisions.
+const BUDGET_DEFAULT_MS = 45 * 60_000;
+const BUDGET_MAX_MS = 4 * 60 * 60_000;
+
 const IDLE_MESSAGE =
   "worktable: canvas server not reachable — listener idle. Do not re-arm.";
 
-function parseTimeoutMs(argv: string[]): number {
-  const i = argv.indexOf("--timeout-ms");
-  if (i === -1 || argv[i + 1] === undefined) return TIMEOUT_DEFAULT_MS;
+function parseFlagMs(argv: string[], flag: string): number | null {
+  const i = argv.indexOf(flag);
+  if (i === -1 || argv[i + 1] === undefined) return null;
   const n = Number(argv[i + 1]);
-  if (!Number.isFinite(n)) return TIMEOUT_DEFAULT_MS;
-  return Math.min(TIMEOUT_MAX_MS, Math.max(TIMEOUT_MIN_MS, Math.floor(n)));
+  return Number.isFinite(n) ? Math.floor(n) : null;
+}
+
+/** Inner poll window (per HTTP request). */
+function parseTimeoutMs(argv: string[]): number {
+  const n = parseFlagMs(argv, "--timeout-ms");
+  if (n === null) return TIMEOUT_DEFAULT_MS;
+  return Math.min(TIMEOUT_MAX_MS, Math.max(TIMEOUT_MIN_MS, n));
+}
+
+/** Total listening budget across polls. When --timeout-ms is given WITHOUT a
+ *  budget, the budget collapses to that one window — explicit short polls
+ *  (tests, scripts) keep their single-request semantics. */
+function parseBudgetMs(argv: string[], timeoutMs: number): number {
+  const n = parseFlagMs(argv, "--budget-ms");
+  if (n !== null) return Math.min(BUDGET_MAX_MS, Math.max(timeoutMs, n));
+  if (parseFlagMs(argv, "--timeout-ms") !== null) return timeoutMs;
+  return BUDGET_DEFAULT_MS;
 }
 
 function askMessage(pending: number): string {
@@ -40,10 +65,14 @@ function askMessage(pending: number): string {
   );
 }
 
-const TIMEOUT_MESSAGE =
-  "worktable: listener window ended with no questions. Re-arm it (same " +
-  "command, in the background) if you're still working with the canvas; " +
-  "otherwise let it rest.";
+function budgetMessage(minutes: number): string {
+  return (
+    `worktable: listened ~${minutes} min with no questions. If the canvas is ` +
+    "still the active surface — an artifact is awaiting the human's input or " +
+    "they're reading — RE-ARM (same command, in the background). Only let it " +
+    "rest if the conversation has clearly moved on from the canvas."
+  );
+}
 
 async function awaitAskbacks(
   port: string,
@@ -68,7 +97,9 @@ async function awaitAskbacks(
 }
 
 async function main(): Promise<void> {
-  const timeoutMs = parseTimeoutMs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const timeoutMs = parseTimeoutMs(argv);
+  const budgetMs = parseBudgetMs(argv, timeoutMs);
 
   let workspaceId: string;
   try {
@@ -102,17 +133,34 @@ async function main(): Promise<void> {
     return;
   }
 
-  try {
-    const body = await awaitAskbacks(port, token, timeoutMs);
-    if (body.status === "ask") {
-      console.log(askMessage(body.pending ?? 1));
-    } else {
-      console.log(TIMEOUT_MESSAGE);
+  // Poll until a question arrives or the budget runs out. Inner timeouts are
+  // silent — only the FINAL exit wakes the agent, so listening for 45 minutes
+  // costs the same one wake-up as listening for 4.
+  const deadline = Date.now() + budgetMs;
+  for (;;) {
+    const remaining = deadline - Date.now();
+    if (remaining < TIMEOUT_MIN_MS) {
+      console.log(budgetMessage(Math.max(1, Math.round(budgetMs / 60_000))));
+      return;
     }
-  } catch (err) {
-    // Server down, connection refused/severed, or the poll never answered.
-    console.error(`worktable: listener poll failed: ${String(err)}`);
-    console.log(IDLE_MESSAGE);
+    try {
+      const body = await awaitAskbacks(
+        port,
+        token,
+        Math.min(timeoutMs, remaining),
+      );
+      if (body.status === "ask") {
+        console.log(askMessage(body.pending ?? 1));
+        return;
+      }
+      // timeout → immediately re-poll (the server debounces its "listening"
+      // indicator across this gap, so the canvas shows one continuous session).
+    } catch (err) {
+      // Server down, connection refused/severed, or the poll never answered.
+      console.error(`worktable: listener poll failed: ${String(err)}`);
+      console.log(IDLE_MESSAGE);
+      return;
+    }
   }
 }
 

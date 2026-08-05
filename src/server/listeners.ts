@@ -41,24 +41,56 @@ interface ParkedWaiter {
   resolve: (result: AwaitResult) => void;
 }
 
+/** How long a zero-waiter gap may last before "listening" is announced off.
+ *  The CLI loops 240s polls inside one arming; between polls there is a
+ *  milliseconds-wide gap with no parked waiter, and without this grace the
+ *  canvas indicator (and its banner copy) would flap on every cycle. */
+export const LISTENING_OFF_GRACE_MS = 2_500;
+
 export class ListenerPark {
   /** Insertion-ordered: index 0 is the oldest waiter (the cap's victim). */
   private readonly waiters: ParkedWaiter[] = [];
+  /** The ANNOUNCED listening state (what the canvas was last told). */
+  private announced = false;
+  private offTimer: NodeJS.Timeout | null = null;
 
   constructor(
-    /** Fired on every 0↔≥1 transition (the canvas `listening` broadcast). */
+    /** Fired when the announced listening state changes. */
     private readonly onTransition: (listening: boolean) => void = () => {},
+    /** Injectable for tests. */
+    private readonly offGraceMs: number = LISTENING_OFF_GRACE_MS,
   ) {}
 
+  /** The announced state — a re-polling CLI reads as ONE continuous session. */
   get listening(): boolean {
-    return this.waiters.length > 0;
+    return this.announced;
+  }
+
+  private announce(on: boolean): void {
+    if (this.offTimer) {
+      clearTimeout(this.offTimer);
+      this.offTimer = null;
+    }
+    if (this.announced === on) return;
+    this.announced = on;
+    this.onTransition(on);
+  }
+
+  /** A quiet gap (timeout/disconnect) — announce off only if no waiter
+   *  re-parks within the grace window. */
+  private announceOffLazily(): void {
+    if (!this.announced || this.offTimer) return;
+    this.offTimer = setTimeout(() => {
+      this.offTimer = null;
+      if (this.waiters.length === 0) this.announce(false);
+    }, this.offGraceMs);
+    this.offTimer.unref?.();
   }
 
   /** Park a waiter for up to `timeoutMs`. Returns an unpark handle the route
    *  wires to the response's `close` event, so a killed job or dropped socket
    *  never leaves a phantom "listening" state. */
   park(timeoutMs: number, resolve: (result: AwaitResult) => void): () => void {
-    const wasListening = this.listening;
     if (this.waiters.length >= AWAIT_WAITER_CAP) {
       const oldest = this.waiters.shift()!;
       this.settle(oldest, { status: "timeout" });
@@ -69,7 +101,7 @@ export class ListenerPark {
     };
     waiter.timer.unref?.();
     this.waiters.push(waiter);
-    if (!wasListening) this.onTransition(true);
+    this.announce(true);
     return () => this.drop(waiter);
   }
 
@@ -86,25 +118,31 @@ export class ListenerPark {
     this.settleAll({ status: "timeout" });
   }
 
-  /** The waiter's own timer fired. */
+  /** The waiter's own timer fired: a quiet inner-poll boundary — the CLI will
+   *  re-park within milliseconds, so the off-announcement waits out the grace. */
   private expire(waiter: ParkedWaiter): void {
     if (!this.remove(waiter)) return;
     waiter.resolve({ status: "timeout" });
-    if (this.waiters.length === 0) this.onTransition(false);
+    if (this.waiters.length === 0) this.announceOffLazily();
   }
 
   /** The client vanished (response closed): forget the waiter, resolve nothing. */
   private drop(waiter: ParkedWaiter): void {
     if (!this.remove(waiter)) return; // already settled — idempotent
     clearTimeout(waiter.timer);
-    if (this.waiters.length === 0) this.onTransition(false);
+    if (this.waiters.length === 0) this.announceOffLazily();
   }
 
+  /** Wake/shutdown are REAL session ends — announce off immediately (on wake
+   *  the CLI exits and the agent acts; a lingering "listening" would lie). */
   private settleAll(result: AwaitResult): void {
-    if (this.waiters.length === 0) return;
+    if (this.waiters.length === 0) {
+      this.announce(false);
+      return;
+    }
     const settling = this.waiters.splice(0);
     for (const waiter of settling) this.settle(waiter, result);
-    this.onTransition(false);
+    this.announce(false);
   }
 
   private settle(waiter: ParkedWaiter, result: AwaitResult): void {
