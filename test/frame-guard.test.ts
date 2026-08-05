@@ -134,6 +134,20 @@ describe("frameGuard — ALLOWS benign static HTML", () => {
     allows('<a href="https://ok.example/page">a link</a>');
   });
 
+  // Clickable external references: an <a href> is CLICK-gated, not no-click
+  // egress — the frame prelude intercepts the click and the parent bridge opens
+  // it (openlink verb). These lock in that ingest keeps passing them.
+  test("clickable reference: <a href=https://…> (with child span) passes ingest", () => {
+    allows(
+      '<p>Tracked in <a href="https://issues.example/browse/PROJ-123">' +
+        "<span>PROJ-123</span></a></p>",
+    );
+  });
+
+  test("clickable reference: in-page <a href=#local> passes ingest", () => {
+    allows('<a href="#local">jump</a><h2 id="local">Local section</h2>');
+  });
+
   test("a `>` and a meta-looking string inside another tag's quoted value", () => {
     allows('<div data-note="<meta http-equiv=refresh>">safe</div>');
   });

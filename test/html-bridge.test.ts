@@ -4,7 +4,10 @@
 //  · the rendered iframe is sandbox="allow-scripts" with NO allow-same-origin;
 //  · the bridge accepts messages ONLY from its own iframe (event.source);
 //  · the verb set is CLOSED + schema-validated — frame→parent {resize, askstart,
-//    focusEntry}; parent→frame {port, focusMarker} (issue 27);
+//    focusEntry, openlink}; parent→frame {port, focusMarker} (issue 27);
+//  · openlink re-validates the href INDEPENDENTLY of the frame's prelude checks
+//    (string, ≤ 2048, URL-parseable, strictly http/https) and opens it with
+//    noopener,noreferrer — anything else is dropped without a throw;
 //  · the capability token never crosses the bridge (the parent only ever sends
 //    {v:"port"} and {v:"focusMarker",markerId} — neither carries a token).
 import { describe, expect, test } from "bun:test";
@@ -41,6 +44,11 @@ describe("html bridge auth + verb set (issue 27)", () => {
     const resizes: number[] = [];
     const askstarts: Array<{ quote: string; markerId: string }> = [];
     const focusEntries: string[] = [];
+    // Spy on window.open — the ONLY effect a valid openlink may have.
+    const opens: unknown[][] = [];
+    (doc.defaultView as unknown as { open: (...a: unknown[]) => void }).open = (
+      ...a: unknown[]
+    ) => opens.push(a);
     const bridge = new HtmlBridge({
       iframe,
       artifactId: "a_0000000b",
@@ -49,7 +57,7 @@ describe("html bridge auth + verb set (issue 27)", () => {
       onAskStart: (quote, markerId) => askstarts.push({ quote, markerId }),
       onFocusEntry: (markerId) => focusEntries.push(markerId),
     });
-    return { doc, iframe, bridge, resizes, askstarts, focusEntries };
+    return { doc, iframe, bridge, resizes, askstarts, focusEntries, opens };
   }
 
   test("acceptsSource: only the iframe's own contentWindow", () => {
@@ -76,7 +84,7 @@ describe("html bridge auth + verb set (issue 27)", () => {
   });
 
   test("out-of-set and malformed verbs are dropped", () => {
-    const { bridge, resizes, askstarts, focusEntries } = setup();
+    const { bridge, resizes, askstarts, focusEntries, opens } = setup();
     bridge.handleFrameMessage({ v: "evil", quote: "q", markerId: "m1" });
     // The retired composer verb no longer exists → dropped.
     bridge.handleFrameMessage({ v: "askback", quote: "q", question: "x" });
@@ -91,6 +99,7 @@ describe("html bridge auth + verb set (issue 27)", () => {
     expect(askstarts.length).toBe(0);
     expect(focusEntries.length).toBe(0);
     expect(resizes.length).toBe(0);
+    expect(opens.length).toBe(0);
   });
 
   test("resize verb clamps the reported height", () => {
@@ -99,6 +108,48 @@ describe("html bridge auth + verb set (issue 27)", () => {
     bridge.handleFrameMessage({ v: "resize", px: 5 }); // below floor
     bridge.handleFrameMessage({ v: "resize", px: 999999 }); // above ceiling
     expect(resizes).toEqual([640, 80, 20000]);
+  });
+
+  test("openlink: a valid https href opens in a new tab with noopener,noreferrer", () => {
+    const { bridge, opens } = setup();
+    bridge.handleFrameMessage({
+      v: "openlink",
+      href: "https://issues.example/browse/PROJ-123",
+    });
+    expect(opens).toEqual([
+      ["https://issues.example/browse/PROJ-123", "_blank", "noopener,noreferrer"],
+    ]);
+    // Canary: nothing token-shaped reaches the opened destination's arguments.
+    expect(JSON.stringify(opens)).not.toContain("token");
+  });
+
+  test("openlink: a valid http href also opens (http is on the allowlist)", () => {
+    const { bridge, opens } = setup();
+    bridge.handleFrameMessage({ v: "openlink", href: "http://127.0.0.1:9999/pr/7" });
+    expect(opens).toEqual([
+      ["http://127.0.0.1:9999/pr/7", "_blank", "noopener,noreferrer"],
+    ]);
+  });
+
+  test("openlink: the parent re-validates independently — hostile/malformed hrefs never open and never throw", () => {
+    const { bridge, opens } = setup();
+    const hostile: unknown[] = [
+      { v: "openlink", href: "javascript:alert(1)" },
+      { v: "openlink", href: "data:text/html,<script>alert(1)</script>" },
+      { v: "openlink", href: "file:///etc/passwd" },
+      { v: "openlink", href: "https://evil.example/" + "a".repeat(5000) }, // oversized
+      { v: "openlink", href: 12345 }, // non-string
+      { v: "openlink", href: { toString: () => "https://evil.example/" } },
+      { v: "openlink", href: "" },
+      { v: "openlink", href: "/relative/path" },
+      { v: "openlink", href: "#fragment" }, // fragments never cross the bridge
+      { v: "openlink" }, // missing href
+      { v: "open", href: "https://ok.example/" }, // unknown verb
+    ];
+    for (const msg of hostile) {
+      expect(() => bridge.handleFrameMessage(msg)).not.toThrow();
+    }
+    expect(opens.length).toBe(0);
   });
 
   test("focusMarker (parent→frame) posts {v:'focusMarker',markerId} + no token", () => {

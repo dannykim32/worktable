@@ -16,7 +16,7 @@
 //    (ADR-0010). The messages the parent sends the frame are the one-time
 //    {v:"port"} transfer and the closed {v:"focusMarker",markerId} verb (issue
 //    27) — neither carries a token.
-import { QUOTE_MAX } from "../../shared/constraints.js";
+import { HREF_MAX, QUOTE_MAX } from "../../shared/constraints.js";
 import type { CanvasApi } from "../api.js";
 
 /** Clamp a frame-reported height to a sane range (parent is the final word). */
@@ -118,8 +118,9 @@ export class HtmlBridge {
   };
 
   /** Process one verb from the frame (over the private port). CLOSED set:
-   *  {v:"resize",px}, {v:"askstart",quote,markerId}, {v:"focusEntry",markerId};
-   *  anything else is dropped. Exposed for direct unit testing. */
+   *  {v:"resize",px}, {v:"askstart",quote,markerId}, {v:"focusEntry",markerId},
+   *  {v:"openlink",href}; anything else is dropped. Exposed for direct unit
+   *  testing. */
   handleFrameMessage(data: unknown): void {
     if (this.disposed) return;
     if (!data || typeof data !== "object") return;
@@ -128,6 +129,7 @@ export class HtmlBridge {
       px?: unknown;
       quote?: unknown;
       markerId?: unknown;
+      href?: unknown;
     };
 
     if (verb.v === "resize") {
@@ -156,6 +158,32 @@ export class HtmlBridge {
       const markerId = verb.markerId.slice(0, 64);
       if (markerId === "") return;
       this.deps.onFocusEntry?.(markerId);
+      return;
+    }
+
+    if (verb.v === "openlink") {
+      // Clickable external reference. The frame's prelude checks are
+      // convenience only — the frame is untrusted, so THIS validation is the
+      // boundary and must stand alone: a string, bounded, URL-parseable, and
+      // strictly http(s). On any failure: drop, never throw. The new tab gets
+      // noopener,noreferrer so the destination can reach neither this window
+      // nor the capability token it holds.
+      if (typeof verb.href !== "string") return;
+      const href = verb.href;
+      if (href.length === 0 || href.length > HREF_MAX) return;
+      let protocol: string;
+      try {
+        protocol = new URL(href).protocol;
+      } catch {
+        return; // relative / unparseable → drop
+      }
+      if (protocol !== "http:" && protocol !== "https:") return;
+      try {
+        const view = this.deps.iframe.ownerDocument.defaultView;
+        view?.open(href, "_blank", "noopener,noreferrer");
+      } catch {
+        /* never throw out of the bridge */
+      }
       return;
     }
     // Unknown verb → dropped.
@@ -224,7 +252,8 @@ export function renderHtmlCard(
   caption.className = "html-caption";
   caption.textContent =
     "Model-authored HTML, shown isolated in a locked-down sandbox — no network, " +
-    "no scripts of its own. Select text inside it to ask about it.";
+    "no scripts of its own. Select text inside it to ask about it; links open " +
+    "in a new tab.";
   mount.appendChild(caption);
 
   const bridge = new HtmlBridge({
