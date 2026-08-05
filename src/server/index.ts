@@ -340,8 +340,12 @@ async function main(): Promise<void> {
     {
       name: "publish_artifact",
       description:
-        "Publish a visual artifact to THIS canvas — the local page that carries " +
-        "the select-and-ask-back loop no other rendering surface has. Three " +
+        "Publish a NEW visual artifact to THIS canvas — the local page that " +
+        "carries the select-and-ask-back loop no other rendering surface has. " +
+        "The canvas persists across sessions: before your FIRST publish of a " +
+        "session, call list_artifacts — if an artifact already covers this " +
+        "topic, revise it with update_artifact instead of adding a duplicate " +
+        "card. Three " +
         'types: "html" (the primary path), "prose", and "absence". ' +
         "For anything worth designing — an explainer, a diagram or flowchart, a " +
         "before/after, a dashboard, a walkthrough — use \"html\", and author it " +
@@ -366,8 +370,10 @@ async function main(): Promise<void> {
         "literal (path, identifier, status code) as `code`, and add a diagram " +
         "ONLY when it shows a mechanism prose can't — one figure, one claim. If " +
         "the page leans on a term you coined or one never agreed on with the " +
-        "human, add a compact Terms section: one line per term, ONLY the few the " +
-        "reader genuinely needs (they can select any phrase and ask). IF A " +
+        "human, add a compact Terms section NEAR THE TOP — right after the " +
+        "lead, so the reader has the vocabulary before they need it — one line " +
+        "per term, ONLY the few the reader genuinely needs (they can select any " +
+        "phrase and ask). IF A " +
         "PUBLISH IS REJECTED: the error names exactly what to fix and nothing was " +
         "stored — fix it (inline the external resource, drop the <meta " +
         "http-equiv>) and re-publish HERE. Never fall back to another surface — " +
@@ -417,6 +423,41 @@ async function main(): Promise<void> {
           });
           return { artifact_id: meta.id, version: meta.latest };
         }),
+    },
+    {
+      // The canvas workspace PERSISTS across sessions — without this read, a
+      // fresh session can't see what's already published, republishes the same
+      // topic, and the human ends up with confusing near-duplicate cards.
+      name: "list_artifacts",
+      description:
+        "List every artifact already on this workspace's canvas (they persist " +
+        "across sessions), newest first. Call this BEFORE your first publish " +
+        "of a session: one topic, one artifact — if an existing artifact " +
+        "covers the topic, revise it with update_artifact (readers keep " +
+        "version history) instead of publishing a near-duplicate card. " +
+        "Publish new only for a genuinely new topic, or when the human " +
+        "explicitly asks for a fresh document.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      handler: () => {
+        const artifacts = store.list().map((m) => ({
+          artifact_id: m.id,
+          title: m.title,
+          type: m.type,
+          latest_version: m.latest,
+          updated_at: m.updated_at,
+        }));
+        return {
+          artifacts,
+          hint:
+            artifacts.length === 0
+              ? "the canvas is empty — publish freely"
+              : "update the matching artifact instead of republishing its topic",
+        };
+      },
     },
     {
       name: "check_askbacks",

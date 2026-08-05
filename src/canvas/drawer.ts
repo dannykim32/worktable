@@ -173,7 +173,11 @@ export class Drawer {
     grip.setAttribute("aria-label", "resize the conversation drawer");
     grip.addEventListener("pointerdown", (e: PointerEvent) => {
       e.preventDefault();
-      grip.setPointerCapture?.(e.pointerId);
+      try {
+        grip.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* synthetic/odd pointers can't be captured — dragging still works */
+      }
       // Transitions would fight the pointer — suspend them while dragging.
       this.doc.documentElement.classList.add("drawer-resizing");
       const onMove = (ev: PointerEvent) => {

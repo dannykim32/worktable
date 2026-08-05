@@ -168,6 +168,43 @@ describe("artifact store + tools + SSE", () => {
     );
   });
 
+  test("list_artifacts: newest first, meta fields only, dupe-avoidance hint", async () => {
+    const first = toolJson(
+      await server.client.callTool({
+        name: "publish_artifact",
+        arguments: { type: "prose", title: "Quarterly report", markdown: "v1" },
+      }),
+    );
+    const second = toolJson(
+      await server.client.callTool({
+        name: "publish_artifact",
+        arguments: { type: "prose", title: "Rollout runbook", markdown: "v1" },
+      }),
+    );
+    const listed = toolJson(
+      await server.client.callTool({ name: "list_artifacts", arguments: {} }),
+    ) as {
+      artifacts: Array<Record<string, unknown>>;
+      hint: string;
+    };
+
+    const ids = listed.artifacts.map((a) => a.artifact_id);
+    // Newest first, both present.
+    expect(ids.indexOf(second.artifact_id as string)).toBeLessThan(
+      ids.indexOf(first.artifact_id as string),
+    );
+    const entry = listed.artifacts.find(
+      (a) => a.artifact_id === second.artifact_id,
+    )!;
+    expect(entry.title).toBe("Rollout runbook");
+    expect(entry.type).toBe("prose");
+    expect(entry.latest_version).toBe(1);
+    expect(typeof entry.updated_at).toBe("string");
+    // Meta only — never content payloads.
+    expect(entry.markdown).toBeUndefined();
+    expect(listed.hint).toContain("update the matching artifact");
+  });
+
   test("all artifact routes are 401 without a bearer", async () => {
     for (const path of [
       "/api/artifacts",

@@ -8,7 +8,40 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-05) — v0.5.0: the poll-wake listener (M10)
+## Status (updated 2026-08-05) — v0.5.4: dogfood round two (M11)
+
+Same-day fixes from live dogfooding, all end-to-end verified in a real browser:
+
+- **The drawer actually hides now.** `.drawer { display:flex }` (an author rule)
+  was overriding the UA's `[hidden]` — the panel had been visible since page load
+  and the × was a no-op. A global `[hidden] { display:none !important }` reset
+  restores the contract for all 22 `.hidden` call sites. The toggle is a fixed
+  **edge tab** (collapsible from anywhere, rides the drawer edge, Escape works),
+  and cards size against their container (94%, not vw) so the open drawer
+  narrows the column instead of covering it.
+- **Drag-resizable drawer** — a grip writes `--drawer-w`, so panel + tab + body
+  reflow follow together; width clamps [280, min(720, 92vw)] and persists.
+- **Answers render as markdown** via the trusted prose pipeline (compact
+  bullets/code/links) instead of one textContent blob.
+- **One listener arming now listens ~45 min** (inner 240s polls loop under a
+  budget; ListenerPark debounces the indicator across poll gaps). Dogfood had
+  shown the agent giving up after three quiet 4-minute windows exactly while an
+  artifact awaited the human's decisions; exit copy now biases re-arming.
+- **Clickable external references**: anchor clicks inside the sandboxed frame
+  are intercepted by the trusted prelude and routed over the bridge as the
+  closed `openlink` verb; the parent independently validates (bounded, strictly
+  http/https) and opens a new tab with `noopener,noreferrer` — the frame never
+  navigates itself. Prose renders markdown links/autolinks/#fragments.
+- **One topic, one artifact.** The workspace persists across sessions, and a
+  fresh session couldn't see what was already published — so it republished
+  topics and the human got near-duplicate cards. New read-only `list_artifacts`
+  tool + publish/update bias: revise the matching artifact, publish new only
+  for a new topic or on explicit request. (Canvas-side artifact deletion /
+  curation is backlog.)
+- Guidance: Terms section near the TOP; markdown-formatted `answer_askback`;
+  link your references; listener re-arm bias. 193 tests green.
+
+## Previous status (2026-08-05) — v0.5.0: the poll-wake listener (M10)
 
 **The keystroke constraint is dissolved.** The terminal agent can now arm a
 **listener** — `node dist/hooks/await-askback.js` run as a backgrounded Bash job.

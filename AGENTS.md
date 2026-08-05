@@ -80,9 +80,11 @@ have to trust.
     wrap or put `overflow-x:auto` on any table or diagram that could exceed the
     viewport. A diagram the reader can't fully see is worse than a sentence.
 - **Glossary, sparingly.** If the artifact leans on a term you coined or one that
-  was never agreed on with the human, add a compact "Terms" section: one line per
-  term, ONLY the few the reader genuinely needs. Skip anything obvious — the
-  reader can select any phrase and ask.
+  was never agreed on with the human, add a compact "Terms" section NEAR
+  THE TOP — right after the lead, so the reader has the vocabulary before
+  they need it, never buried at the end. One line per term, ONLY the few the
+  reader genuinely needs; skip anything obvious — the reader can select any
+  phrase and ask.
 - `prose` (send `markdown`) for a long plain-text answer with no bespoke visual —
   the canvas renders it richly and select-and-ask-ably. `absence` (with a `reason`)
   to decline honestly instead of fabricating. Never fabricate a visual.
@@ -90,8 +92,11 @@ have to trust.
   stored: fix it (inline the external resource, drop the `<meta http-equiv>`) and
   re-publish HERE. Never fall back to a different rendering surface — that drops the
   ask-back loop.
-- Update artifacts in place (`update_artifact`) rather than republishing: the
-  artifact keeps its identity and readers keep version history.
+- **One topic, one artifact.** The canvas persists across sessions: call
+  `list_artifacts` before your first publish of a session, and if an artifact
+  already covers the topic, revise it with `update_artifact` (readers keep
+  version history) instead of publishing a near-duplicate card. Publish new
+  only for a genuinely new topic, or when the human asks for a fresh doc.
 - Bound large inputs: render a truthful subset and say so in the artifact itself
   ("showing 20 of 5,471"), or decline with an absence artifact.
 

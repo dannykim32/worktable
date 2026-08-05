@@ -174,10 +174,11 @@ describe("answer_askback (issue 22)", () => {
     expect(noAuth.status).toBe(401);
   });
 
-  test("listTools() is exactly 7 and answer_askback is not a gate/config surface", async () => {
+  test("listTools() is exactly 8 and answer_askback is not a gate/config surface", async () => {
     const { tools } = await server.client.listTools();
-    expect(tools).toHaveLength(7);
+    expect(tools).toHaveLength(8); // +list_artifacts (dupe-avoidance read, 0.5.4)
     expect(tools.map((t) => t.name)).toContain("answer_askback");
+    expect(tools.map((t) => t.name)).toContain("list_artifacts");
     // The no-self-grant invariant (issue 12) is untouched: no tool arms the gate.
     for (const t of tools) {
       expect(t.name).not.toMatch(/gate|config|mode|enforce|setting/i);
