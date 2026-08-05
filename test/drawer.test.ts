@@ -322,4 +322,63 @@ describe("Drawer open/close reflow (issue 27)", () => {
     drawer.toggle();
     expect(document.documentElement.classList.contains("drawer-open")).toBe(false);
   });
+
+  test("the × close button actually collapses the drawer (panel + reflow class)", () => {
+    const { galleryRoot, document } = makeGallery();
+    const { api } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    drawer.toggle(); // open
+    expect(drawer.panel.hidden).toBe(false);
+    (drawer.panel.querySelector(".drawer-close") as HTMLButtonElement).click();
+    expect(drawer.panel.hidden).toBe(true);
+    expect(document.documentElement.classList.contains("drawer-open")).toBe(false);
+  });
+
+  test("Escape collapses an open drawer — but the composer's esc wins first", () => {
+    const { galleryRoot, document } = makeGallery();
+    const { api } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    drawer.startAsk(blockAnchor, { isHtml: false }); // opens + shows composer
+    const esc = () =>
+      document.dispatchEvent(
+        new (galleryRoot.ownerDocument!.defaultView!.KeyboardEvent)("keydown", {
+          key: "Escape",
+        }),
+      );
+    esc(); // composer visible → drawer stays open (composer owns this esc)
+    expect(drawer.panel.hidden).toBe(false);
+    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).dispatchEvent(
+      new (galleryRoot.ownerDocument!.defaultView!.KeyboardEvent)("keydown", {
+        key: "Escape",
+        bubbles: true,
+      }),
+    ); // cancels the composer
+    esc(); // now esc collapses the drawer
+    expect(drawer.panel.hidden).toBe(true);
+  });
+
+  test("the edge tab is body-mounted, toggles, and carries the entry count", async () => {
+    const { galleryRoot, document } = makeGallery();
+    const { api } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    drawer.attach(document.body as unknown as HTMLElement);
+    // Fixed edge tab lives on the body — never inside page content the open
+    // drawer could occlude (the old header toggle could end up underneath it).
+    expect(document.body.querySelector(".drawer-tab")).toBe(drawer.toggleButton);
+    expect(drawer.toggleButton.textContent).toContain("Conversation");
+
+    drawer.toggleButton.click();
+    expect(drawer.panel.hidden).toBe(false);
+    expect(drawer.toggleButton.getAttribute("aria-expanded")).toBe("true");
+    expect(drawer.toggleButton.textContent).toBe("›"); // collapse chevron
+    drawer.toggleButton.click();
+    expect(drawer.panel.hidden).toBe(true);
+
+    // Entry count shows on the closed tab.
+    drawer.startAsk(blockAnchor, { isHtml: false });
+    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
+    await drawer.submit();
+    drawer.close();
+    expect(drawer.toggleButton.textContent).toContain("(1)");
+  });
 });

@@ -86,12 +86,23 @@ export class Drawer {
     private readonly doc: Document,
     private readonly deps: DrawerDeps,
   ) {
-    // Toggle (placed in the header by attach()).
+    // Edge tab: a FIXED handle on the viewport's right edge, so collapsing and
+    // reopening the drawer never depends on page content that the drawer (or a
+    // narrow window) might occlude — the old header-placed toggle could end up
+    // underneath the open drawer, leaving the tiny × as the only way out.
     this.toggleButton = doc.createElement("button");
-    this.toggleButton.className = "drawer-toggle";
+    this.toggleButton.className = "drawer-tab";
     this.toggleButton.type = "button";
     this.toggleButton.setAttribute("aria-label", "toggle the conversation drawer");
     this.toggleButton.addEventListener("click", () => this.toggle());
+
+    // Escape collapses the drawer (the composer's own esc first cancels the
+    // in-progress question; a second esc then closes).
+    doc.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !this.open_) return;
+      if (!this.composer.hidden) return; // composer's esc handler owns this one
+      this.close();
+    });
 
     // Panel.
     this.panel = doc.createElement("aside");
@@ -156,9 +167,9 @@ export class Drawer {
     this.refreshToggle();
   }
 
-  /** Place the toggle in the header and the panel in the page. */
-  attach(header: HTMLElement, body: HTMLElement): void {
-    header.appendChild(this.toggleButton);
+  /** Place the edge tab and the panel in the page. */
+  attach(body: HTMLElement): void {
+    body.appendChild(this.toggleButton);
     body.appendChild(this.panel);
   }
 
@@ -186,7 +197,13 @@ export class Drawer {
 
   private refreshToggle(): void {
     const n = this.entries.size;
-    this.toggleButton.textContent = n > 0 ? `Conversation (${n})` : "Conversation";
+    // Open: the tab rides the drawer's left edge as a collapse chevron.
+    // Closed: it names the drawer (with the entry count) on the viewport edge.
+    this.toggleButton.textContent = this.open_
+      ? "›"
+      : n > 0
+        ? `‹ Conversation (${n})`
+        : "‹ Conversation";
     this.toggleButton.setAttribute("aria-expanded", this.open_ ? "true" : "false");
   }
 

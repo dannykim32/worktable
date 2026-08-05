@@ -329,10 +329,12 @@ header.canvas-chrome .live {
 }
 
 /* ── Free-form HTML hatch (issue 25): sandboxed, origin-split iframe ──── */
-/* An html artifact is a full webpage — give its card the viewport, not the
-   narrow 880px reading column that structured components use. */
+/* An html artifact is a full webpage — give its card the whole column, not the
+   narrow 880px reading strip that prose uses. Sized against the CONTAINER (%)
+   rather than the viewport (vw): with the drawer open the body reflows via
+   padding, which vw ignores — a vw-sized card slides underneath the drawer. */
 .artifact.artifact-html {
-  max-width: min(1440px, 94vw);
+  max-width: min(1440px, 94%);
 }
 /* Let the iframe use the full card width (structured bodies keep their padding). */
 .artifact.artifact-html > .body {
@@ -373,19 +375,43 @@ header.canvas-chrome .live {
    A right-side drawer holding the composer + the whole conversation. When
    open the artifact column reflows narrower (body padding), so asking never
    covers the selected content. */
-.drawer-toggle {
+:root {
+  /* One source of truth for the drawer's width: the panel, the edge tab's
+     resting spot, and the body reflow must all agree. */
+  --drawer-w: min(360px, 92vw);
+}
+/* The edge tab: a fixed handle on the viewport's right edge, always visible
+   and always above the drawer, so the conversation can be collapsed and
+   reopened from anywhere — it never depends on page content the open drawer
+   might cover. */
+.drawer-tab {
   all: unset;
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 41;
+  writing-mode: vertical-rl;
   cursor: pointer;
   font-size: 13px;
-  padding: 4px 12px;
-  border-radius: 999px;
+  padding: 12px 5px;
+  border-radius: 8px 0 0 8px;
   border: 1px solid var(--accent-warm);
+  border-right: none;
   color: var(--accent-ink);
   background: var(--accent-wash);
   white-space: nowrap;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+  transition: right 220ms ease;
 }
-.drawer-toggle:hover {
+.drawer-tab:hover {
   filter: brightness(0.97);
+}
+.drawer-tab:focus-visible {
+  outline: 2px solid var(--accent-warm);
+}
+.drawer-open .drawer-tab {
+  right: var(--drawer-w);
 }
 
 .drawer {
@@ -393,8 +419,7 @@ header.canvas-chrome .live {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 360px;
-  max-width: 92vw;
+  width: var(--drawer-w);
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -404,13 +429,15 @@ header.canvas-chrome .live {
 }
 /* Reflow: shove the whole page left by the drawer width while it is open. The
    cards stay centered in the remaining space, so the artifact column narrows
-   instead of being occluded. */
+   instead of being occluded. (Cards must size themselves against their
+   CONTAINER — never vw units, which ignore this padding and slide under the
+   drawer.) */
 .drawer-open body,
 body {
   transition: padding-right 220ms ease;
 }
 .drawer-open body {
-  padding-right: 360px;
+  padding-right: var(--drawer-w);
 }
 @media (max-width: 720px) {
   .drawer-open body {
@@ -418,7 +445,8 @@ body {
   } /* narrow viewports: the drawer overlays instead of reflowing */
 }
 @media (prefers-reduced-motion: reduce) {
-  body {
+  body,
+  .drawer-tab {
     transition: none;
   }
 }

@@ -68,7 +68,7 @@ function boot(): void {
     // So a reloaded answer knows prose (parent-drawn markers) vs html (frame).
     artifactType: (id) => gallery.metaFor(id)?.type ?? null,
   });
-  drawer.attach(header, document.body);
+  drawer.attach(document.body);
 
   gallery = new Gallery(galleryRoot, api, {
     onAskArtifact: (meta, viewing) =>
