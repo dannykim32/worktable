@@ -9,7 +9,7 @@ import type { AnsweredAskback, CanvasApi } from "../src/canvas/api.js";
 import { renderProse } from "../src/canvas/components/prose.js";
 import { componentRegistry } from "../src/canvas/components/registry.js";
 import { anchorFromRange } from "../src/canvas/askback.js";
-import { ReplyThreads } from "../src/canvas/replies.js";
+import { Drawer } from "../src/canvas/drawer.js";
 import type { Anchor } from "../src/shared/artifacts.js";
 import { makeDom } from "./dom.js";
 
@@ -228,7 +228,7 @@ describe("prose renderer — ask-back + inline answers (issue 22) work on prose"
     expect(anchor.char_end).toBe(4);
   });
 
-  test("an inline answer threads under the anchored prose block", async () => {
+  test("a drawer answer + marker land on the anchored prose block (issue 27)", async () => {
     const { document, galleryRoot, body } = makeProseCard(
       "This is the first paragraph.\n\nSecond one.",
     );
@@ -245,15 +245,20 @@ describe("prose renderer — ask-back + inline answers (issue 22) work on prose"
       question: "what section is this?",
       answer: { text: "the opening paragraph.", answered_at: "2026-08-03T00:00:00.000Z" },
     };
-    const replies = new ReplyThreads(document, galleryRoot, stubApi([item]));
-    await replies.loadAnswered();
+    const drawer = new Drawer(document, {
+      api: stubApi([item]),
+      galleryRoot,
+      artifactType: () => "prose",
+    });
+    await drawer.loadAnswered();
 
-    const thread = galleryRoot.querySelector(".reply-thread") as HTMLElement;
-    expect(thread).not.toBeNull();
-    // Mounted as the selected block's next sibling.
-    expect(block.nextSibling).toBe(thread);
-    expect(thread.querySelector(".reply-text")!.textContent).toBe(
+    // The answer shows in the drawer conversation.
+    expect(drawer.panel.querySelector(".drawer-entry-text")!.textContent).toBe(
       "the opening paragraph.",
     );
+    // An in-content marker is placed as the anchored block's next sibling.
+    const marker = galleryRoot.querySelector(".anchor-marker") as HTMLElement;
+    expect(marker).not.toBeNull();
+    expect(block.nextSibling).toBe(marker);
   });
 });

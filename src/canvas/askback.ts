@@ -1,10 +1,13 @@
-// Ask-back capture UI: select text inside a document block → floating
-// "Ask about this" pill → composer popover → POST /api/askbacks.
-// The Anchor pins artifact + the Version being viewed + block/char span,
-// with the quote always carried so it survives content drift (ADR-0006).
+// Ask-back capture UI (PROSE / ABSENCE path): select text inside a document
+// block → floating "Ask about this" pill → hand the Anchor to the drawer, whose
+// composer takes over (issue 27). The pill STAYS as the trigger; the composer +
+// the whole conversation moved into the right-side drawer, so asking never
+// covers the selected text.
+//
+// The Anchor pins artifact + the Version being viewed + block/char span, with
+// the quote always carried so it survives content drift (ADR-0006).
 import type { Anchor } from "../shared/artifacts.js";
 import { QUOTE_MAX } from "../shared/constraints.js";
-import type { CanvasApi } from "./api.js";
 import type { Gallery } from "./gallery.js";
 
 /** Absolute character offset of (node, offsetInNode) within root's text. */
@@ -76,21 +79,14 @@ export function wholeArtifactAnchor(
 }
 
 export interface AskbackDeps {
-  api: CanvasApi;
   gallery: Gallery;
-  /** Called with the server-assigned id once an ask-back is accepted, so the
-   *  canvas can thread the agent's eventual answer back to this anchor (issue
-   *  22). */
-  onSubmitted?: (id: string, anchor: Anchor, question: string) => void;
+  /** The pill was clicked with a live selection: hand the Anchor to the drawer,
+   *  whose composer takes over (issue 27). */
+  onAsk: (anchor: Anchor) => void;
 }
 
 export class AskbackUi {
   readonly pill: HTMLElement;
-  readonly composer: HTMLElement;
-  readonly quoteBox: HTMLElement;
-  readonly input: HTMLInputElement;
-  readonly status: HTMLElement;
-  private currentAnchor: Anchor | null = null;
   private pendingRangeAnchor: Anchor | null = null;
 
   constructor(
@@ -102,31 +98,19 @@ export class AskbackUi {
     this.pill.textContent = "Ask about this";
     this.pill.hidden = true;
 
-    this.composer = doc.createElement("div");
-    this.composer.className = "askback-composer";
-    this.composer.hidden = true;
-    this.quoteBox = doc.createElement("div");
-    this.quoteBox.className = "anchor";
-    this.input = doc.createElement("input");
-    this.input.placeholder = "Ask the agent about this selection…";
-    this.input.setAttribute("aria-label", "ask-back question");
-    this.status = doc.createElement("div");
-    this.status.className = "hint";
-    this.status.textContent = "↵ to send · esc to close";
-    this.composer.append(this.quoteBox, this.input, this.status);
-
-    doc.body.append(this.pill, this.composer);
+    doc.body.append(this.pill);
 
     doc.addEventListener("mouseup", (e) => {
-      if (this.composer.contains(e.target as Node)) return;
+      if (this.pill.contains(e.target as Node)) return;
       this.handleSelection();
     });
     this.pill.addEventListener("click", () => {
-      if (this.pendingRangeAnchor) this.openComposer(this.pendingRangeAnchor);
-    });
-    this.input.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (e.key === "Enter") void this.submit();
-      if (e.key === "Escape") this.closeComposer();
+      if (this.pendingRangeAnchor) {
+        const anchor = this.pendingRangeAnchor;
+        this.pill.hidden = true;
+        this.pendingRangeAnchor = null;
+        this.deps.onAsk(anchor);
+      }
     });
   }
 
@@ -151,51 +135,6 @@ export class AskbackUi {
     this.pill.style.left = `${(win?.scrollX ?? 0) + rect.left + rect.width / 2 - 50}px`;
     this.pill.style.top = `${(win?.scrollY ?? 0) + rect.top - 34}px`;
     this.pill.hidden = false;
-  }
-
-  openComposer(anchor: Anchor): void {
-    this.currentAnchor = anchor;
-    // Quote + pin shown to the human before asking (textContent only).
-    this.quoteBox.textContent =
-      `${anchor.artifact_id} · v${anchor.version}` +
-      (anchor.block_index === null
-        ? " · whole artifact"
-        : ` · block ${anchor.block_index}`) +
-      `\n“${anchor.quote}”`;
-    this.input.value = "";
-    this.input.disabled = false;
-    this.status.textContent = "↵ to send · esc to close";
-    this.composer.style.left = this.pill.style.left;
-    this.composer.style.top = `${parseFloat(this.pill.style.top || "0") + 40}px`;
-    this.composer.hidden = false;
-    this.pill.hidden = true;
-    this.input.focus();
-  }
-
-  async submit(): Promise<void> {
-    if (!this.currentAnchor) return;
-    const anchor = this.currentAnchor;
-    const question = this.input.value.trim();
-    if (question.length === 0) return;
-    this.input.disabled = true;
-    try {
-      const res = await this.deps.api.postAskback({ anchor, question });
-      // Track it locally so the agent's later answer can thread back here.
-      if (res && this.deps.onSubmitted) {
-        this.deps.onSubmitted(res.id, anchor, question);
-      }
-      this.status.textContent =
-        "sent — the agent's reply will appear here under your selection ✓";
-      setTimeout(() => this.closeComposer(), 2000);
-    } catch (err) {
-      this.input.disabled = false;
-      this.status.textContent = `could not send: ${String(err)}`;
-    }
-  }
-
-  closeComposer(): void {
-    this.composer.hidden = true;
-    this.currentAnchor = null;
   }
 
   private closestBlock(node: Node): HTMLElement | null {

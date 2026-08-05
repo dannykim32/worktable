@@ -44,18 +44,13 @@ export interface HtmlContent {
 export type ArtifactContent = AbsenceContent | ProseContent | HtmlContent;
 export type ArtifactType = ArtifactContent["type"];
 
-// ── HTML hatch bridge (issue 25) ────────────────────────────────────────
-// The ONLY messages that cross the frame→parent MessageChannel bridge. A
+// ── HTML hatch bridge (issue 25 + issue 27) ─────────────────────────────
+// The ONLY messages that cross the frame↔parent MessageChannel bridge. A
 // closed, schema-validated verb set; the capability token NEVER crosses it
 // (ADR-0010: the ask-back queue stays the single browser→agent write door —
 // the parent re-POSTs a validated ask-back through it, host-side).
 
-/** Frame asks the parent to open an ask-back for a selection inside the frame. */
-export interface AskbackVerb {
-  v: "askback";
-  quote: string;
-  question: string;
-}
+// ── Frame → parent ──────────────────────────────────────────────────────
 
 /** Frame asks the parent to resize its iframe to fit content height. */
 export interface ResizeVerb {
@@ -63,7 +58,44 @@ export interface ResizeVerb {
   px: number;
 }
 
-export type FrameVerb = AskbackVerb | ResizeVerb;
+/** Issue 27: the human clicked "Ask about this" INSIDE the frame. The frame
+ *  assigns a `markerId` (its own counter) and stashes the selection Range under
+ *  it, then asks the parent to open the drawer composer pre-filled with `quote`.
+ *  The composer + the whole conversation now live in the PARENT drawer — this
+ *  verb replaces the old in-frame composer's `askback{quote,question}`. The
+ *  question is typed in the parent and POSTed host-side through /api/askbacks. */
+export interface AskStartVerb {
+  v: "askstart";
+  quote: string;
+  markerId: string;
+}
+
+/** Issue 27: the human clicked an in-frame marker. The frame asks the parent to
+ *  highlight the matching drawer entry (marker → drawer locate). */
+export interface FocusEntryVerb {
+  v: "focusEntry";
+  markerId: string;
+}
+
+/** Every verb the parent accepts from the frame over the private port. */
+export type FrameToParentVerb = ResizeVerb | AskStartVerb | FocusEntryVerb;
+
+// ── Parent → frame ──────────────────────────────────────────────────────
+
+/** Issue 27: parent asks the frame to draw (if not yet drawn), scroll to, and
+ *  highlight the marker for `markerId` (drawer → marker locate; also the submit
+ *  confirmation that persists the marker for an asked question). */
+export interface FocusMarkerVerb {
+  v: "focusMarker";
+  markerId: string;
+}
+
+/** Every verb the frame accepts from the parent over the private port. The
+ *  one-time `{v:"port"}` transfer travels the window channel, not the port. */
+export type ParentToFrameVerb = FocusMarkerVerb;
+
+/** @deprecated kept as an alias so external references don't break. */
+export type FrameVerb = FrameToParentVerb;
 
 export interface ArtifactMeta {
   id: string;
