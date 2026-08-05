@@ -1,5 +1,10 @@
 # V1 vocabulary is Document + Dashboard + Compare; free-form SVG owns diagrams
 
+> **Status: superseded by [ADR-0012](0012-html-hatch-is-the-surface.md) (2026-08-04).**
+> The structured vocabulary and the `svg` type were retired; the surface is
+> `{html, prose, absence}`. Kept for the record. The judged prototype now lives at
+> `docs/history/prototypes/canvas-vocabulary/`.
+
 Settled by prototype (prototype/canvas-vocabulary/, judged 2026-07-14): the three
 structured components cover the design-doc, metrics, and before/after jobs, and
 flowcharts/diagrams go exclusively through the free-form SVG hatch — no structured

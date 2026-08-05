@@ -1,5 +1,9 @@
 # Gate mode is a human-settable, live, user-level-or-workspace preference
 
+> **Status: retired by [ADR-0012](0012-html-hatch-is-the-surface.md) (2026-08-04).**
+> The Legibility Gate was removed with the `svg` type, so this setting no longer
+> exists. Kept for the record.
+
 Issue 12 made the Legibility Gate's enforce/report mode a per-workspace
 `config.json` value read ONCE at server startup, editable only by hand. That was
 right for shipping enforcement safely, but a file-edit-and-restart is poor UX for a

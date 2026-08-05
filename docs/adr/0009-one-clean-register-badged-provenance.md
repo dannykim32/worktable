@@ -1,5 +1,9 @@
 # One clean aesthetic register for all artifacts; provenance is badged, not styled
 
+> **Status: retired by [ADR-0012](0012-html-hatch-is-the-surface.md) (2026-08-04).**
+> With the `svg` type and the component vocabulary gone, the free-form provenance
+> badging this record defined went with them. Kept for the record.
+
 Deliberate deviation from the prior project's hand-drawn sketch identity for
 AI-authored visuals: every artifact on the canvas — trusted components and
 free-form SVG alike — wears the same clean, product-grade register. The honesty

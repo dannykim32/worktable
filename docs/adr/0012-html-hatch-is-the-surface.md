@@ -1,8 +1,10 @@
 # The HTML hatch is the artifact surface; the structured vocabulary is retired
 
 Supersedes the posture of ADR-0002 (free-form HTML was a deferred *exception* to a
-structured-component default) and retires ADR-0009 (SVG image isolation) and
-ADR-0011 (gate-mode config). Decided 2026-08-04 after dogfooding.
+structured-component default) and ADR-0007 (the Document/Dashboard/Compare
+vocabulary with svg owning diagrams), and retires ADR-0009 (the clean-register /
+badged-provenance scheme for free-form svg) and ADR-0011 (the legibility-gate mode
+config). Decided 2026-08-04 after dogfooding.
 
 ## Context
 

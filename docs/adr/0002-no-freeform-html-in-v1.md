@@ -1,5 +1,9 @@
 # V1 artifacts are structured components plus an SVG escape hatch — no free-form HTML
 
+> **Status: superseded by [ADR-0012](0012-html-hatch-is-the-surface.md) (2026-08-04).**
+> Free-form HTML is now the primary surface, isolated by construction (origin-split
+> sandboxed iframe + header CSP) rather than by a sanitizer. Kept for the record.
+
 Even though the canvas is an HTML page, the agent cannot author free-form HTML in v1.
 The default medium is Component Artifacts (structured data drawn by the trusted
 Component Vocabulary — nothing to sanitize), and the expressiveness escape hatch is
