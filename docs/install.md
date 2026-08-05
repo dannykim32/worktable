@@ -1,8 +1,9 @@
-# Installing visual-chat on a firewalled machine
+# Installing purview on a firewalled machine
 
-visual-chat is `"private": true` and never published to npm — deliberately. It is
-built to install on a machine that cannot reach npm/npx (no `bun install`, no `npx`
-at runtime). The model: build a self-contained bundle on a networked machine, copy
+purview isn't published to npm — it's distributed as a self-contained bundle,
+deliberately. It's built to install on a machine that cannot reach npm/npx (no
+`bun install`, no `npx` at runtime). The model: build a self-contained bundle on a
+networked machine, copy
 the repo to the firewalled machine, and register it into a target repo with a
 network-free helper. The only runtime requirement on the firewalled machine is
 `node`.
@@ -47,13 +48,13 @@ Pick whatever your environment allows:
 
 ```sh
 # tar the repo with dist/ included (dist/ is ignored by git, not by tar)
-tar czf visual-chat.tgz -C /path/to visual-chat && scp visual-chat.tgz host:
+tar czf purview.tgz -C /path/to purview && scp purview.tgz host:
 
 # or scp/rsync the directory directly (dist/ rides along)
-rsync -a /path/to/visual-chat/ host:/path/to/visual-chat/
+rsync -a /path/to/purview/ host:/path/to/purview/
 
 # or a git bundle for the source PLUS a separate copy of dist/
-git bundle create visual-chat.bundle --all      # source only — dist/ is gitignored
+git bundle create purview.bundle --all      # source only — dist/ is gitignored
 # ...then also copy dist/ across by tar/scp/USB, since the bundle omits it
 ```
 
@@ -75,19 +76,19 @@ node scripts/register.mjs /path/to/your/project --guidance
 
 What it does:
 
-- **`.mcp.json`** — merges a `visual-chat` server entry
+- **`.mcp.json`** — merges a `purview` server entry
   (`{ command: "node", args: ["<abs>/dist/server/index.js"] }`) into
   `<target>/.mcp.json`. Idempotent: existing servers are preserved, and re-running
   updates the path in place instead of duplicating.
 - **`--guidance`** — appends the [agent-guidance snippet](./agent-guidance.md) to
   the target's `AGENTS.md` (or `CLAUDE.md` if that is what exists), so the agent
-  uses the canvas proactively. Idempotent via the `<!-- visual-chat-guidance -->`
+  uses the canvas proactively. Idempotent via the `<!-- purview-guidance -->`
   marker.
 - **`--hook`** — merges the Claude Code `UserPromptSubmit` ask-back hook into
   `<target>/.claude/settings.json`, pointing at `dist/hooks/askback-hook.js`.
   Existing hooks are preserved. (Claude Code only — see below.)
 - **`--print-codex`** — prints (writes nothing) a Codex `~/.codex/config.toml`
-  `[mcp_servers.visual-chat]` snippet for you to paste.
+  `[mcp_servers.purview]` snippet for you to paste.
 
 Add the flags you want, e.g. the full Claude Code setup:
 
@@ -99,38 +100,38 @@ node scripts/register.mjs /path/to/your/project --guidance --hook
 
 Once you have the bundle on the target machine (download or transfer — see below),
 it's a single command. The bundle carries an `install.sh` that checks node, registers
-`visual-chat` for **every** Claude Code session (user scope), and optionally wires a
+`purview` for **every** Claude Code session (user scope), and optionally wires a
 specific project:
 
 ```sh
-tar xzf visual-chat-*.tar.gz
-cd visual-chat-*
+tar xzf purview-*.tar.gz
+cd purview-*
 ./install.sh                      # every Claude Code session gets the tools
 ./install.sh /path/to/your/repo   # ALSO drop guidance + the ask-back hook into that repo
 ```
 
-Then restart Claude Code and run `/mcp` — `visual-chat` should show connected. The only
+Then restart Claude Code and run `/mcp` — `purview` should show connected. The only
 requirement it can't carry is **node** (any recent version); `install.sh` fails clearly
 if it's missing. Everything below is the manual breakdown of what that script does.
 
 ## The easy path — download a release bundle
 
 Instead of building + copying yourself, grab a pre-built self-contained tarball from
-the private repo's GitHub Releases. This is the no-npm, firewall-friendly path (git /
+the repo's GitHub Releases. This is the no-npm, firewall-friendly path (git /
 github.com is usually reachable where npm is not):
 
 ```sh
 # on any machine (needs only node + gh, or download the .tar.gz from the Releases page):
-gh release download --repo dannykim32/visual-chat --pattern '*.tar.gz'
-tar xzf visual-chat-*.tar.gz
+gh release download --repo dannykim32/purview --pattern '*.tar.gz'
+tar xzf purview-*.tar.gz
 # register into a project (no network):
-node visual-chat-*/scripts/register.mjs /path/to/your/project --guidance   # + --hook for Claude Code
+node purview-*/scripts/register.mjs /path/to/your/project --guidance   # + --hook for Claude Code
 ```
 
 The tarball contains the runtime bundle (`dist/`), the register helper, and the docs —
 no source, no `node_modules`. `INSTALL.txt` at its root has the quickstart. To cut a
 new release from a networked machine: `bun run package:release` then
-`gh release create v<version> dist-release/visual-chat-<version>.tar.gz`.
+`gh release create v<version> dist-release/purview-<version>.tar.gz`.
 
 ## Install for EVERY Claude Code session (user scope)
 
@@ -139,7 +140,7 @@ To have the tools in **every** Claude Code session in any repo, register at user
 once (point it at the extracted bundle's server):
 
 ```sh
-claude mcp add -s user visual-chat -- node /abs/path/to/visual-chat-<version>/dist/server/index.js
+claude mcp add -s user purview -- node /abs/path/to/purview-<version>/dist/server/index.js
 ```
 
 The canvas still keys its workspace off the session's working directory, so each repo
@@ -148,7 +149,7 @@ gets its own artifacts and capability token.
 ## Step 4 — restart and verify
 
 Restart Claude Code in the target project so it picks up the new `.mcp.json` (and
-hook). Confirm `visual-chat` shows as connected under `/mcp`, then ask the agent to
+hook). Confirm `purview` shows as connected under `/mcp`, then ask the agent to
 "publish a short design note to the canvas" — the tokened canvas URL should open and
 render it. The full walkthrough checklist lives in [setup.md](./setup.md).
 
@@ -165,9 +166,9 @@ node scripts/register.mjs /path/to/your/project --print-codex
 
 ```toml
 # ~/.codex/config.toml
-[mcp_servers.visual-chat]
+[mcp_servers.purview]
 command = "node"
-args = ["/abs/path/to/visual-chat/dist/server/index.js"]
+args = ["/abs/path/to/purview/dist/server/index.js"]
 ```
 
 ## Rebuilding after an update

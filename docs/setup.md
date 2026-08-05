@@ -1,4 +1,4 @@
-# Visual Chat — setup and walking-skeleton walkthrough
+# Purview — setup and walking-skeleton walkthrough
 
 ## Build
 
@@ -22,7 +22,7 @@ this repo's absolute path):
 ```json
 {
   "mcpServers": {
-    "visual-chat": {
+    "purview": {
       "command": "node",
       "args": ["<abs path>/dist/server/index.js"]
     }
@@ -33,7 +33,7 @@ this repo's absolute path):
 Restart Claude Code in the workspace. The server exposes the tools
 `publish_artifact`, `update_artifact`, `check_askbacks`, `request_review`,
 `open_canvas`, and `rotate_token`. Workspace state (capability token, artifacts,
-ask-back queue) lives under `~/.visual-chat/<workspaceId>/` (0700 dirs, 0600
+ask-back queue) lives under `~/.purview/<workspaceId>/` (0700 dirs, 0600
 files).
 
 The canvas URL carries the per-workspace capability token
@@ -71,7 +71,7 @@ your Claude Code `settings.json` (`~/.claude/settings.json`, or the project's
 ```
 
 The hook derives the workspace from its working directory (the same hash the
-server uses), reads `~/.visual-chat/<id>/{port,token}`, and does a **read-only**
+server uses), reads `~/.purview/<id>/{port,token}`, and does a **read-only**
 peek at `GET /api/askbacks/pending` (300ms timeout). It never marks anything
 delivered — only `check_askbacks` does — so it can run on every prompt without
 racing the tool or losing a queued ask-back. If the server is not running, the
@@ -99,64 +99,15 @@ the call returns `{ timed_out: true }` (a normal result, not an error) and any
 feedback you send later still arrives via `check_askbacks`. Pressing **Esc** in
 the terminal interrupts the call safely — the queue keeps your feedback.
 
-## Legibility gate: report vs. enforce (human-only, live setting)
-
-The Legibility Gate ships **report-only**: it records coordinate findings next
-to every free-form SVG version but never blocks or alters a publish. Arming
-enforcement is a trust decision **only the human makes** — there is no MCP tool
-to change it, so the agent can neither grant itself enforcement nor remove it
-(ADR-0007: calibrate before you enforce; ADR-0011: it stays human-owned).
-
-**The canvas settings panel is the easy way.** Open the canvas and click the
-gear (⚙) in the header. The popover shows the effective mode and where it came
-from, and lets you flip Report↔Enforce for **this workspace** or **all my
-workspaces**. Changes apply **live** — no restart — because the server resolves
-the gate mode on every publish. On first run, with no mode set anywhere, the
-panel surfaces itself once so you make the call. (First review calibration
-precision — open `/calibration?token=…` or `GET /api/calibration` — and satisfy
-yourself the checks are trustworthy before enforcing.)
-
-The panel writes the same two config files you can also edit by hand. Precedence:
-
-    <workspaceDir>/config.json .gate   >   ~/.visual-chat/config.json .gate   >   "report"
-
-- **Per-workspace override** — `~/.visual-chat/<workspaceId>/config.json` wins
-  for that one workspace.
-- **User-level default** — `~/.visual-chat/config.json` (the sibling of the
-  workspace dirs) applies to every workspace with no override.
-
-```json
-{ "gate": "enforce" }
-```
-
-Anything other than an explicit `"enforce"`/`"report"` (missing file, malformed,
-unknown value) degrades to the next level, and to the safe `report` default when
-nothing is set anywhere. An explicit workspace `"report"` deliberately overrides
-a user-level `"enforce"`. Edits by hand take effect on the next publish too (the
-mode is no longer cached at startup).
-
-Under the hood, both surfaces are equivalent: the panel POSTs to the bearer-gated
-`POST /api/settings` (`{ gate, scope }`), a browser/human endpoint the agent's
-tool surface can never reach. **No MCP tool can change the gate mode.**
-
-Under `enforce`, a free-form SVG that trips the gate is **not stored**. The tool
-returns the verbatim coordinate findings and a `repair_token`; the agent gets
-ONE bounded repair round (fix only the flagged geometry and resubmit with the
-token). A second failure in that context is published as an **honest-absence**
-artifact ("Failed the legibility gate twice" + the findings summary) rather than
-rendered — a first-class outcome, not an error. A gate *crash* never blocks or
-converts anything; enforcement acts on real findings only. Repair contexts are
-persisted (they survive a restart) and expire after one hour.
-
 ## Agent guidance (add to the host project's AGENTS.md / CLAUDE.md)
 
 The canonical, marker-wrapped copy lives in [agent-guidance.md](./agent-guidance.md)
 (what `register.mjs --guidance` appends). Reproduced here for convenience:
 
 ```markdown
-## Visual Chat
+## Purview
 
-A companion canvas is available via the visual-chat MCP tools. The terminal
+A companion canvas is available via the purview MCP tools. The terminal
 stays the conversation driver; the canvas renders artifacts.
 
 - Call `check_askbacks` at the START of every turn. It returns questions the
@@ -179,15 +130,16 @@ stays the conversation driver; the canvas renders artifacts.
 Perform once in a fresh Claude Code session after registering:
 
 - [ ] Start Claude Code in a workspace whose `.mcp.json` registers
-      visual-chat as above; confirm the `visual-chat` server shows as
+      purview as above; confirm the `purview` server shows as
       connected (`/mcp`).
-- [ ] Ask the agent: "publish a short design note to the canvas".
+- [ ] Ask the agent: "walk me through this on the canvas" (or "publish a short
+      explainer"). It publishes an `html` or `prose` artifact.
 - [ ] Confirm the browser opens (first publish auto-opens unless
-      `VISUAL_CHAT_NO_OPEN=1`) and the document renders at the tokened URL
-      with title, blocks, `document` badge, and `v1` chip.
-- [ ] Ask the agent to revise the note; confirm the open page live-updates
-      to `v2` without reload, and the ‹ scrubber shows v1 with a
-      "viewing v1 of 2" marker.
+      `PURVIEW_NO_OPEN=1`) and the artifact renders at the tokened URL with its
+      title and a `v1` chip.
+- [ ] Ask the agent to revise it; confirm the open page live-updates to `v2`
+      without reload, and the ‹ scrubber shows v1 with a "viewing v1 of 2"
+      marker.
 - [ ] In the browser, select a sentence in a paragraph → "Ask about this"
       pill → type a question → Enter → "sent — reaches the agent next
       turn ✓".
@@ -204,8 +156,8 @@ bun run build
 bun scripts/demo.ts
 ```
 
-Publishes a six-block document, updates it to v2, prints the canvas URL,
+Publishes a prose artifact, updates it to v2, prints the canvas URL,
 then polls `check_askbacks` every 2s and prints anything you submit from the
 browser. Exits 0 on Ctrl+C or after the poll window
-(`VISUAL_CHAT_DEMO_TIMEOUT_MS`, default 120000). Set `VISUAL_CHAT_NO_OPEN=1`
+(`PURVIEW_DEMO_TIMEOUT_MS`, default 120000). Set `PURVIEW_NO_OPEN=1`
 to keep it from opening a browser.

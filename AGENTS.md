@@ -1,19 +1,21 @@
-# visual-chat
+# Purview
 
-A framework + plugin that gives an LLM agent a local browser surface for rendering
-rich, interactive, honest visual artifacts (design docs, flowcharts, diagrams,
-dashboards) instead of plain terminal text.
+A framework + plugin that gives a terminal coding agent a local browser canvas for
+rendering rich, honest visual artifacts (architecture, diffs, flowcharts, diagrams)
+instead of a wall of terminal text. The surface is exactly `{html, prose, absence}`.
 
-**Cold start / context recovery: read `README.md` FIRST** — it is the always-current
-project status, philosophy, and map of record. Standing rule: any merge to `main`
-updates README.md's Status section in the same change.
+**Cold start / context recovery: read `docs/STATUS.md` FIRST** — it holds the
+always-current status, milestone history, and open follow-ups. `README.md` is the
+public front door; `CONTEXT.md` is the glossary. Standing rule: any merge to `main`
+updates the Status section in `docs/STATUS.md` in the same change.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues live as local markdown files under `.scratch/<feature>/` in this repo
-(no remote tracker). See `docs/agents/issue-tracker.md`.
+The v1 build's issue specs and PRD are archived under `docs/history/v1-tracker/`
+(historical record); there's no active in-repo tracker. See
+`docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -25,9 +27,9 @@ wontfix. See `docs/agents/triage-labels.md`.
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root.
 See `docs/agents/domain.md`.
 
-## Visual Chat
+## Purview
 
-A companion canvas is available via the visual-chat MCP tools (register per
+A companion canvas is available via the purview MCP tools (register per
 `docs/setup.md`). The terminal stays the conversation driver; the canvas
 renders artifacts.
 
