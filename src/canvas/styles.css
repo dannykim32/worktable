@@ -6,6 +6,15 @@
    owns the chrome (masthead/focus/viewing marker); data and semantics hold
    their own lane so the accent never doubles as a warning. Contrast of the
    text/semantic steps verified with WCAG on the #FFFFFF surface. */
+/* The hidden attribute must ALWAYS win. The UA's [hidden]→display:none is a
+   user-agent rule, so ANY author display value (e.g. .drawer{display:flex})
+   silently overrides it — which once left the drawer permanently visible while
+   `panel.hidden = true` claimed otherwise. This reset restores the contract the
+   canvas code relies on everywhere (22 call sites toggle .hidden). */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   color-scheme: light;
 
@@ -412,6 +421,10 @@ header.canvas-chrome .live {
 }
 .drawer-open .drawer-tab {
   right: var(--drawer-w);
+  /* Open state shows a lone collapse chevron: horizontal, so "›" points right
+     (the collapse direction) instead of being rotated downward. */
+  writing-mode: horizontal-tb;
+  padding: 10px 6px;
 }
 
 .drawer {
