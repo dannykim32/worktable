@@ -5,8 +5,9 @@
 // column reflows narrower while the drawer is open (CSS, driven by a body class).
 //
 // This is the single home for a canvas's Q&A. Each entry carries the selected
-// quote (what it's about), the question, and the agent's answer — or the honest
-// pending state ("replies on the agent's next terminal turn"). Answers arrive via
+// quote (what it's about), the question, and the agent's answer — or a neutral
+// pending state; the nudge BANNER carries the delivery story (terminal turn vs
+// a listening agent, per the `listening` SSE state). Answers arrive via
 // SSE `askback_answered` and fill their entry in place (ADR-0010: no new
 // browser→agent channel — the write is still POST /api/askbacks).
 //
@@ -387,7 +388,7 @@ export class Drawer {
       // Honest pending copy: an idle terminal agent replies on its NEXT terminal
       // turn (the ask-back hook delivers; the human must submit a turn to nudge).
       label.textContent =
-        "Sent — the agent replies on its next terminal turn (type anything there to nudge it).";
+        "Sent — waiting for the agent.";
       pending.append(dot, label);
       el.appendChild(pending);
     }

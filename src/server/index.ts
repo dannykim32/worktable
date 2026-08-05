@@ -47,6 +47,16 @@ import { openWorkspace } from "./workspace.js";
 
 async function main(): Promise<void> {
   const workspace = openWorkspace();
+  // The listener CLI ships beside this server; resolving it here lets tool
+  // results hand the agent a ready-to-run arm command (same layout in dev and
+  // in the standalone bundle).
+  const awaitCliPath = fileURLToPath(
+    new URL("../../dist/hooks/await-askback.js", import.meta.url),
+  );
+  const armListenerHint =
+    `Arm the listener so canvas questions reach you without a terminal turn: ` +
+    `run \`node ${awaitCliPath}\` as a BACKGROUND Bash job (never foreground). ` +
+    `When it completes reporting questions: check_askbacks, answer, re-arm.`;
   const canvasDistDir = fileURLToPath(
     new URL("../../dist/canvas", import.meta.url),
   );
@@ -354,7 +364,10 @@ async function main(): Promise<void> {
         'visual). "absence" declines honestly with a reason instead of ' +
         "fabricating. Design it, don't dump it: lead with the claim, mark every " +
         "literal (path, identifier, status code) as `code`, and add a diagram " +
-        "ONLY when it shows a mechanism prose can't — one figure, one claim. IF A " +
+        "ONLY when it shows a mechanism prose can't — one figure, one claim. If " +
+        "the page leans on a term you coined or one never agreed on with the " +
+        "human, add a compact Terms section: one line per term, ONLY the few the " +
+        "reader genuinely needs (they can select any phrase and ask). IF A " +
         "PUBLISH IS REJECTED: the error names exactly what to fix and nothing was " +
         "stored — fix it (inline the external resource, drop the <meta " +
         "http-equiv>) and re-publish HERE. Never fall back to another surface — " +
@@ -373,7 +386,12 @@ async function main(): Promise<void> {
             type: meta.type,
           });
           autoOpenCanvasOnFirstPublish();
-          return { artifact_id: meta.id, version: 1, url: canvasUrl() };
+          return {
+            artifact_id: meta.id,
+            version: 1,
+            url: canvasUrl(),
+            next: armListenerHint,
+          };
         }),
     },
     {
@@ -428,7 +446,10 @@ async function main(): Promise<void> {
             "answer_askback(askback_id, answer) so the reply appears inline on " +
             "the canvas exactly where the human asked. Calling answer_askback is " +
             "required to close the loop, not optional — a terminal-only answer " +
-            "never reaches the browser where they're reading.",
+            "never reaches the browser where they're reading. When done, re-arm " +
+            "the listener (background `node " +
+            awaitCliPath +
+            "`) so their next question wakes you too.",
         };
       },
     },

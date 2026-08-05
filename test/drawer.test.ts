@@ -116,9 +116,10 @@ describe("Drawer composer + submit (issue 27)", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0]!.question).toBe("why this sentence?");
 
-    // A pending entry with the honest terminal-turn copy.
+    // A pending entry with delivery-neutral copy — the nudge BANNER carries the
+    // how (terminal turn vs listening), so the entry doesn't contradict it.
     const pending = drawer.panel.querySelector(".drawer-pending-label")!;
-    expect(pending.textContent).toContain("next terminal turn");
+    expect(pending.textContent).toContain("waiting for the agent");
     expect(drawer.panel.querySelector(".drawer-entry-q")!.textContent).toBe(
       "why this sentence?",
     );
