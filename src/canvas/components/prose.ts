@@ -403,6 +403,20 @@ function parseBlocks(doc: Document, markdown: string): HTMLElement[] {
   return blocks;
 }
 
+/** Render agent-authored markdown into `mount` (e.g. a drawer answer): the
+ *  same trusted pipeline as prose artifacts — DOM built via textContent /
+ *  createElement only — minus the block-index anchors. Never throws: any parse
+ *  failure degrades to the raw markdown as literal text. */
+export function renderMarkdownInto(markdown: string, mount: HTMLElement): void {
+  const doc = mount.ownerDocument;
+  try {
+    mount.replaceChildren(...parseBlocks(doc, markdown));
+  } catch (err) {
+    console.error(`worktable: markdown render degraded to text: ${String(err)}`);
+    mount.textContent = markdown;
+  }
+}
+
 /** Render a prose artifact. Each TOP-LEVEL block carries a data-block-index so
  *  ask-back (which walks up to the nearest indexed element) can anchor a
  *  selection to a section. Never throws: any parse failure degrades to the raw

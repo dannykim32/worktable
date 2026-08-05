@@ -463,6 +463,71 @@ body {
     transition: none;
   }
 }
+/* Drag-resize grip on the panel's left edge. Dragging writes --drawer-w, so
+   panel + tab + body reflow follow together; transitions are suspended during
+   the drag (they'd rubber-band against the pointer). */
+.drawer-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.drawer-resize:hover {
+  background: var(--accent-wash);
+}
+.drawer-resizing body,
+.drawer-resizing .drawer-tab {
+  transition: none !important;
+}
+.drawer-resizing,
+.drawer-resizing * {
+  user-select: none;
+}
+/* Markdown inside a drawer answer — compact for the narrow column. Headings
+   are capped near body size: this is a chat reply, not a document. */
+.drawer-entry-text {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.drawer-entry-text > * {
+  margin: 0;
+}
+.drawer-entry-text > * + * {
+  margin-top: 6px;
+}
+.drawer-entry-text ul,
+.drawer-entry-text ol {
+  padding-left: 18px;
+}
+.drawer-entry-text li {
+  margin: 2px 0;
+}
+.drawer-entry-text h1,
+.drawer-entry-text h2,
+.drawer-entry-text h3,
+.drawer-entry-text h4 {
+  font-size: 13px;
+  font-weight: 650;
+}
+.drawer-entry-text pre {
+  overflow-x: auto;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--callout-bg);
+  font-size: 12px;
+}
+.drawer-entry-text code {
+  font-size: 12px;
+}
+.drawer-entry-text table {
+  display: block;
+  overflow-x: auto;
+  font-size: 12px;
+}
 
 .drawer-head {
   display: flex;

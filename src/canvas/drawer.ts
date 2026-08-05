@@ -21,6 +21,7 @@
 // Security: every model/agent-authored string (quote, question, answer) reaches
 // this DOM via textContent ONLY — never innerHTML (XSS canary).
 import type { CanvasApi } from "./api.js";
+import { renderMarkdownInto } from "./components/prose.js";
 import type {
   Anchor,
   AskbackAnswer,
@@ -162,9 +163,73 @@ export class Drawer {
       "Select text in an artifact and choose “Ask about this” — your questions " +
       "and the agent's answers gather here.";
 
-    this.panel.append(header, this.composer, this.nudge, this.list);
+    // Resize handle: a grab strip on the panel's left edge. Dragging writes
+    // --drawer-w on the root, so the panel, the edge tab, AND the body reflow
+    // all follow one variable — the artifact column resizes live with it.
+    const grip = doc.createElement("div");
+    grip.className = "drawer-resize";
+    grip.setAttribute("role", "separator");
+    grip.setAttribute("aria-orientation", "vertical");
+    grip.setAttribute("aria-label", "resize the conversation drawer");
+    grip.addEventListener("pointerdown", (e: PointerEvent) => {
+      e.preventDefault();
+      grip.setPointerCapture?.(e.pointerId);
+      // Transitions would fight the pointer — suspend them while dragging.
+      this.doc.documentElement.classList.add("drawer-resizing");
+      const onMove = (ev: PointerEvent) => {
+        const viewport =
+          this.doc.documentElement.clientWidth ||
+          this.doc.defaultView?.innerWidth ||
+          0;
+        this.setWidth(viewport - ev.clientX);
+      };
+      const onUp = () => {
+        grip.removeEventListener("pointermove", onMove);
+        grip.removeEventListener("pointerup", onUp);
+        grip.removeEventListener("pointercancel", onUp);
+        this.doc.documentElement.classList.remove("drawer-resizing");
+      };
+      grip.addEventListener("pointermove", onMove);
+      grip.addEventListener("pointerup", onUp);
+      grip.addEventListener("pointercancel", onUp);
+    });
+
+    this.panel.append(grip, header, this.composer, this.nudge, this.list);
+    this.restoreWidth();
     this.renderList();
     this.refreshToggle();
+  }
+
+  // ── width (drag-resize; one CSS var drives panel + tab + reflow) ──────
+  /** Clamp + apply a drawer width and persist it across reloads. */
+  setWidth(px: number): void {
+    const viewport =
+      this.doc.documentElement.clientWidth ||
+      this.doc.defaultView?.innerWidth ||
+      1200;
+    const clamped = Math.round(
+      Math.min(Math.min(720, viewport * 0.92), Math.max(280, px)),
+    );
+    this.doc.documentElement.style.setProperty("--drawer-w", `${clamped}px`);
+    try {
+      this.doc.defaultView?.localStorage?.setItem(
+        "worktable.drawer-w",
+        String(clamped),
+      );
+    } catch {
+      /* storage may be unavailable — width just won't persist */
+    }
+  }
+
+  private restoreWidth(): void {
+    try {
+      const saved = Number(
+        this.doc.defaultView?.localStorage?.getItem("worktable.drawer-w"),
+      );
+      if (Number.isFinite(saved) && saved > 0) this.setWidth(saved);
+    } catch {
+      /* ignore */
+    }
   }
 
   /** Place the edge tab and the panel in the page. */
@@ -389,9 +454,12 @@ export class Drawer {
       const who = doc.createElement("span");
       who.className = "drawer-entry-who";
       who.textContent = "agent";
-      const text = doc.createElement("span");
+      const text = doc.createElement("div");
       text.className = "drawer-entry-text";
-      text.textContent = entry.answer.text; // agent-authored untrusted → textContent
+      // Agent-authored untrusted markdown → the trusted prose pipeline
+      // (textContent/createElement only). Renders bullets/paragraphs/code
+      // readably in the narrow column instead of one flat blob.
+      renderMarkdownInto(entry.answer.text, text);
       a.append(who, text);
       el.appendChild(a);
     } else {

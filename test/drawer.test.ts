@@ -177,6 +177,44 @@ describe("Drawer composer + submit (issue 27)", () => {
     expect(galleryRoot.querySelector(".anchor-marker")).not.toBeNull();
   });
 
+  test("answers render as markdown (bullets/code), not one flat blob", async () => {
+    const { galleryRoot } = makeGallery();
+    const md = "Two causes:\n\n- the `port` file was stale\n- the token rotated\n";
+    const { api } = fakeApi([answeredItem(blockAnchor, "why?", md)]);
+    const drawer = makeDrawer(galleryRoot, api);
+    await drawer.loadAnswered();
+
+    const text = drawer.panel.querySelector(".drawer-entry-text") as HTMLElement;
+    expect(text.querySelectorAll("li").length).toBe(2);
+    expect(text.querySelector("code")!.textContent).toBe("port");
+  });
+
+  test("drawer width: clamps, drives --drawer-w, persists, restores", () => {
+    const { galleryRoot, document } = makeGallery();
+    const { api } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+
+    drawer.setWidth(500);
+    expect(
+      document.documentElement.style.getPropertyValue("--drawer-w"),
+    ).toBe("500px");
+    drawer.setWidth(50); // under the floor
+    expect(
+      document.documentElement.style.getPropertyValue("--drawer-w"),
+    ).toBe("280px");
+    drawer.setWidth(5000); // over the ceiling
+    const capped = document.documentElement.style.getPropertyValue("--drawer-w");
+    expect(Number.parseInt(capped, 10)).toBeLessThanOrEqual(720);
+
+    // A new drawer on the same document restores the persisted width.
+    drawer.setWidth(430);
+    const again = makeDrawer(galleryRoot, api);
+    expect(again.panel.querySelector(".drawer-resize")).not.toBeNull();
+    expect(
+      document.documentElement.style.getPropertyValue("--drawer-w"),
+    ).toBe("430px");
+  });
+
   test("XSS canary: html-shaped quote + answer render as literal text, no nodes", async () => {
     const { galleryRoot } = makeGallery();
     const payload = '<img src=x onerror="window.__pwned=1">';
