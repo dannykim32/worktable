@@ -31,7 +31,7 @@ function boot(): void {
   const header = document.createElement("header");
   header.className = "canvas-chrome";
   const h1 = document.createElement("h1");
-  h1.textContent = "Visual Chat — Canvas";
+  h1.textContent = "Purview — Canvas";
   const ws = document.createElement("span");
   ws.className = "ws";
   const live = document.createElement("span");

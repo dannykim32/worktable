@@ -7,7 +7,7 @@ import type {
   ArtifactEvent,
   ArtifactMeta,
 } from "../shared/artifacts.js";
-import { componentRegistry } from "./components/registry.js";
+import { rendererRegistry } from "./components/registry.js";
 import { renderHtmlCard, type HtmlCardHandle } from "./components/html.js";
 
 export function relativeTime(iso: string, nowMs: number = Date.now()): string {
@@ -277,7 +277,7 @@ export class Gallery {
     if (content.type === "html") {
       this.renderHtml(card, content, version);
     } else {
-      componentRegistry[content.type](content, card.body);
+      rendererRegistry[content.type](content, card.body);
     }
     this.refreshChrome(card);
   }

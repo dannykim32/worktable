@@ -65,7 +65,7 @@ export class ArtifactStore {
         this.metas.set(meta.id, meta);
       } catch (err) {
         console.error(
-          `visual-chat: skipping unreadable artifact meta ${metaPath}: ${String(err)}`,
+          `purview: skipping unreadable artifact meta ${metaPath}: ${String(err)}`,
         );
       }
     }

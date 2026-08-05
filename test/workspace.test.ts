@@ -10,7 +10,7 @@ import {
 import { deriveWorkspaceId, openWorkspace } from "../src/server/workspace.js";
 
 function tmp(): string {
-  return mkdtempSync(join(tmpdir(), "visual-chat-ws-"));
+  return mkdtempSync(join(tmpdir(), "purview-ws-"));
 }
 
 describe("workspace identity", () => {
@@ -52,7 +52,7 @@ describe("capability token lifecycle", () => {
     const home = tmp();
     const ws = openWorkspace({ cwd: tmp(), home });
     expect(statSync(ws.dir).mode & 0o777).toBe(0o700);
-    expect(statSync(join(home, ".visual-chat")).mode & 0o777).toBe(0o700);
+    expect(statSync(join(home, ".purview")).mode & 0o777).toBe(0o700);
     expect(statSync(join(ws.dir, "token")).mode & 0o777).toBe(0o600);
     ws.recordPort(8787);
     expect(statSync(join(ws.dir, "port")).mode & 0o777).toBe(0o600);

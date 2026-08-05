@@ -90,7 +90,7 @@ describe("anchor capture from a Range", () => {
 
 describe("askback queue jsonl state transitions", () => {
   test("pending → delivered via atomic drain; delivery persists on disk", () => {
-    const dir = mkdtempSync(join(tmpdir(), "visual-chat-ab-"));
+    const dir = mkdtempSync(join(tmpdir(), "purview-ab-"));
     const queue = new AskbackQueue(dir);
     queue.append({ anchor: goodAnchor, question: "why this design?" });
     queue.append({ anchor: goodAnchor, question: "second question" });

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command install for visual-chat — self-contained bundle, no npm/network.
+# One-command install for purview — self-contained bundle, no npm/network.
 #   ./install.sh                 register for EVERY Claude Code session (user scope)
 #   ./install.sh /path/to/repo   ALSO drop the canvas guidance + ask-back hook into
 #                                that project (so the agent uses the canvas proactively)
@@ -7,7 +7,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER="$HERE/dist/server/index.js"
 
-echo "visual-chat installer"
+echo "purview installer"
 
 # node is the only runtime requirement the bundle can't carry.
 if ! command -v node >/dev/null 2>&1; then
@@ -23,16 +23,16 @@ fi
 
 # Register for every Claude Code session (user scope). Idempotent: remove then add.
 if command -v claude >/dev/null 2>&1; then
-  claude mcp remove visual-chat -s user >/dev/null 2>&1 || true
-  if claude mcp add -s user visual-chat -- node "$SERVER"; then
-    echo "  ✓ registered 'visual-chat' for every Claude Code session"
+  claude mcp remove purview -s user >/dev/null 2>&1 || true
+  if claude mcp add -s user purview -- node "$SERVER"; then
+    echo "  ✓ registered 'purview' for every Claude Code session"
   else
     echo "  ! auto-register failed — add it manually:"
-    echo "      claude mcp add -s user visual-chat -- node \"$SERVER\""
+    echo "      claude mcp add -s user purview -- node \"$SERVER\""
   fi
 else
   echo "  ! the 'claude' CLI isn't on your PATH. Register manually once it is:"
-  echo "      claude mcp add -s user visual-chat -- node \"$SERVER\""
+  echo "      claude mcp add -s user purview -- node \"$SERVER\""
 fi
 
 # Optional: wire a specific project (guidance so the agent uses the canvas + the hook).
@@ -46,5 +46,5 @@ if [ "${1:-}" != "" ]; then
 fi
 
 echo
-echo "Done. Restart Claude Code, then run  /mcp  — 'visual-chat' should show connected."
+echo "Done. Restart Claude Code, then run  /mcp  — 'purview' should show connected."
 echo "In any project, ask the agent to publish something to the canvas."

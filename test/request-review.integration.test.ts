@@ -1,6 +1,6 @@
 // Issue 14: request_review — the blocking Review Moment tool. Exercised over
 // real stdio MCP + HTTP. The timeout floor is lowered to 1s via
-// VISUAL_CHAT_REVIEW_MIN_S so the timeout path runs fast. Covers approval,
+// PURVIEW_REVIEW_MIN_S so the timeout path runs fast. Covers approval,
 // anchored-question, timeout (nothing lost), cross-artifact isolation,
 // concurrency, and the SSE review banner lifecycle.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -17,7 +17,7 @@ import {
 let server: SpawnedServer;
 
 beforeAll(async () => {
-  server = await spawnServer({ env: { VISUAL_CHAT_REVIEW_MIN_S: "1" } });
+  server = await spawnServer({ env: { PURVIEW_REVIEW_MIN_S: "1" } });
 }, 30_000);
 
 afterAll(async () => {

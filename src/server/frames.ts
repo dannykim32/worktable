@@ -57,7 +57,7 @@ export class FrameRegistry {
       }
     } catch (err) {
       console.error(
-        `visual-chat: skipping unreadable frame registry ${this.path}: ${String(err)}`,
+        `purview: skipping unreadable frame registry ${this.path}: ${String(err)}`,
       );
     }
   }

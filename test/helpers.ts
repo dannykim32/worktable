@@ -95,11 +95,11 @@ export async function spawnServer(
     gate?: "report" | "enforce";
   } = {},
 ): Promise<SpawnedServer> {
-  const home = opts.home ?? mkdtempSync(join(tmpdir(), "visual-chat-test-"));
+  const home = opts.home ?? mkdtempSync(join(tmpdir(), "purview-test-"));
   if (opts.gate) {
     // The workspace id derives from cwd (the repo root the server runs in), so
     // it is deterministic here — pre-create the state dir and drop config.json.
-    const stateDir = join(home, ".visual-chat", deriveWorkspaceId(repoRoot));
+    const stateDir = join(home, ".purview", deriveWorkspaceId(repoRoot));
     mkdirSync(stateDir, { recursive: true, mode: 0o700 });
     writeFileSync(
       join(stateDir, "config.json"),
@@ -114,15 +114,15 @@ export async function spawnServer(
     env: {
       ...(process.env as Record<string, string>),
       HOME: home,
-      VISUAL_CHAT_NO_OPEN: "1",
+      PURVIEW_NO_OPEN: "1",
       ...opts.env,
     },
     stderr: "ignore",
   });
-  const client = new Client({ name: "visual-chat-tests", version: "0.0.0" });
+  const client = new Client({ name: "purview-tests", version: "0.0.0" });
   await client.connect(transport);
 
-  const wsRoot = join(home, ".visual-chat");
+  const wsRoot = join(home, ".purview");
   const workspaceId = readdirSync(wsRoot)[0]!;
   const stateDir = join(wsRoot, workspaceId);
   const port = Number(readFileSync(join(stateDir, "port"), "utf8"));

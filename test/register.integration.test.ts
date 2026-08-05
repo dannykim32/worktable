@@ -32,7 +32,7 @@ describe("register.mjs", () => {
     const r = run(target);
     expect(r.status).toBe(0);
     const mcp = readJson(join(target, ".mcp.json"));
-    expect(mcp.mcpServers["visual-chat"]).toEqual({
+    expect(mcp.mcpServers["purview"]).toEqual({
       command: "node",
       args: [distServer],
     });
@@ -43,8 +43,8 @@ describe("register.mjs", () => {
     run(target);
     run(target);
     const mcp = readJson(join(target, ".mcp.json"));
-    expect(Object.keys(mcp.mcpServers)).toEqual(["visual-chat"]);
-    expect(mcp.mcpServers["visual-chat"].args).toEqual([distServer]);
+    expect(Object.keys(mcp.mcpServers)).toEqual(["purview"]);
+    expect(mcp.mcpServers["purview"].args).toEqual([distServer]);
   });
 
   test("preserves an existing unrelated server entry", () => {
@@ -58,7 +58,7 @@ describe("register.mjs", () => {
     run(target);
     const mcp = readJson(join(target, ".mcp.json"));
     expect(mcp.mcpServers.other).toEqual({ command: "foo", args: ["bar"] });
-    expect(mcp.mcpServers["visual-chat"].command).toBe("node");
+    expect(mcp.mcpServers["purview"].command).toBe("node");
   });
 
   test("--guidance appends the snippet once (marker makes re-run a no-op)", () => {
@@ -67,11 +67,11 @@ describe("register.mjs", () => {
     run(target, "--guidance");
     const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
     // Exactly one marker block, one heading — the marker guards against dupes.
-    expect(agents.match(/<!-- visual-chat-guidance -->/g)?.length).toBe(1);
-    expect(agents.match(/## Visual Chat/g)?.length).toBe(1);
+    expect(agents.match(/<!-- purview-guidance -->/g)?.length).toBe(1);
+    expect(agents.match(/## Purview/g)?.length).toBe(1);
     expect(agents).toContain("check_askbacks");
     // No stray prose leaked in ahead of the marker.
-    expect(agents.startsWith("<!-- visual-chat-guidance -->")).toBe(true);
+    expect(agents.startsWith("<!-- purview-guidance -->")).toBe(true);
   });
 
   test("--guidance appends to an existing CLAUDE.md when no AGENTS.md exists", () => {
@@ -81,7 +81,7 @@ describe("register.mjs", () => {
     expect(existsSync(join(target, "AGENTS.md"))).toBe(false);
     const claude = readFileSync(join(target, "CLAUDE.md"), "utf8");
     expect(claude).toContain("keep me");
-    expect(claude).toContain("<!-- visual-chat-guidance -->");
+    expect(claude).toContain("<!-- purview-guidance -->");
   });
 
   test("--hook writes a valid settings.json block and preserves other hooks", () => {
@@ -118,7 +118,7 @@ describe("register.mjs", () => {
   test("--print-codex prints a config.toml snippet and writes no codex file", () => {
     const target = scratch();
     const r = run(target, "--print-codex");
-    expect(r.stdout).toContain("[mcp_servers.visual-chat]");
+    expect(r.stdout).toContain("[mcp_servers.purview]");
     expect(r.stdout).toContain('command = "node"');
     expect(r.stdout).toContain(distServer);
     // It only ever writes .mcp.json into the target; nothing codex-related.

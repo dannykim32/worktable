@@ -7,7 +7,7 @@ import { describe, expect, test } from "bun:test";
 import type { ProseContent } from "../src/shared/artifacts.js";
 import type { AnsweredAskback, CanvasApi } from "../src/canvas/api.js";
 import { renderProse } from "../src/canvas/components/prose.js";
-import { componentRegistry } from "../src/canvas/components/registry.js";
+import { rendererRegistry } from "../src/canvas/components/registry.js";
 import { anchorFromRange } from "../src/canvas/askback.js";
 import { Drawer } from "../src/canvas/drawer.js";
 import type { Anchor } from "../src/shared/artifacts.js";
@@ -47,7 +47,7 @@ const GOLDEN = [
 describe("prose renderer — golden supported subset", () => {
   test("headings, emphasis, code, fenced block, nested lists, quote, table, link, hr", () => {
     const { mount } = makeDom();
-    componentRegistry.prose(prose(GOLDEN), mount);
+    rendererRegistry.prose(prose(GOLDEN), mount);
     expect(mount.classList.contains("prose")).toBe(true);
 
     // ATX heading.

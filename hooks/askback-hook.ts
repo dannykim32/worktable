@@ -25,7 +25,7 @@ interface PendingItem {
 function formatPending(items: PendingItem[]): string {
   const lines: string[] = [
     `The human left ${items.length} unread canvas ask-back` +
-      `${items.length === 1 ? "" : "s"} on the visual-chat canvas:`,
+      `${items.length === 1 ? "" : "s"} on the purview canvas:`,
     "",
   ];
   for (const item of items) {
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
     return; // cwd unresolvable — nothing to do
   }
 
-  const dir = join(homedir(), ".visual-chat", workspaceId);
+  const dir = join(homedir(), ".purview", workspaceId);
   const portPath = join(dir, "port");
   const tokenPath = join(dir, "token");
   if (!existsSync(portPath) || !existsSync(tokenPath)) return;

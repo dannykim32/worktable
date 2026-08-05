@@ -123,7 +123,7 @@ async function main(): Promise<void> {
   // request_review timeout floor: 30s in production. A test seam lets the
   // suite exercise the timeout path in ~1s without a 30s wall.
   const reviewTimeoutFloor = (): number => {
-    const override = Number(process.env.VISUAL_CHAT_REVIEW_MIN_S);
+    const override = Number(process.env.PURVIEW_REVIEW_MIN_S);
     return Number.isFinite(override) && override > 0 ? override : 30;
   };
 
@@ -266,7 +266,7 @@ async function main(): Promise<void> {
   };
 
   // Issue 03: the FIRST publish of a server run auto-opens the canvas
-  // (updates never do). openInBrowser is a no-op under VISUAL_CHAT_NO_OPEN=1.
+  // (updates never do). openInBrowser is a no-op under PURVIEW_NO_OPEN=1.
   let hasAutoOpenedCanvas = false;
   const autoOpenCanvasOnFirstPublish = () => {
     if (hasAutoOpenedCanvas) return;
@@ -580,6 +580,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error(`visual-chat: fatal: ${String(err)}`);
+  console.error(`purview: fatal: ${String(err)}`);
   process.exit(1);
 });

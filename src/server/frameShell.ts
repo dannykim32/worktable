@@ -1,15 +1,18 @@
-// The trusted shell served by the frame-origin server (issue 25). It wraps the
-// model's VERBATIM HTML in a minimal document plus ONE nonce'd "capture prelude"
-// script. The document's CSP is delivered as an HTTP HEADER by frameHttp.ts (a
-// <meta> CSP cannot deliver sandbox/frame-ancestors — issue 15); this module
-// only builds the body + prelude and strips the two markup vectors the header
-// CSP does not itself cover.
+// The trusted shell served by the frame-origin server. It wraps the model's
+// VERBATIM HTML in a minimal document plus ONE nonce'd "capture prelude" script.
+// The document's CSP is delivered as an HTTP HEADER by frameHttp.ts (a <meta> CSP
+// cannot deliver sandbox/frame-ancestors); this module only builds the body +
+// prelude, plus the small belt-and-suspenders markup pass described below.
 //
 // What neutralizes the model's own code is the header CSP `script-src
 // 'nonce-<random>'`: the model's <script>/onclick have no nonce, so they never
-// execute. The stripping here is defense-in-depth for the one gap CSP leaves:
-//  · <meta http-equiv=refresh> — spec-ambiguous whether it fires in a sandboxed
-//    frame, and CSP does not govern it; strip it (issue 15 open item).
+// execute. Network egress is refused at INGEST by frameGuard.ts — the authoritative
+// boundary, which REJECTS the whole artifact (never silently strips) on any no-click
+// egress construct, <meta http-equiv=refresh> included. By the time HTML reaches
+// this module it has already passed that guard, so these passes are pure
+// defense-in-depth, not the boundary:
+//  · <meta http-equiv=refresh> — already rejected at ingest; stripped again here
+//    only so any future caller that skips the guard still can't self-navigate.
 //  · nonce= attributes on model tags — the nonce is fresh per response and never
 //    shown to the model, so it cannot be guessed; strip anyway so no model tag
 //    can carry a literal `nonce=` that a browser quirk might honor.
@@ -124,7 +127,7 @@ function capturePrelude(): string {
     "    var m = markers[id];",
     "    if (!m || m.el) return m ? m.el : null;",
     "    var el = document.createElement('span');",
-    "    el.setAttribute('data-vc-marker', id);",
+    "    el.setAttribute('data-pv-marker', id);",
     "    el.setAttribute('role', 'button');",
     "    el.setAttribute('tabindex', '0');",
     "    el.setAttribute('aria-label', 'asked about this — show in the conversation');",
@@ -148,8 +151,8 @@ function capturePrelude(): string {
     "    var el = drawMarker(id);",
     "    if (!el) return;",
     "    try { el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }",
-    "    el.setAttribute('data-vc-flash', '1');",
-    "    setTimeout(function () { if (el) el.removeAttribute('data-vc-flash'); }, 1600);",
+    "    el.setAttribute('data-pv-flash', '1');",
+    "    setTimeout(function () { if (el) el.removeAttribute('data-pv-flash'); }, 1600);",
     "  }",
     "  // Ask-about-this affordance on text selection (pill only — the composer",
     "  // lives in the parent drawer now).",

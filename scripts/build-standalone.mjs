@@ -32,7 +32,7 @@ run("bun", [
   "--target=node",
   // Inline the version as a JS string literal at build time.
   "--define",
-  `VISUAL_CHAT_VERSION="${version}"`,
+  `PURVIEW_VERSION="${version}"`,
   "--outfile=dist/server/index.js",
 ]);
 run("bun", [

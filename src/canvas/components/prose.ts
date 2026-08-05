@@ -419,7 +419,7 @@ export function renderProse(content: ArtifactContent, mount: HTMLElement): void 
     });
   } catch (err) {
     // The renderer must never throw out to the gallery — degrade to text.
-    console.error(`visual-chat: prose render degraded to text: ${String(err)}`);
+    console.error(`purview: prose render degraded to text: ${String(err)}`);
     const fallback = doc.createElement("p");
     fallback.className = "prose-fallback";
     fallback.textContent = content.markdown;
