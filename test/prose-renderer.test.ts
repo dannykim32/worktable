@@ -157,7 +157,7 @@ describe("prose renderer — link protocol allowlist", () => {
       "javascript:alert(1)",
       "data:text/html,x",
       "/relative/path",
-      "#anchor",
+      "./docs/setup.md",
       "ftp://a.test",
     ]) {
       const { mount } = makeDom();
@@ -165,6 +165,84 @@ describe("prose renderer — link protocol allowlist", () => {
       expect(mount.querySelector("a")).toBeNull();
       expect(mount.textContent).toContain(`[link](${url})`);
     }
+  });
+});
+
+describe("prose renderer — clickable references (fragments + autolinks)", () => {
+  test("https link renders with target=_blank and rel='noopener noreferrer'", () => {
+    const { mount } = makeDom();
+    renderProse(prose("[PROJ-123](https://issues.example/browse/PROJ-123)"), mount);
+    const a = mount.querySelector("a")!;
+    expect(a.getAttribute("href")).toBe("https://issues.example/browse/PROJ-123");
+    expect(a.getAttribute("target")).toBe("_blank");
+    expect(a.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(a.textContent).toBe("PROJ-123");
+  });
+
+  test("#fragment renders as a same-page anchor — no new tab, no rel", () => {
+    const { mount } = makeDom();
+    renderProse(prose("[jump to details](#details)"), mount);
+    const a = mount.querySelector("a")!;
+    expect(a).not.toBeNull();
+    expect(a.getAttribute("href")).toBe("#details");
+    expect(a.getAttribute("target")).toBeNull();
+    expect(a.getAttribute("rel")).toBeNull();
+    expect(a.textContent).toBe("jump to details");
+  });
+
+  test("a bare `#` is not a destination — stays literal", () => {
+    const { mount } = makeDom();
+    renderProse(prose("[x](#)"), mount);
+    expect(mount.querySelector("a")).toBeNull();
+    expect(mount.textContent).toContain("[x](#)");
+  });
+
+  test("bare https URL autolinks; trailing prose punctuation stays outside", () => {
+    const { mount } = makeDom();
+    renderProse(prose("See https://issues.example/PROJ-123, then decide."), mount);
+    const a = mount.querySelector("a")!;
+    expect(a.getAttribute("href")).toBe("https://issues.example/PROJ-123");
+    expect(a.getAttribute("target")).toBe("_blank");
+    expect(a.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(a.textContent).toBe("https://issues.example/PROJ-123");
+    expect(mount.textContent).toBe("See https://issues.example/PROJ-123, then decide.");
+  });
+
+  test("autolink keeps a balanced Wikipedia-style paren, drops the closing one", () => {
+    const { mount } = makeDom();
+    renderProse(
+      prose("(see https://en.example/wiki/Bus_(computing)) for background"),
+      mount,
+    );
+    const a = mount.querySelector("a")!;
+    expect(a.getAttribute("href")).toBe("https://en.example/wiki/Bus_(computing)");
+    expect(mount.textContent).toContain(") for background");
+  });
+
+  test("bare javascript:/ftp: text never autolinks; a bare scheme-only https:// stays text", () => {
+    const { mount } = makeDom();
+    renderProse(prose("try javascript:alert(1) or ftp://a.test or https://"), mount);
+    expect(mount.querySelector("a")).toBeNull();
+  });
+
+  test("link TEXT containing html renders inert (textContent, no nodes)", () => {
+    const { mount } = makeDom();
+    renderProse(
+      prose("[<img src=x onerror=alert(1)> docs](https://a.test/docs)"),
+      mount,
+    );
+    expect(mount.querySelectorAll("img, script")).toHaveLength(0);
+    const a = mount.querySelector("a")!;
+    expect(a.textContent).toContain("<img src=x onerror=alert(1)>");
+  });
+
+  test("a bare URL inside a link label does not nest an anchor", () => {
+    const { mount } = makeDom();
+    renderProse(prose("[read https://a.test/docs first](https://b.test)"), mount);
+    const anchors = mount.querySelectorAll("a");
+    expect(anchors).toHaveLength(1);
+    expect(anchors[0]!.getAttribute("href")).toBe("https://b.test");
+    expect(anchors[0]!.textContent).toBe("read https://a.test/docs first");
   });
 });
 

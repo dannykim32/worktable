@@ -144,6 +144,26 @@ describe("trusted shell markup strips", () => {
     expect(doc).toContain("<!doctype html>");
   });
 
+  test("prelude intercepts anchor clicks and speaks the closed openlink verb", () => {
+    // The prelude is served as a string, so lock in its source: the capture-
+    // phase click interception, the never-self-navigate preventDefault, the
+    // absolute-http(s)-only + bounded checks, the fragment carve-out, and the
+    // closed {v:'openlink',href} verb.
+    const doc = buildFrameDocument("<a href='https://x.example/'>x</a>", "N0NCE");
+    expect(doc).toContain("document.addEventListener('click', function (ev) {");
+    expect(doc).toContain("ev.preventDefault(); // no self-navigation, ever");
+    expect(doc).toContain(
+      "if (url.protocol !== 'http:' && url.protocol !== 'https:') return;",
+    );
+    expect(doc).toContain("var HREF_MAX = 2048;");
+    expect(doc).toContain("if (href.length > HREF_MAX) return;");
+    expect(doc).toContain("send({ v: 'openlink', href: href });");
+    // Pure in-page fragments keep their default same-document scroll.
+    expect(doc).toContain("raw.charAt(0) === '#'");
+    // The interception walks up the parent chain (clicks land on child spans).
+    expect(doc).toContain("node = node.parentNode;");
+  });
+
   test("sanitizeModelHtmlMarkup applies both strips", () => {
     const out = sanitizeModelHtmlMarkup(
       '<meta http-equiv="refresh" content="0"><b nonce="z">hi</b>',

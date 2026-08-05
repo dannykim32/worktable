@@ -16,7 +16,7 @@
 //  · nonce= attributes on model tags — the nonce is fresh per response and never
 //    shown to the model, so it cannot be guessed; strip anyway so no model tag
 //    can carry a literal `nonce=` that a browser quirk might honor.
-import { QUOTE_MAX } from "../shared/constraints.js";
+import { HREF_MAX, QUOTE_MAX } from "../shared/constraints.js";
 
 /** Remove `<meta http-equiv=refresh …>` tags (any attribute order/quoting). */
 export function stripMetaRefresh(html: string): string {
@@ -48,8 +48,20 @@ export function sanitizeModelHtmlMarkup(html: string): string {
  *  in-content marker only when the parent later confirms the asked question with
  *  `{v:"focusMarker",markerId}` (which also scrolls + highlights it). Clicking a
  *  drawn marker sends `{v:"focusEntry",markerId}` so the parent can highlight the
- *  matching drawer entry. It sends nothing else, and no capability token exists
- *  in this origin to leak. */
+ *  matching drawer entry.
+ *
+ *  Clickable external references: clicks on any `<a href>` are intercepted (with
+ *  a parent-chain lookup — clicks often land on a child span). The sandboxed
+ *  frame must NEVER navigate itself, so every non-fragment anchor click is
+ *  preventDefault'ed; an absolute http(s) href ≤ HREF_MAX becomes the closed
+ *  verb `{v:"openlink",href}` for the PARENT to open in a new tab. Pure in-page
+ *  `#fragment` links keep their default same-document scroll (harmless).
+ *  Everything else (javascript:, data:, relative, mailto, oversized) is dropped
+ *  silently. These checks are convenience only — the parent bridge re-validates
+ *  independently; ITS checks are the boundary.
+ *
+ *  The prelude sends nothing else, and no capability token exists in this
+ *  origin to leak. */
 function capturePrelude(): string {
   // Plain string (no backtick template) so the served <script> can never
   // contain a stray `${…}` or an accidental `</script>`.
@@ -57,6 +69,7 @@ function capturePrelude(): string {
     "(function () {",
     "  'use strict';",
     "  var QUOTE_MAX = " + QUOTE_MAX + ";",
+    "  var HREF_MAX = " + HREF_MAX + ";",
     "  var port = null;",
     "  function send(msg) { if (port) { try { port.postMessage(msg); } catch (e) {} } }",
     "  // markerId -> { range: Range, el: HTMLElement|null }. The counter is the",
@@ -154,6 +167,32 @@ function capturePrelude(): string {
     "    el.setAttribute('data-wt-flash', '1');",
     "    setTimeout(function () { if (el) el.removeAttribute('data-wt-flash'); }, 1600);",
     "  }",
+    "  // Clickable external references: the sandboxed frame must NEVER navigate",
+    "  // itself, so intercept clicks on any <a href> (walking up from the click",
+    "  // target — clicks often land on a child span). Absolute http(s) hrefs",
+    "  // within HREF_MAX become the closed {v:'openlink',href} verb for the",
+    "  // parent to open; pure in-page #fragment links keep their default",
+    "  // same-document scroll; everything else (javascript:, data:, relative,",
+    "  // mailto, oversized) is preventDefault'ed and dropped silently. These",
+    "  // checks are convenience — the parent re-validates at the boundary.",
+    "  document.addEventListener('click', function (ev) {",
+    "    var node = ev.target;",
+    "    var a = null;",
+    "    while (node && node !== document) {",
+    "      if (node.nodeType === 1 && node.tagName === 'A' && node.getAttribute('href') !== null) { a = node; break; }",
+    "      node = node.parentNode;",
+    "    }",
+    "    if (!a) return;",
+    "    var raw = String(a.getAttribute('href'));",
+    "    if (raw.charAt(0) === '#') return; // in-page fragment: default scroll is harmless",
+    "    ev.preventDefault(); // no self-navigation, ever",
+    "    var url = null;",
+    "    try { url = new URL(raw); } catch (e) { return; } // relative/garbage -> drop",
+    "    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;",
+    "    var href = url.href;",
+    "    if (href.length > HREF_MAX) return;",
+    "    send({ v: 'openlink', href: href });",
+    "  }, true);",
     "  // Ask-about-this affordance on text selection (pill only — the composer",
     "  // lives in the parent drawer now).",
     "  var host = document.createElement('div');",
