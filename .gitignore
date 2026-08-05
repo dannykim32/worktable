@@ -1,6 +1,6 @@
 node_modules/
 dist/
-.purview/
+.worktable/
 .gstack/
 
 # agent worktrees — never track

@@ -1,16 +1,16 @@
 # Agent guidance snippet
 
 Drop the block below into any repo's `AGENTS.md` or `CLAUDE.md` to make the agent
-use the purview canvas proactively. `scripts/register.mjs --guidance` appends
-exactly this block; the `<!-- purview-guidance -->` marker comments let it detect
+use the worktable canvas proactively. `scripts/register.mjs --guidance` appends
+exactly this block; the `<!-- worktable-guidance -->` marker comments let it detect
 an existing copy and stay idempotent (do not remove or edit the markers).
 
 Everything between the markers (inclusive) is the copy-paste payload:
 
-<!-- purview-guidance -->
-## Purview
+<!-- worktable-guidance -->
+## Worktable
 
-A companion canvas is available via the purview MCP tools. The terminal stays
+A companion canvas is available via the worktable MCP tools. The terminal stays
 the conversation driver; the canvas renders artifacts.
 
 - Call `check_askbacks` at the START of every turn. It returns questions the human
@@ -37,4 +37,4 @@ the conversation driver; the canvas renders artifacts.
   fabricate a visual.
 - Bound large inputs: render a truthful subset and say so in the artifact itself
   ("showing 20 of 5,471"), or decline with an absence artifact.
-<!-- /purview-guidance -->
+<!-- /worktable-guidance -->

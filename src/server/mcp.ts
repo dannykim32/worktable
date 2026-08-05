@@ -55,7 +55,7 @@ export function createMcpServer(opts: {
       if (err instanceof ToolInputError) {
         return { content: [{ type: "text", text: err.message }], isError: true };
       }
-      console.error(`purview: tool ${tool.name} failed: ${String(err)}`);
+      console.error(`worktable: tool ${tool.name} failed: ${String(err)}`);
       return {
         content: [{ type: "text", text: `internal error: ${String(err)}` }],
         isError: true,

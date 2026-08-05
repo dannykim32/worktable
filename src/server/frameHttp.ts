@@ -69,7 +69,7 @@ export async function startFrameHttpServer(
     try {
       handle(req, res);
     } catch (err) {
-      console.error(`purview: frame handler error: ${String(err)}`);
+      console.error(`worktable: frame handler error: ${String(err)}`);
       if (!res.headersSent) {
         res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       }

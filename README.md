@@ -1,6 +1,6 @@
-# Purview
+# Worktable
 
-Purview gives your terminal coding agent a local browser canvas. Instead of
+Worktable gives your terminal coding agent a local browser canvas. Instead of
 describing an architecture change or a bug fix in a wall of text, the agent draws it
 as a page you can open, read, and point at - and when you select something and ask
 about it, the question lands back in the terminal conversation.
@@ -17,12 +17,13 @@ A picture fixes that. Give me a diagram of the call path, a before/after of the
 module graph, a flowchart of the failure, and I understand in seconds what a page of
 prose was trying to say - and I can spot the part that's wrong.
 
-Purview's whole job is to make that the default. It nudges the model to render its
-work locally, honestly, and in a form you can interrogate. You shouldn't have to
-trust the wall of text - you should be able to look at it.
+Worktable's whole job is to make that the default. It nudges the model to render its
+work as a local page you can actually interrogate. You shouldn't have to trust the
+wall of text - you should be able to look at it.
 
-The value isn't a chart library. It's the loop: a local canvas plus a way to point
-at any part of it and ask.
+Plenty of tools draw diagrams. What matters here is the loop - a local canvas, a way
+to point at any part of it, and your question landing back in the agent's
+conversation anchored to exactly what you pointed at.
 
 ## What it looks like
 
@@ -56,7 +57,7 @@ guidance snippet + the ask-back hook):
 ./install.sh /path/to/your/repo
 ```
 
-Restart Claude Code, run `/mcp`, and `purview` should show connected. Then ask the
+Restart Claude Code, run `/mcp`, and `worktable` should show connected. Then ask the
 agent to show you something - "walk me through this architecture on the canvas."
 
 Firewalled machine with no npm access? `docs/install.md` covers the self-contained
@@ -88,7 +89,7 @@ There are exactly three artifact types, on purpose:
 
 ## Security
 
-Model-authored HTML is untrusted input, so Purview never trusts it into the page. An
+Model-authored HTML is untrusted input, so Worktable never trusts it into the page. An
 `html` artifact is served verbatim from a *second* `127.0.0.1` origin into an iframe
 that is `sandbox="allow-scripts"` and never `allow-same-origin`, under a
 header-delivered CSP whose `script-src` is a per-response nonce the model never sees.

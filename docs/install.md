@@ -1,6 +1,6 @@
-# Installing purview on a firewalled machine
+# Installing worktable on a firewalled machine
 
-purview isn't published to npm — it's distributed as a self-contained bundle,
+worktable isn't published to npm — it's distributed as a self-contained bundle,
 deliberately. It's built to install on a machine that cannot reach npm/npx (no
 `bun install`, no `npx` at runtime). The model: build a self-contained bundle on a
 networked machine, copy
@@ -48,13 +48,13 @@ Pick whatever your environment allows:
 
 ```sh
 # tar the repo with dist/ included (dist/ is ignored by git, not by tar)
-tar czf purview.tgz -C /path/to purview && scp purview.tgz host:
+tar czf worktable.tgz -C /path/to worktable && scp worktable.tgz host:
 
 # or scp/rsync the directory directly (dist/ rides along)
-rsync -a /path/to/purview/ host:/path/to/purview/
+rsync -a /path/to/worktable/ host:/path/to/worktable/
 
 # or a git bundle for the source PLUS a separate copy of dist/
-git bundle create purview.bundle --all      # source only — dist/ is gitignored
+git bundle create worktable.bundle --all      # source only — dist/ is gitignored
 # ...then also copy dist/ across by tar/scp/USB, since the bundle omits it
 ```
 
@@ -76,19 +76,19 @@ node scripts/register.mjs /path/to/your/project --guidance
 
 What it does:
 
-- **`.mcp.json`** — merges a `purview` server entry
+- **`.mcp.json`** — merges a `worktable` server entry
   (`{ command: "node", args: ["<abs>/dist/server/index.js"] }`) into
   `<target>/.mcp.json`. Idempotent: existing servers are preserved, and re-running
   updates the path in place instead of duplicating.
 - **`--guidance`** — appends the [agent-guidance snippet](./agent-guidance.md) to
   the target's `AGENTS.md` (or `CLAUDE.md` if that is what exists), so the agent
-  uses the canvas proactively. Idempotent via the `<!-- purview-guidance -->`
+  uses the canvas proactively. Idempotent via the `<!-- worktable-guidance -->`
   marker.
 - **`--hook`** — merges the Claude Code `UserPromptSubmit` ask-back hook into
   `<target>/.claude/settings.json`, pointing at `dist/hooks/askback-hook.js`.
   Existing hooks are preserved. (Claude Code only — see below.)
 - **`--print-codex`** — prints (writes nothing) a Codex `~/.codex/config.toml`
-  `[mcp_servers.purview]` snippet for you to paste.
+  `[mcp_servers.worktable]` snippet for you to paste.
 
 Add the flags you want, e.g. the full Claude Code setup:
 
@@ -100,17 +100,17 @@ node scripts/register.mjs /path/to/your/project --guidance --hook
 
 Once you have the bundle on the target machine (download or transfer — see below),
 it's a single command. The bundle carries an `install.sh` that checks node, registers
-`purview` for **every** Claude Code session (user scope), and optionally wires a
+`worktable` for **every** Claude Code session (user scope), and optionally wires a
 specific project:
 
 ```sh
-tar xzf purview-*.tar.gz
-cd purview-*
+tar xzf worktable-*.tar.gz
+cd worktable-*
 ./install.sh                      # every Claude Code session gets the tools
 ./install.sh /path/to/your/repo   # ALSO drop guidance + the ask-back hook into that repo
 ```
 
-Then restart Claude Code and run `/mcp` — `purview` should show connected. The only
+Then restart Claude Code and run `/mcp` — `worktable` should show connected. The only
 requirement it can't carry is **node** (any recent version); `install.sh` fails clearly
 if it's missing. Everything below is the manual breakdown of what that script does.
 
@@ -122,16 +122,16 @@ github.com is usually reachable where npm is not):
 
 ```sh
 # on any machine (needs only node + gh, or download the .tar.gz from the Releases page):
-gh release download --repo dannykim32/purview --pattern '*.tar.gz'
-tar xzf purview-*.tar.gz
+gh release download --repo dannykim32/worktable --pattern '*.tar.gz'
+tar xzf worktable-*.tar.gz
 # register into a project (no network):
-node purview-*/scripts/register.mjs /path/to/your/project --guidance   # + --hook for Claude Code
+node worktable-*/scripts/register.mjs /path/to/your/project --guidance   # + --hook for Claude Code
 ```
 
 The tarball contains the runtime bundle (`dist/`), the register helper, and the docs —
 no source, no `node_modules`. `INSTALL.txt` at its root has the quickstart. To cut a
 new release from a networked machine: `bun run package:release` then
-`gh release create v<version> dist-release/purview-<version>.tar.gz`.
+`gh release create v<version> dist-release/worktable-<version>.tar.gz`.
 
 ## Install for EVERY Claude Code session (user scope)
 
@@ -140,7 +140,7 @@ To have the tools in **every** Claude Code session in any repo, register at user
 once (point it at the extracted bundle's server):
 
 ```sh
-claude mcp add -s user purview -- node /abs/path/to/purview-<version>/dist/server/index.js
+claude mcp add -s user worktable -- node /abs/path/to/worktable-<version>/dist/server/index.js
 ```
 
 The canvas still keys its workspace off the session's working directory, so each repo
@@ -149,7 +149,7 @@ gets its own artifacts and capability token.
 ## Step 4 — restart and verify
 
 Restart Claude Code in the target project so it picks up the new `.mcp.json` (and
-hook). Confirm `purview` shows as connected under `/mcp`, then ask the agent to
+hook). Confirm `worktable` shows as connected under `/mcp`, then ask the agent to
 "publish a short design note to the canvas" — the tokened canvas URL should open and
 render it. The full walkthrough checklist lives in [setup.md](./setup.md).
 
@@ -166,9 +166,9 @@ node scripts/register.mjs /path/to/your/project --print-codex
 
 ```toml
 # ~/.codex/config.toml
-[mcp_servers.purview]
+[mcp_servers.worktable]
 command = "node"
-args = ["/abs/path/to/purview/dist/server/index.js"]
+args = ["/abs/path/to/worktable/dist/server/index.js"]
 ```
 
 ## Rebuilding after an update

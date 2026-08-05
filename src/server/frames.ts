@@ -57,7 +57,7 @@ export class FrameRegistry {
       }
     } catch (err) {
       console.error(
-        `purview: skipping unreadable frame registry ${this.path}: ${String(err)}`,
+        `worktable: skipping unreadable frame registry ${this.path}: ${String(err)}`,
       );
     }
   }

@@ -155,7 +155,7 @@ describe("artifact ids", () => {
 
 describe("atomic version writes", () => {
   test("an interrupt between tmp write and rename leaves no torn v<N>.json", () => {
-    const dir = mkdtempSync(join(tmpdir(), "purview-atomic-"));
+    const dir = mkdtempSync(join(tmpdir(), "worktable-atomic-"));
     const target = join(dir, "v1.json");
     expect(() =>
       atomicWriteJson(target, { type: "absence" }, {
@@ -171,7 +171,7 @@ describe("atomic version writes", () => {
   });
 
   test("store itself rejects a type change on update (ADR-0006 invariant)", () => {
-    const stateDir = mkdtempSync(join(tmpdir(), "purview-typestable-"));
+    const stateDir = mkdtempSync(join(tmpdir(), "worktable-typestable-"));
     const store = new ArtifactStore(stateDir);
     const meta = store.publish({
       type: "prose",
@@ -192,7 +192,7 @@ describe("atomic version writes", () => {
   });
 
   test("store scan ignores stray tmp files and reloads metas after restart", () => {
-    const stateDir = mkdtempSync(join(tmpdir(), "purview-store-"));
+    const stateDir = mkdtempSync(join(tmpdir(), "worktable-store-"));
     const store = new ArtifactStore(stateDir);
     const meta = store.publish({
       type: "prose",

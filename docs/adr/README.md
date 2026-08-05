@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Numbered, immutable records of the decisions that shaped Purview — each with the
+Numbered, immutable records of the decisions that shaped Worktable — each with the
 context, the choice, and the alternatives that were rejected. A superseded record
 gets a status banner at the top and stays put; the decision trail is the point.
 

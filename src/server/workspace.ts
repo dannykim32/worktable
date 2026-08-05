@@ -1,5 +1,5 @@
 // Workspace identity + capability-token state (ADR-0005).
-// All state lives under ~/.purview/<workspaceId>/ — dirs 0700, files 0600.
+// All state lives under ~/.worktable/<workspaceId>/ — dirs 0700, files 0600.
 import { randomBytes } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -17,7 +17,7 @@ export function mintToken(): string {
 
 export interface Workspace {
   readonly id: string;
-  /** Absolute path of ~/.purview/<id>/ */
+  /** Absolute path of ~/.worktable/<id>/ */
   readonly dir: string;
   /** Current capability token (mutable via rotateToken). */
   readonly token: string;
@@ -42,7 +42,7 @@ export interface OpenWorkspaceOptions {
  */
 export function openWorkspace(opts: OpenWorkspaceOptions = {}): Workspace {
   const id = deriveWorkspaceId(opts.cwd);
-  const root = join(opts.home ?? homedir(), ".purview");
+  const root = join(opts.home ?? homedir(), ".worktable");
   const dir = join(root, id);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   // mkdir mode is masked by umask and skipped for pre-existing dirs; pin both.

@@ -1,4 +1,4 @@
-# Purview
+# Worktable
 
 A framework + plugin that gives a terminal coding agent a local browser canvas for
 rendering rich, honest visual artifacts (architecture, diffs, flowcharts, diagrams)
@@ -27,9 +27,9 @@ wontfix. See `docs/agents/triage-labels.md`.
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root.
 See `docs/agents/domain.md`.
 
-## Purview
+## Worktable
 
-A companion canvas is available via the purview MCP tools (register per
+A companion canvas is available via the worktable MCP tools (register per
 `docs/setup.md`). The terminal stays the conversation driver; the canvas
 renders artifacts.
 

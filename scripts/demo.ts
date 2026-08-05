@@ -2,7 +2,7 @@
 // to a spawned Canvas Server. Publishes a prose artifact, updates it to v2,
 // prints the canvas URL, then polls check_askbacks every 2s and prints anything
 // the human sends from the browser. Exits 0 on Ctrl+C or after the poll
-// window (PURVIEW_DEMO_TIMEOUT_MS, default 120000).
+// window (WORKTABLE_DEMO_TIMEOUT_MS, default 120000).
 //
 // Run: bun scripts/demo.ts   (build first: bun run build)
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const distEntry = join(repoRoot, "dist", "server", "index.js");
 const POLL_MS = 2000;
-const TIMEOUT_MS = Number(process.env.PURVIEW_DEMO_TIMEOUT_MS ?? 120_000);
+const TIMEOUT_MS = Number(process.env.WORKTABLE_DEMO_TIMEOUT_MS ?? 120_000);
 
 function toolJson(result: unknown): Record<string, unknown> {
   const r = result as {
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     env: process.env as Record<string, string>,
     stderr: "inherit",
   });
-  const client = new Client({ name: "purview-demo", version: "0.1.0" });
+  const client = new Client({ name: "worktable-demo", version: "0.1.0" });
   await client.connect(transport);
 
   const published = toolJson(

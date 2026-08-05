@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "purview",
+      "name": "worktable",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.30.0",
       },

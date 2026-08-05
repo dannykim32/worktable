@@ -32,7 +32,7 @@ run("bun", [
   "--target=node",
   // Inline the version as a JS string literal at build time.
   "--define",
-  `PURVIEW_VERSION="${version}"`,
+  `WORKTABLE_VERSION="${version}"`,
   "--outfile=dist/server/index.js",
 ]);
 run("bun", [

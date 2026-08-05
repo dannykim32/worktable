@@ -168,7 +168,7 @@ export async function startCanvasHttpServer(
 
   const server = http.createServer((req, res) => {
     void handle(req, res).catch((err: unknown) => {
-      console.error(`purview: request handler error: ${String(err)}`);
+      console.error(`worktable: request handler error: ${String(err)}`);
       if (!res.headersSent) sendJson(res, 500, { error: "internal error" });
       else res.end();
     });

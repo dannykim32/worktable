@@ -65,7 +65,7 @@ export class ArtifactStore {
         this.metas.set(meta.id, meta);
       } catch (err) {
         console.error(
-          `purview: skipping unreadable artifact meta ${metaPath}: ${String(err)}`,
+          `worktable: skipping unreadable artifact meta ${metaPath}: ${String(err)}`,
         );
       }
     }

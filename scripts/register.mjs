@@ -18,7 +18,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const MARKER = "<!-- purview-guidance -->";
+const MARKER = "<!-- worktable-guidance -->";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -61,7 +61,7 @@ function usage() {
   return (
     "Usage: node scripts/register.mjs <target-repo> " +
     "[--guidance] [--hook] [--print-codex]\n\n" +
-    "  <target-repo>   directory of the project to register purview into\n" +
+    "  <target-repo>   directory of the project to register worktable into\n" +
     "  --guidance      append the agent-guidance snippet to AGENTS.md/CLAUDE.md\n" +
     "  --hook          merge the Claude Code UserPromptSubmit ask-back hook\n" +
     "  --print-codex   print a Codex ~/.codex/config.toml snippet (writes nothing)\n"
@@ -93,8 +93,8 @@ function writeJson(path, value) {
   writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 }
 
-/** Merge the purview entry into <target>/.mcp.json, preserving every other
- *  server. Idempotent: an existing purview entry has its path updated. */
+/** Merge the worktable entry into <target>/.mcp.json, preserving every other
+ *  server. Idempotent: an existing worktable entry has its path updated. */
 function mergeMcpJson(target, summary) {
   const path = join(target, ".mcp.json");
   const config = readJson(path, {});
@@ -105,15 +105,15 @@ function mergeMcpJson(target, summary) {
     fail(`${path} has a non-object "mcpServers" — refusing to overwrite.`);
   }
   const servers = config.mcpServers ?? {};
-  const existed = Object.prototype.hasOwnProperty.call(servers, "purview");
-  servers["purview"] = {
+  const existed = Object.prototype.hasOwnProperty.call(servers, "worktable");
+  servers["worktable"] = {
     command: "node",
     args: [distServer],
   };
   config.mcpServers = servers;
   writeJson(path, config);
   summary.push(
-    `${existed ? "updated" : "added"} purview in ${path}\n` +
+    `${existed ? "updated" : "added"} worktable in ${path}\n` +
       `    → node ${distServer}`,
   );
 }
@@ -125,7 +125,7 @@ function guidancePayload() {
   if (!existsSync(guidanceDoc)) {
     fail(`missing guidance source: ${guidanceDoc}`);
   }
-  const endMarker = "<!-- /purview-guidance -->";
+  const endMarker = "<!-- /worktable-guidance -->";
   const lines = readFileSync(guidanceDoc, "utf8").split("\n");
   const start = lines.findIndex((l) => l.trim() === MARKER);
   const end = lines.findIndex((l) => l.trim() === endMarker);
@@ -208,7 +208,7 @@ function printCodex() {
   const argsToml = `["${distServer}"]`;
   process.stdout.write(
     "\nCodex — paste into ~/.codex/config.toml (nothing was written):\n\n" +
-      "  [mcp_servers.purview]\n" +
+      "  [mcp_servers.worktable]\n" +
       '  command = "node"\n' +
       `  args = ${argsToml}\n\n`,
   );
@@ -247,7 +247,7 @@ function main() {
   if (flags.guidance) appendGuidance(target, summary);
   if (flags.hook) mergeHook(target, summary);
 
-  process.stdout.write("\npurview registered:\n");
+  process.stdout.write("\nworktable registered:\n");
   for (const line of summary) process.stdout.write(`  • ${line}\n`);
 
   if (flags.printCodex) printCodex();

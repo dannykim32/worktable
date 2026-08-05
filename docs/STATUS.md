@@ -1,4 +1,4 @@
-# Purview — Status & Milestone History
+# Worktable — Status & Milestone History
 
 The running project log. This is the cold-start / resume document: a fresh session
 (agent or human) can read this file plus `CONTEXT.md` and the map in `README.md` and
@@ -23,10 +23,10 @@ canvas; the human sends selection-anchored ask-backs home — including from *in
 model-authored HTML page; Claude Code gets an ask-back auto-inject hook plus an
 agent-opt-in `request_review` Review Moment. 154 tests green on `main`.
 
-Currently in flight: **open-source release prep** (renamed `visual-chat` → **Purview**;
+Currently in flight: **open-source release prep** (renamed `visual-chat` → **Worktable**;
 MIT LICENSE added; dependency vulnerabilities cleared; README rewritten as a public
 front door; git history AI-attribution trailer stripped). See the branch
-`release-prep-purview`.
+`release-prep-worktable`.
 
 Deferred by design: HTML hatch **Tier 2** (live model JavaScript — Tier 1 static HTML
 is built), Slate dark mode, native MCP Apps hosting.

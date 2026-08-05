@@ -1,4 +1,4 @@
-# Purview — Domain Glossary
+# Worktable — Domain Glossary
 
 The shared language of the project. Use these exact terms in code, tests, and prose;
 avoid the listed synonyms. This file is a glossary and nothing else — no
@@ -18,7 +18,7 @@ _Avoid_: chat page, UI, frontend
 
 **Agent Host**
 The existing terminal agent harness (e.g. Claude Code) that owns the conversation,
-model transport, tool loop, and permissions. Purview plugs into it.
+model transport, tool loop, and permissions. Worktable plugs into it.
 _Avoid_: chatbot, backend
 
 **Canvas Server**

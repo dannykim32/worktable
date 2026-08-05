@@ -1,4 +1,4 @@
-# Purview — setup and walking-skeleton walkthrough
+# Worktable — setup and walking-skeleton walkthrough
 
 ## Build
 
@@ -22,7 +22,7 @@ this repo's absolute path):
 ```json
 {
   "mcpServers": {
-    "purview": {
+    "worktable": {
       "command": "node",
       "args": ["<abs path>/dist/server/index.js"]
     }
@@ -33,7 +33,7 @@ this repo's absolute path):
 Restart Claude Code in the workspace. The server exposes the tools
 `publish_artifact`, `update_artifact`, `check_askbacks`, `request_review`,
 `open_canvas`, and `rotate_token`. Workspace state (capability token, artifacts,
-ask-back queue) lives under `~/.purview/<workspaceId>/` (0700 dirs, 0600
+ask-back queue) lives under `~/.worktable/<workspaceId>/` (0700 dirs, 0600
 files).
 
 The canvas URL carries the per-workspace capability token
@@ -71,7 +71,7 @@ your Claude Code `settings.json` (`~/.claude/settings.json`, or the project's
 ```
 
 The hook derives the workspace from its working directory (the same hash the
-server uses), reads `~/.purview/<id>/{port,token}`, and does a **read-only**
+server uses), reads `~/.worktable/<id>/{port,token}`, and does a **read-only**
 peek at `GET /api/askbacks/pending` (300ms timeout). It never marks anything
 delivered — only `check_askbacks` does — so it can run on every prompt without
 racing the tool or losing a queued ask-back. If the server is not running, the
@@ -105,9 +105,9 @@ The canonical, marker-wrapped copy lives in [agent-guidance.md](./agent-guidance
 (what `register.mjs --guidance` appends). Reproduced here for convenience:
 
 ```markdown
-## Purview
+## Worktable
 
-A companion canvas is available via the purview MCP tools. The terminal
+A companion canvas is available via the worktable MCP tools. The terminal
 stays the conversation driver; the canvas renders artifacts.
 
 - Call `check_askbacks` at the START of every turn. It returns questions the
@@ -130,12 +130,12 @@ stays the conversation driver; the canvas renders artifacts.
 Perform once in a fresh Claude Code session after registering:
 
 - [ ] Start Claude Code in a workspace whose `.mcp.json` registers
-      purview as above; confirm the `purview` server shows as
+      worktable as above; confirm the `worktable` server shows as
       connected (`/mcp`).
 - [ ] Ask the agent: "walk me through this on the canvas" (or "publish a short
       explainer"). It publishes an `html` or `prose` artifact.
 - [ ] Confirm the browser opens (first publish auto-opens unless
-      `PURVIEW_NO_OPEN=1`) and the artifact renders at the tokened URL with its
+      `WORKTABLE_NO_OPEN=1`) and the artifact renders at the tokened URL with its
       title and a `v1` chip.
 - [ ] Ask the agent to revise it; confirm the open page live-updates to `v2`
       without reload, and the ‹ scrubber shows v1 with a "viewing v1 of 2"
@@ -159,5 +159,5 @@ bun scripts/demo.ts
 Publishes a prose artifact, updates it to v2, prints the canvas URL,
 then polls `check_askbacks` every 2s and prints anything you submit from the
 browser. Exits 0 on Ctrl+C or after the poll window
-(`PURVIEW_DEMO_TIMEOUT_MS`, default 120000). Set `PURVIEW_NO_OPEN=1`
+(`WORKTABLE_DEMO_TIMEOUT_MS`, default 120000). Set `WORKTABLE_NO_OPEN=1`
 to keep it from opening a browser.

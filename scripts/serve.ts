@@ -4,7 +4,7 @@
 // so a human can view/interact.
 //
 // Run: bun run build && bun scripts/serve.ts   (Ctrl+C to stop)
-// Stays up for PURVIEW_SERVE_MINUTES (default 60), then exits cleanly.
+// Stays up for WORKTABLE_SERVE_MINUTES (default 60), then exits cleanly.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { existsSync, readFileSync } from "node:fs";
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const distEntry = join(repoRoot, "dist", "server", "index.js");
-const MINUTES = Number(process.env.PURVIEW_SERVE_MINUTES ?? 60);
+const MINUTES = Number(process.env.WORKTABLE_SERVE_MINUTES ?? 60);
 
 function toolText(result: unknown): string {
   const r = result as { content: Array<{ type: string; text: string }> };
@@ -27,10 +27,10 @@ async function main(): Promise<void> {
     command: useDist ? "node" : "bun",
     args: [useDist ? distEntry : join(repoRoot, "src", "server", "index.ts")],
     cwd: repoRoot,
-    env: { ...(process.env as Record<string, string>), PURVIEW_NO_OPEN: "1" },
+    env: { ...(process.env as Record<string, string>), WORKTABLE_NO_OPEN: "1" },
     stderr: "inherit",
   });
-  const client = new Client({ name: "purview-serve", version: "0.1.0" });
+  const client = new Client({ name: "worktable-serve", version: "0.1.0" });
   await client.connect(transport);
 
   // open_canvas returns the tokened canvas URL (NO_OPEN suppresses the tab).

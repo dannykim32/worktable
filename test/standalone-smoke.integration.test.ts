@@ -59,11 +59,11 @@ test(
       // live pipe we never close — an EOF would trip the server's shutdown.
       child = spawn("node", ["dist/server/index.js"], {
         cwd: scratch,
-        env: { ...process.env, HOME: home, PURVIEW_NO_OPEN: "1" },
+        env: { ...process.env, HOME: home, WORKTABLE_NO_OPEN: "1" },
         stdio: ["pipe", "ignore", "pipe"],
       });
 
-      const wsRoot = join(home, ".purview");
+      const wsRoot = join(home, ".worktable");
       let port = "";
       let token = "";
       for (let i = 0; i < 100 && !port; i++) {

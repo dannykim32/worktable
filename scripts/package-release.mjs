@@ -1,7 +1,7 @@
 // Package a firewall-friendly release: build the self-contained bundle and tar the
 // runnable subset (dist/ + register helper + docs) so a machine with NO npm/bun can
 // download, extract, and run with only `node`. Plain Node ESM, zero deps.
-//   node scripts/package-release.mjs   →   dist-release/purview-<version>.tar.gz
+//   node scripts/package-release.mjs   →   dist-release/worktable-<version>.tar.gz
 import { execFileSync, spawn } from "node:child_process";
 import { readFileSync, rmSync, mkdirSync, cpSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -9,12 +9,12 @@ import { fileURLToPath } from "node:url";
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const version = JSON.parse(readFileSync(join(repo, "package.json"), "utf8")).version;
-const root = `purview-${version}`;
+const root = `worktable-${version}`;
 const outDir = join(repo, "dist-release");
 const stage = join(outDir, root);
 const tarball = join(outDir, `${root}.tar.gz`);
 
-console.log(`Packaging purview v${version}…`);
+console.log(`Packaging worktable v${version}…`);
 
 // 1. Build the self-contained bundle (server+version inlined, canvas, hook).
 console.log("  building standalone bundle…");
@@ -30,7 +30,7 @@ console.log("  smoke-testing publish over MCP…");
 await (async () => {
   const srv = spawn("node", [join(repo, "dist", "server", "index.js")], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, PURVIEW_NO_OPEN: "1" },
+    env: { ...process.env, WORKTABLE_NO_OPEN: "1" },
   });
   let buf = "";
   const pending = [];
@@ -94,7 +94,7 @@ cpSync(join(repo, "install.sh"), join(stage, "install.sh"));
 const { chmodSync } = await import("node:fs");
 chmodSync(join(stage, "install.sh"), 0o755);
 // a dead-simple quickstart at the root of the tarball
-const quickstart = `# purview v${version} — install (no npm, no network needed)
+const quickstart = `# worktable v${version} — install (no npm, no network needed)
 
 Runtime: just \`node\`. This tarball is the self-contained bundle.
 
@@ -105,7 +105,7 @@ EASIEST — one command (registers for every Claude Code session):
   ./install.sh                      # + a repo path to also wire that project:
   ./install.sh /path/to/your/repo   #   ./install.sh ~/code/myproject
 
-Then restart Claude Code and run  /mcp  — 'purview' should be connected.
+Then restart Claude Code and run  /mcp  — 'worktable' should be connected.
 
 Manual alternatives (if you prefer): see docs/install.md — per-repo
 register.mjs, the raw \`claude mcp add\` command, and the Codex snippet.

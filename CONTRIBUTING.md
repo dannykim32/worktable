@@ -1,4 +1,4 @@
-# Contributing to Purview
+# Contributing to Worktable
 
 Thanks for looking. This is a small, opinionated project - a quick read of the shape
 below will save us both time.
