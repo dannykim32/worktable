@@ -8,7 +8,16 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-05) — v0.5.5: conversation polish
+## Status (updated 2026-08-05) — v0.5.6: conversation polish
+
+- **Answers can no longer widen past the pane.** `.drawer-entry-a` is a flex
+  row, and the answer column's default `min-width:auto` let a wide code line
+  push the entry beyond the drawer. Now `min-width:0` + `overflow-wrap:
+  anywhere` on the answer column, `overflow-x:hidden` on the list, and
+  `overflow:hidden` on the panel — wide code scrolls INSIDE its own block.
+  Browser-verified against a hostile-width answer.
+
+## Previous status (2026-08-05) — v0.5.5: conversation polish
 
 - **Composer grows downward**: a textarea (Enter sends, shift+Enter newlines,
   auto-sized to a 160px cap) replaces the horizontally-scrolling one-line input.

@@ -436,6 +436,7 @@ header.canvas-chrome .live {
   z-index: 40;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* the pane is a hard boundary — content scrolls inside */
   background: var(--surface-1);
   border-left: 1px solid var(--border);
   box-shadow: -6px 0 24px rgba(0, 0, 0, 0.12);
@@ -487,11 +488,17 @@ body {
   user-select: none;
 }
 /* Markdown inside a drawer answer — compact for the narrow column. Headings
-   are capped near body size: this is a chat reply, not a document. */
+   are capped near body size: this is a chat reply, not a document.
+   min-width: 0 is load-bearing: .drawer-entry-a is a flex row, and a flex
+   item's default min-width:auto lets a wide code line push the entry (and the
+   whole pane) out to the code's intrinsic width — with 0, the item shrinks to
+   the column and the pre's own overflow-x:auto takes over. */
 .drawer-entry-text {
   display: block;
+  min-width: 0;
   font-size: 13px;
   line-height: 1.5;
+  overflow-wrap: anywhere; /* long unbreakable tokens wrap instead of escaping */
 }
 .drawer-entry-text > * {
   margin: 0;
@@ -644,6 +651,7 @@ body {
 .drawer-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden; /* nothing inside an entry may widen the pane */
   padding: 8px 16px 24px;
 }
 .drawer-empty {
@@ -676,6 +684,7 @@ body {
   display: flex;
   gap: 7px;
   align-items: baseline;
+  min-width: 0; /* long unbroken quotes must shrink, not widen the pane */
   font-size: 12px;
   color: var(--text-secondary);
   margin-bottom: 5px;
