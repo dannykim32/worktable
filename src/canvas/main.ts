@@ -118,6 +118,10 @@ function boot(): void {
         gallery.showReviewBanner((data as { artifact_id: string }).artifact_id);
       } else if (event === "review_resolved") {
         gallery.clearReviewBanner((data as { artifact_id: string }).artifact_id);
+      } else if (event === "listening") {
+        // Poll-wake listener state: also sent once on SSE connect, so a
+        // freshly-loaded page shows the right nudge copy immediately.
+        drawer.setListening((data as { on: boolean }).on === true);
       }
     },
     onState: (connected) => {

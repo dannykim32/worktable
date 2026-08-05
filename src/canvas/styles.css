@@ -471,6 +471,12 @@ body {
   font-size: 15px;
   flex: none;
 }
+/* Calmer tone while the agent's poll-wake listener is armed: the question
+   arrives on its own, so the bar informs instead of demanding a keystroke. */
+.drawer-nudge--listening {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
 .drawer-composer-label {
   font-size: 11px;
   text-transform: uppercase;
