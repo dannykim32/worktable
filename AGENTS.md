@@ -50,13 +50,20 @@ have to trust.
   them with the anchor's context, and prefer updating the same artifact.
 - **Arm the listener after every publish**, so canvas questions reach you without
   the human touching the terminal: run `node dist/hooks/await-askback.js` as a
-  BACKGROUND Bash job — never foreground; it waits up to four minutes. When it
-  completes reporting questions, call `check_askbacks`, answer, then re-arm. When
-  it completes on a quiet timeout, re-arm if the human is still reading the
-  canvas; otherwise let it rest.
+  BACKGROUND Bash job — never foreground; one arming listens for ~45 minutes.
+  When it completes reporting questions, call `check_askbacks`, answer, then
+  re-arm. When its budget ends quietly, DEFAULT TO RE-ARMING while the canvas is
+  still the active surface (an artifact awaiting the human's decisions counts);
+  only let it rest once the conversation has clearly moved on.
 - After answering an ask-back, also call `answer_askback` with its `askback_id` —
   your reply then appears in the canvas drawer, threaded under the exact
-  selection, so the loop closes where the human asked.
+  selection. **Format that answer as compact markdown** (short bullets over
+  paragraphs, `code` for literals): it renders formatted in a narrow column.
+- **Link your references.** When you cite a ticket, PR, doc, or any web page,
+  make it a real link (absolute `https://` URL — markdown links in `prose`,
+  `<a href>` in `html`). They open safely in a new tab; a reference the human
+  can't follow is half a reference. Relative links don't resolve on the canvas —
+  use absolute URLs or plain `code` paths.
 - **`html` is the primary path.** Author the page the way you'd author a
   first-class artifact — run the **artifact-design** skill's full process
   (treatment → an explicit color/type/layout plan → semantic color →

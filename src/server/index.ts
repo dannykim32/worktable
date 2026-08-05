@@ -556,8 +556,11 @@ async function main(): Promise<void> {
         "is reading. A terminal-only answer never reaches them there, so this " +
         "is the step that actually closes the loop — not optional. You still " +
         "answer in the terminal too. Pass the askback_id from check_askbacks and " +
-        "your answer text. The reply appears live on the canvas and survives a " +
-        "reload. This does NOT re-open or re-deliver the ask-back.",
+        "your answer text, FORMATTED AS COMPACT MARKDOWN — short bullets over " +
+        "paragraphs, `code` for literals, links for any ticket/doc you cite. It " +
+        "renders formatted in a narrow drawer column; a flat paragraph blob " +
+        "reads poorly there. The reply appears live on the canvas and survives " +
+        "a reload. This does NOT re-open or re-deliver the ask-back.",
       inputSchema: {
         type: "object",
         properties: {
