@@ -11,8 +11,11 @@
 //
 // Additional rules:
 //  · Links: the href is validated against a protocol ALLOWLIST (http, https,
-//    mailto only). Anything else — javascript:, data:, vbscript:, relative or
-//    colon tricks — renders as literal text, never an <a>.
+//    mailto only). A pure in-page `#fragment` href renders as a same-page
+//    anchor (no new tab). Bare absolute http(s) URLs in plain text autolink.
+//    Anything else — javascript:, data:, vbscript:, relative or colon tricks —
+//    renders as literal text, never an <a>. Relative hrefs are literal on
+//    purpose: the canvas has no base to honestly resolve them against.
 //  · Markdown images `![alt](url)` render the alt text only; no <img> (v1).
 //  · Malformed markdown degrades to text and never throws out of the renderer.
 import type { ArtifactContent } from "../../shared/artifacts.js";
@@ -34,6 +37,64 @@ function safeHref(raw: string): string | null {
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(url);
   if (!scheme) return null; // no scheme → not on the allowlist → plain text
   return ALLOWED_SCHEMES.has(`${scheme[1]!.toLowerCase()}:`) ? url : null;
+}
+
+/** Return a same-page fragment href (`#section`) or null. Subject to the same
+ *  control-char discipline as safeHref; a bare `#` is not a destination. */
+function fragmentHref(raw: string): string | null {
+  const url = raw.trim();
+  if (url.length < 2 || url[0] !== "#") return null;
+  if (/[\u0000-\u0020]/.test(url)) return null;
+  return url;
+}
+
+/** Append an <a> for an already-validated destination. External (allowlisted
+ *  scheme) links open in a new tab with rel="noopener noreferrer"; same-page
+ *  fragment links navigate in place. */
+function appendAnchor(
+  doc: Document,
+  parent: Node,
+  href: string,
+  fill: (a: HTMLElement) => void,
+): void {
+  const a = doc.createElement("a");
+  a.setAttribute("href", href);
+  if (!href.startsWith("#")) {
+    a.setAttribute("rel", "noopener noreferrer");
+    a.setAttribute("target", "_blank");
+  }
+  fill(a);
+  parent.appendChild(a);
+}
+
+/** Match a bare absolute http(s) URL at the start of `text`. Trailing prose
+ *  punctuation is not part of the URL, and a trailing `)` counts only when a
+ *  matching `(` is inside the URL (Wikipedia-style paths). */
+const AUTOLINK = /^https?:\/\/[^\s<>]+/;
+
+function matchAutolink(text: string): string | null {
+  const m = AUTOLINK.exec(text);
+  if (!m) return null;
+  let url = m[0]!;
+  for (;;) {
+    const last = url[url.length - 1]!;
+    if (".,;:!?'\"".includes(last)) {
+      url = url.slice(0, -1);
+      continue;
+    }
+    if (last === ")" || last === "]") {
+      const open = last === ")" ? "(" : "[";
+      const opens = url.split(open).length - 1;
+      const closes = url.split(last).length - 1;
+      if (closes > opens) {
+        url = url.slice(0, -1);
+        continue;
+      }
+    }
+    break;
+  }
+  // Require something after the scheme's `//` (e.g. reject a bare `https://`).
+  return /^https?:\/\/./.test(url) ? url : null;
 }
 
 // ── Inline parsing ──────────────────────────────────────────────────────
@@ -85,8 +146,14 @@ function findClose(text: string, from: number, marker: string): number {
 }
 
 /** Parse inline markdown in `text`, appending Text/Element nodes to `parent`.
- *  Every element is createElement; every string is a text node. */
-function parseInline(doc: Document, text: string, parent: Node): void {
+ *  Every element is createElement; every string is a text node. `inAnchor`
+ *  suppresses autolinking while filling a link's label (no <a> inside <a>). */
+function parseInline(
+  doc: Document,
+  text: string,
+  parent: Node,
+  inAnchor = false,
+): void {
   let buffer = "";
   const flush = (): void => {
     if (buffer !== "") {
@@ -130,24 +197,40 @@ function parseInline(doc: Document, text: string, parent: Node): void {
       }
     }
 
-    // Link `[text](url)` → <a> only when the scheme is on the allowlist.
+    // Link `[text](url)` → <a> for an allowlisted scheme or a same-page
+    // `#fragment` destination.
     if (c === "[") {
       const m = matchLink(text, i);
       if (m) {
-        const href = safeHref(m.url);
+        const href = safeHref(m.url) ?? fragmentHref(m.url);
         if (href) {
           flush();
-          const a = doc.createElement("a");
-          a.setAttribute("href", href);
-          a.setAttribute("rel", "noopener noreferrer");
-          a.setAttribute("target", "_blank");
-          parseInline(doc, m.text, a);
-          parent.appendChild(a);
+          appendAnchor(doc, parent, href, (a) =>
+            parseInline(doc, m.text, a, true),
+          );
         } else {
-          // Disallowed scheme → the whole construct is literal text.
+          // Disallowed scheme / relative path → the construct is literal text.
           buffer += text.slice(i, m.end);
         }
         i = m.end;
+        continue;
+      }
+    }
+
+    // Bare absolute http(s) URL in plain text → autolink (suppressed inside a
+    // link label — no <a> inside <a>).
+    if (
+      c === "h" &&
+      !inAnchor &&
+      (text.startsWith("http://", i) || text.startsWith("https://", i))
+    ) {
+      const url = matchAutolink(text.slice(i));
+      if (url) {
+        flush();
+        appendAnchor(doc, parent, url, (a) => {
+          a.textContent = url;
+        });
+        i += url.length;
         continue;
       }
     }
@@ -159,7 +242,7 @@ function parseInline(doc: Document, text: string, parent: Node): void {
       if (close !== -1) {
         flush();
         const strong = doc.createElement("strong");
-        parseInline(doc, text.slice(i + 2, close), strong);
+        parseInline(doc, text.slice(i + 2, close), strong, inAnchor);
         parent.appendChild(strong);
         i = close + 2;
         continue;
@@ -172,7 +255,7 @@ function parseInline(doc: Document, text: string, parent: Node): void {
       if (close !== -1) {
         flush();
         const em = doc.createElement("em");
-        parseInline(doc, text.slice(i + 1, close), em);
+        parseInline(doc, text.slice(i + 1, close), em, inAnchor);
         parent.appendChild(em);
         i = close + 1;
         continue;
