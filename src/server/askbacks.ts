@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { Anchor, Askback, AskbackKind } from "../shared/artifacts.js";
 import {
   isArtifactId,
+  isImageId,
   QUESTION_MAX,
   QUOTE_MAX,
 } from "../shared/constraints.js";
@@ -18,19 +19,45 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-/** Validate a POST /api/askbacks body; throws AskbackValidationError (→ 400). */
-export function validateAskbackBody(body: unknown): {
+/** Validate a POST /api/askbacks body; throws AskbackValidationError (→ 400).
+ *  `opts.hasImage` lets the caller assert a supplied image_id actually exists
+ *  in the ImageStore (reject-not-drop: an unknown id is a 400, never silently
+ *  stored). */
+export function validateAskbackBody(
+  body: unknown,
+  opts: { hasImage?: (id: string) => boolean } = {},
+): {
   anchor: Anchor;
   question: string;
   kind: AskbackKind;
+  image_id?: string;
 } {
   if (!isRecord(body)) {
     throw new AskbackValidationError("body must be a JSON object");
   }
   for (const key of Object.keys(body)) {
-    if (key !== "anchor" && key !== "question" && key !== "kind") {
+    if (
+      key !== "anchor" &&
+      key !== "question" &&
+      key !== "kind" &&
+      key !== "image_id"
+    ) {
       throw new AskbackValidationError(`unexpected field "${key}"`);
     }
+  }
+  // Optional pasted image (single image per ask-back, v1). The id must be a
+  // 128-bit hex ImageStore id AND resolve to a stored image.
+  let imageId: string | undefined;
+  if (body.image_id !== undefined) {
+    if (!isImageId(body.image_id)) {
+      throw new AskbackValidationError(
+        "image_id must be a 32-char lowercase hex image id",
+      );
+    }
+    if (opts.hasImage && !opts.hasImage(body.image_id)) {
+      throw new AskbackValidationError(`unknown image ${body.image_id}`);
+    }
+    imageId = body.image_id;
   }
   const { anchor, question } = body;
   // kind defaults to "question" (issue 14). An "approval" is the Review Moment
@@ -112,7 +139,14 @@ export function validateAskbackBody(body: unknown): {
   };
   if (anchor.char_start !== undefined) result.char_start = anchor.char_start as number;
   if (anchor.char_end !== undefined) result.char_end = anchor.char_end as number;
-  return { anchor: result, question: question as string, kind };
+  const out: {
+    anchor: Anchor;
+    question: string;
+    kind: AskbackKind;
+    image_id?: string;
+  } = { anchor: result, question: question as string, kind };
+  if (imageId !== undefined) out.image_id = imageId;
+  return out;
 }
 
 export class AskbackQueue {
@@ -134,6 +168,7 @@ export class AskbackQueue {
     anchor: Anchor;
     question: string;
     kind?: AskbackKind;
+    image_id?: string;
   }): Askback {
     const askback: Askback = {
       id: `ab_${randomBytes(4).toString("hex")}`,
@@ -143,6 +178,7 @@ export class AskbackQueue {
       state: "pending",
       created_at: new Date().toISOString(),
     };
+    if (input.image_id !== undefined) askback.image_id = input.image_id;
     appendFileSync(this.path, `${JSON.stringify(askback)}\n`, { mode: 0o600 });
     return askback;
   }

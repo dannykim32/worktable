@@ -6,21 +6,38 @@ import type {
   ArtifactEvent,
   Askback,
 } from "../shared/artifacts.js";
-import { ANSWER_MAX, isArtifactId } from "../shared/constraints.js";
+import {
+  ANSWER_MAX,
+  IMAGE_MAX_BYTES,
+  isArtifactId,
+} from "../shared/constraints.js";
 import {
   AskbackQueue,
   AskbackValidationError,
   validateAskbackBody,
 } from "./askbacks.js";
+import {
+  ImageStore,
+  ImageTooLargeError,
+  NotAnImageError,
+} from "./askbackImages.js";
 import { ReviewCoordinator } from "./reviews.js";
 import { clampAwaitTimeoutMs, ListenerPark } from "./listeners.js";
 import {
+  BodyTooLargeError,
   readJsonBody,
+  readRawBody,
   sendJson,
   startCanvasHttpServer,
   type ApiRoute,
 } from "./http.js";
-import { connectStdio, createMcpServer, ToolInputError, type ToolSpec } from "./mcp.js";
+import {
+  connectStdio,
+  createMcpServer,
+  ToolInputError,
+  type McpContentBlock,
+  type ToolSpec,
+} from "./mcp.js";
 import { openInBrowser } from "./open.js";
 import {
   ASKBACK_RATE_LIMIT,
@@ -68,6 +85,9 @@ async function main(): Promise<void> {
   const frames = new FrameRegistry(workspace.dir);
   const sse = new SseHub();
   const askbacks = new AskbackQueue(workspace.dir);
+  // Pasted ask-back screenshots (single image per ask-back, v1). Magic-byte
+  // sniffed on upload; delivered to the model via check_askbacks image blocks.
+  const images = new ImageStore(workspace.dir);
   const reviews = new ReviewCoordinator();
   // Poll-wake listeners (GET /api/askbacks/await): the park's 0↔≥1 transitions
   // ARE the canvas "listening" indicator.
@@ -88,6 +108,9 @@ async function main(): Promise<void> {
     artifact_title: store.getMeta(a.anchor.artifact_id)?.title ?? null,
     kind: a.kind ?? "question",
     created_at: a.created_at,
+    // Undefined when the ask-back has no pasted image; JSON serialization
+    // drops the key then, so image-free payloads keep their existing shape.
+    image_id: a.image_id,
   });
 
   // The parent-canvas view of an artifact's content. For the html hatch (issue
@@ -272,8 +295,76 @@ async function main(): Promise<void> {
             anchor: a.anchor,
             question: a.question,
             answer: a.answer,
+            // So a reloaded drawer can refetch the entry's thumbnail; the key
+            // is absent (undefined → dropped by JSON) for image-free items.
+            image_id: a.image_id,
           })),
         }),
+    },
+    {
+      // Upload a pasted ask-back image (bearer + Host-allowlisted like every
+      // /api route). Raw body, bounded WELL above readJsonBody's 64KB JSON cap;
+      // the magic-byte sniff — never the declared Content-Type — decides
+      // whether it's an image. Read-only over the ask-back queue: the image
+      // binds to a question only via POST /api/askbacks {image_id}.
+      method: "POST",
+      template: "/api/askbacks/image",
+      handler: async ({ req, res }) => {
+        let body: Buffer;
+        try {
+          // A hair over the cap so an exactly-max image survives; anything
+          // beyond 413s and nothing is stored.
+          body = await readRawBody(req, IMAGE_MAX_BYTES + 1024);
+        } catch (err) {
+          if (err instanceof BodyTooLargeError) {
+            sendJson(res, 413, {
+              error: `image too large; maximum is ${IMAGE_MAX_BYTES} bytes`,
+            });
+            return;
+          }
+          throw err;
+        }
+        try {
+          const saved = images.save(body);
+          sendJson(res, 200, {
+            image_id: saved.id,
+            mime: saved.mime,
+            bytes: saved.bytes,
+          });
+        } catch (err) {
+          if (err instanceof NotAnImageError) {
+            sendJson(res, 415, { error: err.message });
+            return;
+          }
+          if (err instanceof ImageTooLargeError) {
+            sendJson(res, 413, { error: err.message });
+            return;
+          }
+          throw err;
+        }
+      },
+    },
+    {
+      // Serve stored image bytes with the SNIFFED mime. The canvas fetches
+      // this with the bearer and renders via a blob: URL, so the capability
+      // token never enters an <img src> — no query-token exception here.
+      method: "GET",
+      template: "/api/askbacks/image/:id",
+      handler: ({ res, params }) => {
+        // get() regex-gates the id (^[0-9a-f]{32}$) — traversal-shaped or
+        // unknown ids fall through to the same 404.
+        const image = images.get(params.id);
+        if (!image) {
+          sendJson(res, 404, { error: "unknown image" });
+          return;
+        }
+        res.writeHead(200, {
+          "Content-Type": image.mime,
+          "Content-Length": image.bytes.byteLength,
+          "Content-Disposition": "inline",
+        });
+        res.end(image.bytes);
+      },
     },
     {
       method: "POST",
@@ -297,7 +388,9 @@ async function main(): Promise<void> {
           return;
         }
         try {
-          const validated = validateAskbackBody(body);
+          const validated = validateAskbackBody(body, {
+            hasImage: (id) => images.has(id),
+          });
           const askback = askbacks.append(validated);
           // Wake any request_review blocked on this artifact (issue 14). The
           // item is already on disk; the waiter marks it delivered.
@@ -524,8 +617,15 @@ async function main(): Promise<void> {
             hint: "no pending questions from the canvas",
           };
         }
-        return {
-          askbacks: drained.map(enrichAskback),
+        const payload = {
+          askbacks: drained.map((a) => {
+            const enriched = enrichAskback(a);
+            // Correlation marker: this item's screenshot follows as an MCP
+            // image block below the JSON.
+            return a.image_id
+              ? { ...enriched, image: "attached below" }
+              : enriched;
+          }),
           hint:
             "For EACH question: answer it in your reply, then call " +
             "answer_askback(askback_id, answer) so the reply appears inline on " +
@@ -535,6 +635,30 @@ async function main(): Promise<void> {
             "the listener (background `node " +
             awaitCliPath +
             "`) so their next question wakes you too.",
+        };
+        // Pasted screenshots ride along as REAL MCP image blocks (one per
+        // image-bearing ask-back, in askbacks order) so the model actually
+        // sees them. Image-free drains keep the plain JSON-wrapped shape.
+        // Residual, inherent risk: text rendered inside a pasted image is
+        // model-influenced input (prompt injection via image) — the bytes
+        // can't script, and there is no mitigation beyond that.
+        const imageBlocks: McpContentBlock[] = [];
+        for (const a of drained) {
+          if (!a.image_id) continue;
+          const image = images.get(a.image_id);
+          if (!image) continue; // vanished from disk — the JSON still says so
+          imageBlocks.push({
+            type: "image",
+            data: image.bytes.toString("base64"),
+            mimeType: image.mime,
+          });
+        }
+        if (imageBlocks.length === 0) return payload;
+        return {
+          _mcpContent: [
+            { type: "text", text: JSON.stringify(payload, null, 2) },
+            ...imageBlocks,
+          ],
         };
       },
     },
