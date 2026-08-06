@@ -34,3 +34,24 @@ export function isFrameSlug(value: unknown): value is string {
 export function isArtifactId(value: unknown): value is string {
   return typeof value === "string" && ARTIFACT_ID_PATTERN.test(value);
 }
+
+/** A pasted ask-back image is capped at this many bytes (enforced BEFORE
+ *  anything is stored — the upload route 413s an oversize body). */
+export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** The only image types an ask-back may carry. Membership is decided by
+ *  magic-byte sniffing (askbackImages.ts), never a client-declared header. */
+export const IMAGE_MIME_ALLOWED: ReadonlySet<string> = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]);
+
+/** Ask-back image ids are 16 random bytes as lowercase hex (128-bit, minted by
+ *  the ImageStore). Regex-gated on EVERY read — no path traversal. */
+export const IMAGE_ID_PATTERN = /^[0-9a-f]{32}$/;
+
+export function isImageId(value: unknown): value is string {
+  return typeof value === "string" && IMAGE_ID_PATTERN.test(value);
+}

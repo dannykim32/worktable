@@ -80,6 +80,42 @@ export function readJsonBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
+/** Thrown by readRawBody when the body exceeds its limit (→ 413 at routes). */
+export class BodyTooLargeError extends Error {}
+
+/** Read a raw request body, bounded by an EXPLICIT per-route limit (the image
+ *  upload needs megabytes; readJsonBody's 64KB cap stays for JSON routes).
+ *  On overflow: stop buffering, drain the rest of the stream so the client can
+ *  still receive the 413 (destroying the socket mid-upload would lose it), and
+ *  reject with BodyTooLargeError — nothing oversized is ever returned. */
+export function readRawBody(
+  req: IncomingMessage,
+  limitBytes: number,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    let overflowed = false;
+    const chunks: Buffer[] = [];
+    const onData = (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > limitBytes) {
+        overflowed = true;
+        chunks.length = 0; // stop holding memory; keep draining to 'end'
+        req.removeListener("data", onData);
+        req.resume();
+        reject(new BodyTooLargeError(`request body exceeds ${limitBytes} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    };
+    req.on("data", onData);
+    req.on("end", () => {
+      if (!overflowed) resolve(Buffer.concat(chunks));
+    });
+    req.on("error", reject);
+  });
+}
+
 export function sendJson(
   res: ServerResponse,
   status: number,
