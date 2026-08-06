@@ -18,8 +18,12 @@ export const PORT_SCAN_END = 8887;
  *  emitted (frame-src falls back to `default-src 'self'` → no frames). */
 function canvasCsp(frameOrigin: string | null): string {
   const frameSrc = frameOrigin ? ` frame-src ${frameOrigin};` : "";
+  // img-src includes `blob:` for pasted-image thumbnails: the drawer fetches an
+  // ask-back image with a bearer and renders it from a same-origin blob: URL
+  // (so the capability token never enters an <img src>). blob: is same-origin-
+  // scoped, so this widens nothing an attacker could reach.
   return (
-    "default-src 'self'; img-src 'self' data:; script-src 'self'; " +
+    "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; " +
     `connect-src 'self'; style-src 'self' 'unsafe-inline';${frameSrc}`
   );
 }

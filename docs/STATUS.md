@@ -8,7 +8,23 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-06) — v0.5.10: export + no scroll-jump
+## Status (updated 2026-08-06) — v0.6.0: paste images into ask-backs
+
+- **Paste a screenshot into the composer** and it rides the ask-back to the
+  agent: uploaded (`POST /api/askbacks/image`, magic-byte sniffed — png/jpeg/
+  gif/webp only, 5MB cap, 128-bit id, 0600 at rest), previewed as a drawer
+  thumbnail, and delivered to the terminal agent via `check_askbacks` as an MCP
+  **image content block** (`_mcpContent` passthrough) so the model actually
+  sees it (renders as an inline image in Claude Code). The token never enters
+  an `<img src>` — thumbnails fetch with a bearer and render from a same-origin
+  `blob:` URL.
+- Browser-verified end to end (chip + entry thumbnails render, image block
+  reaches a real MCP client). Found + fixed a CSP gap the 227 unit tests
+  missed: the canvas `img-src` lacked `blob:`, so real-browser thumbnails were
+  blocked though happy-dom passed — added `blob:` and a canvas-CSP regression
+  test.
+
+## Previous status (2026-08-06) — v0.5.10: export + no scroll-jump
 
 - **Asking a question no longer yanks the page.** Submitting confirmed the
   in-frame marker with a scroll+highlight (meant for explicit locate clicks),

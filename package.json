@@ -1,6 +1,6 @@
 {
   "name": "worktable",
-  "version": "0.5.10",
+  "version": "0.6.0",
   "type": "module",
   "description": "A local browser canvas for terminal coding agents — the model renders its work (architecture, diffs, bug fixes) as a page you can see and ask about, instead of a wall of text.",
   "license": "MIT",

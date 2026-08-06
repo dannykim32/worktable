@@ -48,6 +48,12 @@ describe("canvas server core", () => {
     expect(ok.headers["content-security-policy"]).toContain(
       "default-src 'self'",
     );
+    // Pasted-image thumbnails render from same-origin blob: URLs; the canvas
+    // CSP must permit them (a real browser blocks blob: without this — the
+    // gap that shipped broken thumbnails once).
+    expect(ok.headers["content-security-policy"]).toContain(
+      "img-src 'self' data: blob:",
+    );
   });
 
   test("non-allowlisted Host header is 403 even with a valid token", async () => {
