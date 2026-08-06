@@ -8,7 +8,24 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-06) — v0.5.9: canvas-aware listener exits
+## Status (updated 2026-08-06) — v0.5.10: export + no scroll-jump
+
+- **Asking a question no longer yanks the page.** Submitting confirmed the
+  in-frame marker with a scroll+highlight (meant for explicit locate clicks),
+  which pulled the page toward the top. Submit now DRAWS the marker only
+  (`focusMarker` gained a `scroll` flag, default true; submit passes false);
+  `highlightEntry` scrolls the drawer LIST, not the page. Explicit
+  entry-click locate still scrolls. Browser-verified: scrollY held at 89 across
+  select→ask→submit; the locate click still moved it.
+- **Standalone HTML export** (card ⋯ menu): "Export HTML" and "Export HTML +
+  conversation" download a single self-contained file — the artifact plus,
+  optionally, the Q&A appendix — that opens in any browser with no server and
+  no agent. Static by construction: a `default-src 'none'` meta CSP inertizes
+  scripts exactly like the live frame, every text field is HTML-escaped
+  (7 XSS cases tested), and the token never enters a shareable link (blob
+  download). Browser-verified opening the file from disk.
+
+## Previous status (2026-08-06) — v0.5.9: canvas-aware listener exits
 
 - **Closing the canvas tab stops nothing** (by design — the tab is a view; the
   server rides the agent session, and killing the listener per tab-close would

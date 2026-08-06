@@ -192,10 +192,10 @@ export class HtmlBridge {
   /** Parent → frame: ask the frame to draw (if needed), scroll to, and highlight
    *  the marker for `markerId` (issue 27). Carries no token. Sent over the
    *  private port only after the port has been transferred. */
-  focusMarker(markerId: string): void {
+  focusMarker(markerId: string, scroll = true): void {
     if (this.disposed) return;
     try {
-      this.channel.port1.postMessage({ v: "focusMarker", markerId });
+      this.channel.port1.postMessage({ v: "focusMarker", markerId, scroll });
     } catch {
       /* never throw out of the bridge */
     }
@@ -225,7 +225,7 @@ export interface HtmlCardDeps {
  *  into the frame (issue 27). */
 export interface HtmlCardHandle {
   dispose(): void;
-  focusMarker(markerId: string): void;
+  focusMarker(markerId: string, scroll?: boolean): void;
 }
 
 /** Build the sandboxed iframe card body + its bridge. Returns the card handle;
@@ -270,6 +270,6 @@ export function renderHtmlCard(
   bridge.start();
   return {
     dispose: () => bridge.dispose(),
-    focusMarker: (markerId) => bridge.focusMarker(markerId),
+    focusMarker: (markerId, scroll) => bridge.focusMarker(markerId, scroll),
   };
 }

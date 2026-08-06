@@ -208,6 +208,54 @@ describe("artifact store + tools + SSE", () => {
     expect(listed.hint).toContain("update the matching artifact");
   });
 
+  test("export route: attachment headers; ?conversation=1 appends the Q&A", async () => {
+    const pub = toolJson(
+      await server.client.callTool({
+        name: "publish_artifact",
+        arguments: { type: "html", title: "Export me", html: "<p>content</p>" },
+      }),
+    );
+    const id = pub.artifact_id as string;
+    await httpRequest({
+      port: server.port,
+      path: "/api/askbacks",
+      method: "POST",
+      headers: { ...bearer(server.token()), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        anchor: { artifact_id: id, version: 1, block_index: null, quote: "content" },
+        question: "why export?",
+      }),
+    });
+
+    const plain = await httpRequest({
+      port: server.port,
+      path: `/api/artifacts/${id}/export`,
+      headers: bearer(server.token()),
+    });
+    expect(plain.status).toBe(200);
+    expect(plain.headers["content-type"]).toContain("text/html");
+    expect(plain.headers["content-disposition"]).toContain('filename="export-me.html"');
+    expect(plain.body).toContain("<p>content</p>");
+    expect(plain.body).toContain("Content-Security-Policy");
+    expect(plain.body).not.toContain("why export?"); // no appendix by default
+
+    const withConv = await httpRequest({
+      port: server.port,
+      path: `/api/artifacts/${id}/export?conversation=1`,
+      headers: bearer(server.token()),
+    });
+    expect(withConv.body).toContain("why export?");
+    expect(withConv.body).toContain("not answered");
+
+    const noAuth = await httpRequest({
+      port: server.port,
+      path: `/api/artifacts/${id}/export`,
+    });
+    expect(noAuth.status).toBe(401);
+    // Drain so later tests see an empty queue.
+    await server.client.callTool({ name: "check_askbacks", arguments: {} });
+  });
+
   test("all artifact routes are 401 without a bearer", async () => {
     for (const path of [
       "/api/artifacts",

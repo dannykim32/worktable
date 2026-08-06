@@ -205,6 +205,12 @@ export class AskbackQueue {
     return updated;
   }
 
+  /** Every ask-back anchored to one artifact, any state — the export's
+   *  conversation appendix wants the whole thread, answered or not. */
+  forArtifact(artifactId: string): Askback[] {
+    return this.readAll().filter((a) => a.anchor.artifact_id === artifactId);
+  }
+
   /** Ask-backs that carry an answer, for the /answered read route (issue 22).
    *  A read-only view — reading never changes any delivered state. */
   answered(): Askback[] {

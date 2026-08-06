@@ -159,7 +159,7 @@ describe("html bridge auth + verb set (issue 27)", () => {
       bridge as unknown as { channel: { port1: { postMessage(m: unknown): void } } }
     ).channel.port1.postMessage = (m: unknown) => sent.push(m);
     bridge.focusMarker("m9");
-    expect(sent).toEqual([{ v: "focusMarker", markerId: "m9" }]);
+    expect(sent).toEqual([{ v: "focusMarker", markerId: "m9", scroll: true }]);
     // Canary: the parent→frame verb never carries the capability token.
     expect(JSON.stringify(sent[0])).not.toContain("token");
   });

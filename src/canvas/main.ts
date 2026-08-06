@@ -63,8 +63,8 @@ function boot(): void {
     api,
     galleryRoot,
     // Drawer → marker locate for an html entry: drive the frame over the bridge.
-    locateInFrame: (artifactId, markerId) =>
-      gallery.focusMarkerInFrame(artifactId, markerId),
+    locateInFrame: (artifactId, markerId, scroll) =>
+      gallery.focusMarkerInFrame(artifactId, markerId, scroll),
     // So a reloaded answer knows prose (parent-drawn markers) vs html (frame).
     artifactType: (id) => gallery.metaFor(id)?.type ?? null,
   });

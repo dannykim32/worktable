@@ -48,8 +48,9 @@ export interface DrawerDeps {
   /** Where prose/absence cards live, so prose markers can be (re)mounted. */
   galleryRoot: HTMLElement;
   /** Drawer → marker locate for an html entry: drive the frame's marker over
-   *  the bridge (gallery → the card's HtmlBridge.focusMarker). */
-  locateInFrame?: (artifactId: string, markerId: string) => void;
+   *  the bridge (gallery → the card's HtmlBridge.focusMarker). scroll:false is
+   *  the submit-time confirmation — draw the marker, move NOTHING. */
+  locateInFrame?: (artifactId: string, markerId: string, scroll?: boolean) => void;
   /** So a reloaded answer knows whether its artifact is html (frame-drawn
    *  markers) or prose/absence (parent-drawn). */
   artifactType?: (artifactId: string) => ArtifactType | null;
@@ -343,9 +344,10 @@ export class Drawer {
         this.pending = null;
         this.renderList();
         if (isHtml && markerId) {
-          // The frame draws + persists the marker on this confirmation, and
-          // scrolls/highlights it (drawer → marker locate).
-          this.deps.locateInFrame?.(anchor.artifact_id, markerId);
+          // Confirm the marker into the frame: DRAW only. Asking a question
+          // must never move the page — scrolling is reserved for explicit
+          // locate clicks (dogfood: submit yanked the page toward the top).
+          this.deps.locateInFrame?.(anchor.artifact_id, markerId, false);
         } else {
           this.renderMarkers();
         }
@@ -589,13 +591,16 @@ export class Drawer {
     }
   }
 
-  /** Content → drawer: highlight (and scroll to) this entry in the drawer. */
+  /** Content → drawer: highlight (and scroll to) this entry — scrolling the
+   *  drawer LIST only. scrollIntoView would chain to every scrollable ancestor
+   *  and move the page itself, which asking/locating must never do. */
   highlightEntry(id: string): void {
     this.open();
     const entry = this.entries.get(id);
     const el = entry?.entryEl;
     if (!el) return;
-    this.scrollIntoView(el, "nearest");
+    const top = el.offsetTop - this.list.offsetTop - 12;
+    if (Number.isFinite(top)) this.list.scrollTop = Math.max(0, top);
     this.flash(el, "drawer-entry--flash");
   }
 

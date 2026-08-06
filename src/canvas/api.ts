@@ -36,6 +36,11 @@ export interface CanvasApi {
     kind?: "question" | "approval";
   }): Promise<{ id: string; state: string }>;
   getAnsweredAskbacks(): Promise<AnsweredAskback[]>;
+  /** Standalone HTML export (latest version); conversation appends the Q&A. */
+  exportArtifact(
+    id: string,
+    conversation: boolean,
+  ): Promise<{ blob: Blob; filename: string }>;
 }
 
 export function createApi(token: string): CanvasApi {
@@ -63,6 +68,16 @@ export function createApi(token: string): CanvasApi {
     getAnsweredAskbacks: async () =>
       (await getJson<{ askbacks: AnsweredAskback[] }>("/api/askbacks/answered"))
         .askbacks,
+    exportArtifact: async (id, conversation) => {
+      const path =
+        `/api/artifacts/${encodeURIComponent(id)}/export` +
+        (conversation ? "?conversation=1" : "");
+      const res = await fetch(path, { headers });
+      if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      return { blob: await res.blob(), filename: match?.[1] ?? `${id}.html` };
+    },
   };
 }
 

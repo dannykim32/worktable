@@ -111,8 +111,32 @@ export class Gallery {
   /** Drawer → marker locate for an html artifact (issue 27): drive the card's
    *  frame to draw/scroll/highlight the marker. No-op if the card or its bridge
    *  is not present. */
-  focusMarkerInFrame(artifactId: string, markerId: string): void {
-    this.cards.get(artifactId)?.htmlBridge?.focusMarker(markerId);
+  /** Fetch the export and hand it to the browser as a download. */
+  private async downloadExport(
+    artifactId: string,
+    conversation: boolean,
+  ): Promise<void> {
+    try {
+      const { blob, filename } = await this.api.exportArtifact(
+        artifactId,
+        conversation,
+      );
+      const doc = this.root.ownerDocument;
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement("a");
+      a.href = url;
+      a.download = filename;
+      doc.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(`worktable: export failed: ${String(err)}`);
+    }
+  }
+
+  focusMarkerInFrame(artifactId: string, markerId: string, scroll = true): void {
+    this.cards.get(artifactId)?.htmlBridge?.focusMarker(markerId, scroll);
   }
 
   /** SSE `review_requested`: the agent is blocking on this artifact's review.
@@ -221,6 +245,22 @@ export class Gallery {
           state?.viewing ?? meta.latest,
         );
       });
+      // Standalone HTML export — with or without the conversation appendix.
+      // The file downloads via a blob URL so the capability token never lands
+      // in a shareable link.
+      for (const [label, conversation] of [
+        ["Export HTML", false],
+        ["Export HTML + conversation", true],
+      ] as const) {
+        const item = doc.createElement("button");
+        item.className = "card-menu-item";
+        item.textContent = label;
+        item.addEventListener("click", () => {
+          menu.hidden = true;
+          void this.downloadExport(meta.id, conversation);
+        });
+        menu.appendChild(item);
+      }
       head.append(menuButton, menu);
     }
 

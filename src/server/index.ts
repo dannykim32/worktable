@@ -27,6 +27,7 @@ import {
   ASKBACK_RATE_WINDOW_MS,
   RateLimiter,
 } from "./rateLimit.js";
+import { buildExportHtml, exportFilename } from "./export.js";
 import { SseHub } from "./sse.js";
 import {
   ArtifactStore,
@@ -161,6 +162,32 @@ async function main(): Promise<void> {
           ...meta,
           content: clientContent(content, meta.id, meta.latest),
         });
+      },
+    },
+    {
+      // Standalone HTML export: one static file for sharing outside the loop.
+      // Serves the LATEST version; ?conversation=1 appends the artifact's Q&A.
+      method: "GET",
+      template: "/api/artifacts/:id/export",
+      handler: ({ res, url, params }) => {
+        const meta = store.getMeta(params.id!);
+        const content = meta && store.getVersion(meta.id, meta.latest);
+        if (!meta || !content) {
+          sendJson(res, 404, { error: "unknown artifact" });
+          return;
+        }
+        const withConversation = url.searchParams.get("conversation") === "1";
+        const html = buildExportHtml({
+          meta,
+          content,
+          conversation: withConversation ? askbacks.forArtifact(meta.id) : null,
+          exportedAt: new Date().toISOString().slice(0, 10),
+        });
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${exportFilename(meta.title, meta.id)}"`,
+        });
+        res.end(html);
       },
     },
     {

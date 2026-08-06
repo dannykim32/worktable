@@ -63,7 +63,7 @@ function makeDrawer(
   galleryRoot: HTMLElement,
   api: CanvasApi,
   overrides: Partial<{
-    locateInFrame: (a: string, m: string) => void;
+    locateInFrame: (a: string, m: string, s?: boolean) => void;
     artifactType: (id: string) => ArtifactType | null;
   }> = {},
 ) {
@@ -332,9 +332,9 @@ describe("Drawer markers + click-to-locate (issue 27)", () => {
   test("html: askstart opens the composer; submit + locate drive the frame over the bridge", async () => {
     const { galleryRoot } = makeGallery();
     const { api } = fakeApi();
-    const located: Array<{ a: string; m: string }> = [];
+    const located: Array<{ a: string; m: string; s?: boolean }> = [];
     const drawer = makeDrawer(galleryRoot, api, {
-      locateInFrame: (a, m) => located.push({ a, m }),
+      locateInFrame: (a, m, s) => located.push({ a, m, s }),
     });
 
     // The frame prelude sent askstart{quote, markerId}.
@@ -345,15 +345,17 @@ describe("Drawer markers + click-to-locate (issue 27)", () => {
     (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "why?";
     await drawer.submit();
 
-    // Submit confirms the marker into the frame (draw + scroll + highlight).
-    expect(located).toEqual([{ a: HTML_ARTIFACT, m: "m1" }]);
+    // Submit CONFIRMS the marker (draw only, scroll:false): asking a question
+    // must never move the page.
+    expect(located).toEqual([{ a: HTML_ARTIFACT, m: "m1", s: false }]);
     // No PARENT marker for an html entry — the frame owns it.
     expect(galleryRoot.querySelector(".anchor-marker")).toBeNull();
 
-    // Drawer → marker locate drives the frame again.
+    // Drawer → marker locate drives the frame again — an EXPLICIT locate,
+    // so this one scrolls (no scroll:false override).
     (drawer.panel.querySelector(".drawer-entry") as HTMLElement).click();
     expect(located).toHaveLength(2);
-    expect(located[1]).toEqual({ a: HTML_ARTIFACT, m: "m1" });
+    expect(located[1]).toEqual({ a: HTML_ARTIFACT, m: "m1", s: undefined });
   });
 
   test("html: a frame marker click (focusEntry) highlights the matching drawer entry", async () => {
