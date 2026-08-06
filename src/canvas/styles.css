@@ -625,6 +625,51 @@ body {
   overflow: auto;
   white-space: pre-wrap;
 }
+/* Pasted-image preview chip: sits between the quote and the input while an
+   uploaded image awaits submit; ✕ discards it. */
+.drawer-image-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.drawer-image-thumb {
+  max-width: 120px;
+  max-height: 80px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-1);
+}
+.drawer-image-remove {
+  all: unset;
+  cursor: pointer;
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--surface-1);
+}
+.drawer-image-remove:hover {
+  border-color: var(--accent-warm);
+  color: var(--text-primary);
+}
+.drawer-image-remove:focus-visible {
+  outline: 2px solid var(--accent-warm);
+}
+/* The pasted image inside a conversation entry — width-capped to the column. */
+.drawer-entry-image {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  object-fit: contain;
+}
 .drawer-input {
   width: 100%;
   padding: 7px 10px;
