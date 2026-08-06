@@ -173,8 +173,21 @@ function appendGuidance(target, summary) {
     summary.push(`removed stale visual-chat guidance block from ${path}`);
   }
   if (existing.includes(MARKER)) {
-    if (stripped !== null) writeFileSync(path, existing);
-    summary.push(`guidance already present in ${path} (no-op)`);
+    // UPGRADE in place: replace the existing marker block with the current
+    // payload. A no-op here would strand every registered repo on whatever
+    // guidance shipped when it was first installed — updates would never
+    // propagate.
+    const upgraded = stripMarkerBlock(
+      existing,
+      MARKER,
+      "<!-- /worktable-guidance -->",
+    );
+    if (upgraded === null) {
+      fail(`${path} has a broken guidance block (unpaired markers) — fix by hand.`);
+    }
+    const sep2 = upgraded === "" ? "" : upgraded.endsWith("\n") ? "\n" : "\n\n";
+    writeFileSync(path, upgraded + sep2 + guidancePayload() + "\n");
+    summary.push(`upgraded the guidance block in ${path} to the current version`);
     return;
   }
   const sep = existing === "" ? "" : existing.endsWith("\n") ? "\n" : "\n\n";

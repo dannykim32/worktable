@@ -367,7 +367,11 @@ async function main(): Promise<void> {
         'one. "prose" renders a long markdown answer (plain text, no bespoke ' +
         'visual). "absence" declines honestly with a reason instead of ' +
         "fabricating. Design it, don't dump it: lead with the claim, mark every " +
-        "literal (path, identifier, status code) as `code`, and add a diagram " +
+        "literal (path, identifier, status code) as `code`, and WRITE PLAINLY — " +
+        "this is working documentation, not a thriller. No manufactured stakes " +
+        "('X stands between here and Y', 'one wrong step invalidates the run'), " +
+        "no dramatic fragments, no colon reveals, no importance puffery; open " +
+        "on the substance and state what to do next. Add a diagram " +
         "ONLY when it shows a mechanism prose can't — one figure, one claim. If " +
         "the page leans on a term you coined or one never agreed on with the " +
         "human, add a compact Terms section NEAR THE TOP — right after the " +

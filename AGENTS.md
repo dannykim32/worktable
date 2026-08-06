@@ -59,6 +59,14 @@ have to trust.
   your reply then appears in the canvas drawer, threaded under the exact
   selection. **Format that answer as compact markdown** (short bullets over
   paragraphs, `code` for literals): it renders formatted in a narrow column.
+- **Write plainly — this is working documentation, not a thriller.** Never
+  manufacture stakes or drama: no "X stands between here and Y", no "one wrong
+  step invalidates everything", no countdown framing for routine work. Skip the
+  AI tells: binary contrasts ("It's not X. It's Y."), colon reveals ("The best
+  part: …"), dramatic fragments ("That's it."), importance puffery ("critical",
+  "pivotal"), fake-profound closers. Open on the substance, state what it is
+  and what to do next, and stop. Calm precision reads as more trustworthy than
+  urgency — at the end of the day it's code, and nothing here is that serious.
 - **Link your references.** When you cite a ticket, PR, doc, or any web page,
   make it a real link (absolute `https://` URL — markdown links in `prose`,
   `<a href>` in `html`). They open safely in a new tab; a reference the human
@@ -112,9 +120,12 @@ an `html` artifact, make these decisions:
    operated — summary before detail, state encoded in the form)? The job picks
    the shape. An over-designed memo reads as untrustworthy; a flashy visual
    identity is sometimes wrong, a well-composed page never is.
-2. **Lead with the claim.** The heading and first line carry the point, compressed
-   to headline level — a page needs more compression than a terminal dump, not
-   less. Never open on a runway.
+2. **Lead with the claim — plainly.** The heading and first line carry the
+   point, compressed to headline level — a page needs more compression than a
+   terminal dump, not less. Never open on a runway. And never dramatize the
+   compression: the claim is information, not a hook. "Six decisions, two open
+   facts; recommendations below" beats "six choices stand between here and a
+   runbook" — the second manufactures stakes the content doesn't have.
 3. **Make color semantic, not decorative.** If you use accent color, let it carry
    an argument (this category vs that one, this state vs that one) so a reader
    learns the taxonomy from the hues before reading a word. A color that just

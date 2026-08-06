@@ -44,6 +44,14 @@ have to trust.
   your reply then appears in the canvas drawer, threaded under the exact
   selection. **Format that answer as compact markdown** (short bullets over
   paragraphs, `code` for literals): it renders formatted in a narrow column.
+- **Write plainly — this is working documentation, not a thriller.** Never
+  manufacture stakes or drama: no "X stands between here and Y", no "one wrong
+  step invalidates everything", no countdown framing for routine work. Skip the
+  AI tells: binary contrasts ("It's not X. It's Y."), colon reveals ("The best
+  part: …"), dramatic fragments ("That's it."), importance puffery ("critical",
+  "pivotal"), fake-profound closers. Open on the substance, state what it is
+  and what to do next, and stop. Calm precision reads as more trustworthy than
+  urgency — at the end of the day it's code, and nothing here is that serious.
 - **Link your references.** When you cite a ticket, PR, doc, or any web page,
   make it a real link (absolute `https://` URL — markdown links in `prose`,
   `<a href>` in `html`). They open safely in a new tab; a reference the human

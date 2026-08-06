@@ -61,7 +61,7 @@ describe("register.mjs", () => {
     expect(mcp.mcpServers["worktable"].command).toBe("node");
   });
 
-  test("--guidance appends the snippet once (marker makes re-run a no-op)", () => {
+  test("--guidance re-run keeps exactly one block (upgrade, never a duplicate)", () => {
     const target = scratch();
     run(target, "--guidance");
     run(target, "--guidance");
@@ -72,6 +72,23 @@ describe("register.mjs", () => {
     expect(agents).toContain("check_askbacks");
     // No stray prose leaked in ahead of the marker.
     expect(agents.startsWith("<!-- worktable-guidance -->")).toBe(true);
+  });
+
+  test("--guidance UPGRADES a stale block in place; surrounding prose survives", () => {
+    const target = scratch();
+    writeFileSync(
+      join(target, "AGENTS.md"),
+      "# My project\n\nkeep me above\n\n<!-- worktable-guidance -->\n" +
+        "## Worktable\n\nOLD guidance from an earlier install\n" +
+        "<!-- /worktable-guidance -->\n\nkeep me below\n",
+    );
+    run(target, "--guidance");
+    const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
+    expect(agents).toContain("keep me above");
+    expect(agents).toContain("keep me below");
+    expect(agents).not.toContain("OLD guidance from an earlier install");
+    expect(agents).toContain("check_askbacks"); // the current payload landed
+    expect(agents.match(/<!-- worktable-guidance -->/g)?.length).toBe(1);
   });
 
   test("migration: a stale visual-chat .mcp.json entry is dropped, others kept", () => {

@@ -8,7 +8,20 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-05) — v0.5.6: conversation polish
+## Status (updated 2026-08-06) — v0.5.7: write plainly + guidance upgrades propagate
+
+- **Anti-slop writing rules for generated pages** (owner call, after a
+  dogfooded artifact opened with manufactured stakes): working documentation,
+  not a thriller — no fabricated stakes, dramatic fragments, colon reveals, or
+  importance puffery; open on the substance. Added to the guidance snippet
+  (both copies), the publish_artifact description, and the design doctrine's
+  "lead with the claim" (which had been read as "write a tagline").
+- **`register.mjs --guidance` now UPGRADES an existing block in place** —
+  previously a marker hit was a no-op, stranding every registered repo on the
+  guidance from its first install; updates never propagated. Re-running
+  install.sh on a repo now refreshes its guidance.
+
+## Previous status (2026-08-05) — v0.5.6: conversation polish
 
 - **Answers can no longer widen past the pane.** `.drawer-entry-a` is a flex
   row, and the answer column's default `min-width:auto` let a wide code line
