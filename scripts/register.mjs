@@ -15,6 +15,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,6 +46,9 @@ function parseArgs(argv) {
       case "--print-codex":
         flags.printCodex = true;
         break;
+      case "--user":
+        flags.user = true;
+        break;
       case "-h":
       case "--help":
         flags.help = true;
@@ -60,10 +64,13 @@ function parseArgs(argv) {
 function usage() {
   return (
     "Usage: node scripts/register.mjs <target-repo> " +
-    "[--guidance] [--hook] [--print-codex]\n\n" +
+    "[--guidance] [--hook] [--print-codex]\n" +
+    "       node scripts/register.mjs --user\n\n" +
     "  <target-repo>   directory of the project to register worktable into\n" +
     "  --guidance      append the agent-guidance snippet to AGENTS.md/CLAUDE.md\n" +
     "  --hook          merge the Claude Code UserPromptSubmit ask-back hook\n" +
+    "  --user          install guidance + hook USER-WIDE (~/.claude) — every\n" +
+    "                  repo, no per-repo setup; re-run to upgrade the guidance\n" +
     "  --print-codex   print a Codex ~/.codex/config.toml snippet (writes nothing)\n"
   );
 }
@@ -159,6 +166,11 @@ function appendGuidance(target, summary) {
     : existsSync(claude)
       ? claude
       : agents;
+  writeGuidanceBlock(path, summary);
+}
+
+/** Write (or upgrade) the marker-wrapped guidance block in one specific file. */
+function writeGuidanceBlock(path, summary) {
   let existing = existsSync(path) ? readFileSync(path, "utf8") : "";
   // Migration: strip a pre-rename visual-chat guidance block first — it
   // instructs the agent to use tools under the old server name, so leaving it
@@ -193,6 +205,20 @@ function appendGuidance(target, summary) {
   const sep = existing === "" ? "" : existing.endsWith("\n") ? "\n" : "\n\n";
   writeFileSync(path, existing + sep + guidancePayload() + "\n");
   summary.push(`appended guidance snippet to ${path}`);
+}
+
+/** USER-WIDE install: guidance into ~/.claude/CLAUDE.md (read by every Claude
+ *  Code session, any repo) and the ask-back hook into ~/.claude/settings.json
+ *  (user-scope hooks fire everywhere; the hook exits silently in repos with no
+ *  canvas workspace, so it is safe globally). One install covers every repo —
+ *  no per-repo ceremony, and re-running upgrades the block in place. */
+function userInstall(summary) {
+  const dir = join(homedir(), ".claude");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeGuidanceBlock(join(dir, "CLAUDE.md"), summary);
+  // ~/.claude/settings.json has the same shape as a repo's .claude/settings.json,
+  // so the same merge applies with the home dir as the "target".
+  mergeHook(homedir(), summary);
 }
 
 /** Remove a whole-line marker block (inclusive) from `text`. Returns the new
@@ -269,6 +295,20 @@ function printCodex() {
 
 function main() {
   const { flags, positionals } = parseArgs(process.argv.slice(2));
+  if (flags.user) {
+    if (positionals.length > 0) {
+      fail("--user takes no target directory (it installs user-wide)");
+    }
+    const summary = [];
+    userInstall(summary);
+    process.stdout.write("\nworktable installed user-wide:\n");
+    for (const line of summary) process.stdout.write(`  • ${line}\n`);
+    process.stdout.write(
+      "\nEvery Claude Code session now carries the canvas guidance and the " +
+        "ask-back hook.\nNext: restart Claude Code.\n",
+    );
+    return;
+  }
   if (flags.help || positionals.length === 0) {
     process.stdout.write(usage());
     process.exit(flags.help ? 0 : 1);

@@ -106,9 +106,16 @@ specific project:
 ```sh
 tar xzf worktable-*.tar.gz
 cd worktable-*
-./install.sh                      # every Claude Code session gets the tools
-./install.sh /path/to/your/repo   # ALSO drop guidance + the ask-back hook into that repo
+./install.sh                      # tools + guidance + ask-back hook, user-wide
+./install.sh /path/to/your/repo   # ALSO drop a repo-local copy into that repo
 ```
+
+The bare form is the whole install: it registers the MCP server for every
+Claude Code session AND installs the agent guidance (`~/.claude/CLAUDE.md`) and
+the ask-back hook (`~/.claude/settings.json`) user-wide — every repo gets the
+canvas behavior with no per-repo setup, and re-running upgrades the guidance in
+place. The repo argument is only for giving a specific repo its own committed
+copy (e.g. for teammates) or migrating stale pre-rename blocks.
 
 Then restart Claude Code and run `/mcp` — `worktable` should show connected. The only
 requirement it can't carry is **node** (any recent version); `install.sh` fails clearly

@@ -91,6 +91,63 @@ describe("register.mjs", () => {
     expect(agents.match(/<!-- worktable-guidance -->/g)?.length).toBe(1);
   });
 
+  test("--user installs guidance + hook under ~/.claude (HOME-scoped)", () => {
+    const home = scratch();
+    const run = spawnSync("node", [script, "--user"], {
+      cwd: repoRoot,
+      env: { ...(process.env as Record<string, string>), HOME: home },
+      encoding: "utf8",
+    });
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain("user-wide");
+
+    const claude = readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8");
+    expect(claude).toContain("<!-- worktable-guidance -->");
+    expect(claude).toContain("check_askbacks");
+    expect(claude).not.toContain("<abs-path-to-worktable>"); // path substituted
+
+    const settings = readJson(join(home, ".claude", "settings.json"));
+    const cmds = JSON.stringify(settings.hooks.UserPromptSubmit);
+    expect(cmds).toContain("askback-hook.js");
+  });
+
+  test("--user re-run upgrades the block and preserves existing content + hooks", () => {
+    const home = scratch();
+    const dir = join(home, ".claude");
+    require("node:fs").mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "CLAUDE.md"),
+      "# My global rules\n\nkeep me\n\n<!-- worktable-guidance -->\nOLD BLOCK\n<!-- /worktable-guidance -->\n",
+    );
+    writeFileSync(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        hooks: {
+          UserPromptSubmit: [
+            { hooks: [{ type: "command", command: "my-other-hook.sh" }] },
+          ],
+        },
+      }),
+    );
+    const run = spawnSync("node", [script, "--user"], {
+      cwd: repoRoot,
+      env: { ...(process.env as Record<string, string>), HOME: home },
+      encoding: "utf8",
+    });
+    expect(run.status).toBe(0);
+
+    const claude = readFileSync(join(dir, "CLAUDE.md"), "utf8");
+    expect(claude).toContain("keep me");
+    expect(claude).not.toContain("OLD BLOCK");
+    expect(claude).toContain("check_askbacks");
+    expect(claude.match(/<!-- worktable-guidance -->/g)?.length).toBe(1);
+
+    const settings = readJson(join(dir, "settings.json"));
+    const cmds = JSON.stringify(settings.hooks.UserPromptSubmit);
+    expect(cmds).toContain("my-other-hook.sh"); // foreign hook untouched
+    expect(cmds).toContain("askback-hook.js");
+  });
+
   test("migration: a stale visual-chat .mcp.json entry is dropped, others kept", () => {
     const target = scratch();
     writeFileSync(

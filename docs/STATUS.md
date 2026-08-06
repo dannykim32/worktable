@@ -8,7 +8,16 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-06) — v0.5.7: write plainly + guidance upgrades propagate
+## Status (updated 2026-08-06) — v0.5.8: bare install is the whole install
+
+- **`./install.sh` (no arguments) now installs everything user-wide**: MCP
+  registration, the guidance block into `~/.claude/CLAUDE.md`, and the ask-back
+  hook into `~/.claude/settings.json` (`register.mjs --user`). Every repo gets
+  canvas behavior with zero per-repo ceremony; the hook is silent in repos with
+  no canvas workspace. Re-running upgrades the guidance in place. The repo
+  argument remains for repo-local copies (teammates) and stale-block migration.
+
+## Previous status (2026-08-06) — v0.5.7: write plainly + guidance upgrades propagate
 
 - **Anti-slop writing rules for generated pages** (owner call, after a
   dogfooded artifact opened with manufactured stakes): working documentation,

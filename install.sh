@@ -40,7 +40,18 @@ else
   echo "      claude mcp add -s user worktable -- node \"$SERVER\""
 fi
 
-# Optional: wire a specific project (guidance so the agent uses the canvas + the hook).
+# Guidance + ask-back hook USER-WIDE (~/.claude): every repo gets the canvas
+# behavior with no per-repo setup. Re-running upgrades the guidance in place.
+if node "$HERE/scripts/register.mjs" --user >/dev/null 2>&1; then
+  echo "  ✓ guidance + ask-back hook installed user-wide (~/.claude)"
+else
+  echo "  ! user-wide guidance/hook install failed — run manually:"
+  echo "      node \"$HERE/scripts/register.mjs\" --user"
+fi
+
+# Optional: ALSO wire a specific project (a repo-local copy of guidance + hook;
+# useful when a repo should carry the setup for teammates, or to migrate away
+# stale pre-rename blocks). Not required for the canvas to work there.
 if [ "${1:-}" != "" ]; then
   if [ -d "$1" ]; then
     node "$HERE/scripts/register.mjs" "$1" --guidance --hook
