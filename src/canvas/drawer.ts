@@ -34,6 +34,9 @@ interface DrawerEntry {
   anchor: Anchor;
   question: string;
   answer?: AskbackAnswer;
+  /** The pasted image attached to this question (server ImageStore id); the
+   *  entry renders its thumbnail via a bearer fetch → blob: URL. */
+  imageId?: string;
   /** True when the artifact renders in the cross-origin frame: markers are
    *  drawn by the prelude and located over the bridge, not in the parent DOM. */
   isHtml: boolean;
@@ -44,7 +47,13 @@ interface DrawerEntry {
 }
 
 export interface DrawerDeps {
-  api: Pick<CanvasApi, "postAskback" | "getAnsweredAskbacks">;
+  api: Pick<
+    CanvasApi,
+    | "postAskback"
+    | "getAnsweredAskbacks"
+    | "uploadAskbackImage"
+    | "fetchAskbackImage"
+  >;
   /** Where prose/absence cards live, so prose markers can be (re)mounted. */
   galleryRoot: HTMLElement;
   /** Drawer → marker locate for an html entry: drive the frame's marker over
@@ -68,6 +77,8 @@ export class Drawer {
   private readonly quoteBox: HTMLElement;
   private readonly input: HTMLTextAreaElement;
   private readonly status: HTMLElement;
+  /** Preview chip for a pasted image awaiting submit (thumbnail + remove ✕). */
+  private readonly imageChip: HTMLElement;
   private readonly list: HTMLElement;
   private readonly emptyNote: HTMLElement;
   /** Prominent "the ball is in the terminal's court" banner, shown whenever a
@@ -83,6 +94,13 @@ export class Drawer {
   private pending:
     | { anchor: Anchor; isHtml: boolean; markerId?: string }
     | null = null;
+  /** The uploaded-but-unsent pasted image (one per ask-back, v1). Reset
+   *  wholesale with the composer, same discipline as the text draft. */
+  private pendingImage: { imageId: string; objectUrl: string | null } | null =
+    null;
+  /** blob: URLs for entry thumbnails, keyed by ask-back id — cached so a
+   *  re-render reuses (never re-mints and leaks) an entry's object URL. */
+  private readonly imageUrls = new Map<string, string>();
 
   constructor(
     private readonly doc: Document,
@@ -143,7 +161,7 @@ export class Drawer {
     this.input.setAttribute("aria-label", "ask-back question");
     this.status = doc.createElement("div");
     this.status.className = "drawer-hint";
-    this.status.textContent = "↵ to send · shift+↵ for a new line · esc to cancel";
+    this.status.textContent = COMPOSER_HINT;
     this.input.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault(); // Enter sends; shift+Enter falls through to newline
@@ -152,7 +170,26 @@ export class Drawer {
       if (e.key === "Escape") this.cancelComposer();
     });
     this.input.addEventListener("input", () => this.autoGrow());
-    this.composer.append(composerLabel, this.quoteBox, this.input, this.status);
+    // Paste-an-image: an image on the clipboard becomes the ask-back's single
+    // attachment (v1) — uploaded at paste time, previewed as a chip above the
+    // input. Text pastes fall through to the textarea untouched.
+    this.input.addEventListener("paste", (e: Event) => {
+      const clipboard = (e as ClipboardEvent).clipboardData;
+      const image = imageFromClipboard(clipboard);
+      if (!image) return;
+      e.preventDefault();
+      void this.attachImage(image);
+    });
+    this.imageChip = doc.createElement("div");
+    this.imageChip.className = "drawer-image-chip";
+    this.imageChip.hidden = true;
+    this.composer.append(
+      composerLabel,
+      this.quoteBox,
+      this.imageChip,
+      this.input,
+      this.status,
+    );
 
     // Terminal-turn nudge: an idle agent can't be woken from here, so once a
     // question is waiting, make it unmissable that the human must submit a
@@ -293,9 +330,10 @@ export class Drawer {
     this.pending = { anchor, isHtml: opts.isHtml, markerId: opts.markerId };
     this.quoteBox.textContent = anchor.quote;
     this.input.value = "";
+    this.clearPendingImage(); // the pasted image resets with the draft
     this.autoGrow(); // collapse back to one line
     this.input.disabled = false;
-    this.status.textContent = "↵ to send · shift+↵ for a new line · esc to cancel";
+    this.status.textContent = COMPOSER_HINT;
     this.composer.hidden = false;
     this.open();
     this.input.focus();
@@ -321,6 +359,55 @@ export class Drawer {
   private cancelComposer(): void {
     this.composer.hidden = true;
     this.pending = null;
+    this.clearPendingImage();
+  }
+
+  // ── pasted image (composer attachment) ────────────────────────────────
+  /** Upload a pasted image and show the preview chip. A second paste replaces
+   *  the first (single image per ask-back in v1). */
+  private async attachImage(blob: Blob): Promise<void> {
+    this.clearPendingImage();
+    this.status.textContent = "uploading image…";
+    try {
+      const { image_id } = await this.deps.api.uploadAskbackImage(blob);
+      // Preview straight from the pasted bytes — no refetch needed.
+      this.pendingImage = {
+        imageId: image_id,
+        objectUrl: this.makeObjectUrl(blob),
+      };
+      this.status.textContent = COMPOSER_HINT;
+    } catch (err) {
+      this.status.textContent = `could not attach image: ${String(err)}`;
+    }
+    this.renderImageChip();
+  }
+
+  private clearPendingImage(): void {
+    if (this.pendingImage?.objectUrl) {
+      this.revokeObjectUrl(this.pendingImage.objectUrl);
+    }
+    this.pendingImage = null;
+    this.renderImageChip();
+  }
+
+  private renderImageChip(): void {
+    this.imageChip.replaceChildren();
+    if (!this.pendingImage) {
+      this.imageChip.hidden = true;
+      return;
+    }
+    const img = this.doc.createElement("img");
+    img.className = "drawer-image-thumb";
+    img.alt = "pasted image";
+    if (this.pendingImage.objectUrl) img.src = this.pendingImage.objectUrl;
+    const remove = this.doc.createElement("button");
+    remove.type = "button";
+    remove.className = "drawer-image-remove";
+    remove.textContent = "✕";
+    remove.setAttribute("aria-label", "remove the pasted image");
+    remove.addEventListener("click", () => this.clearPendingImage());
+    this.imageChip.append(img, remove);
+    this.imageChip.hidden = false;
   }
 
   /** Grow the composer downward with its content, capped (then scroll). */
@@ -336,12 +423,25 @@ export class Drawer {
     const question = this.input.value.trim();
     if (question.length === 0) return;
     this.input.disabled = true;
+    const imageId = this.pendingImage?.imageId;
     try {
-      const res = await this.deps.api.postAskback({ anchor, question });
+      const res = await this.deps.api.postAskback({
+        anchor,
+        question,
+        ...(imageId !== undefined ? { image_id: imageId } : {}),
+      });
       if (res) {
-        this.entries.set(res.id, { id: res.id, anchor, question, isHtml, markerId });
+        this.entries.set(res.id, {
+          id: res.id,
+          anchor,
+          question,
+          isHtml,
+          markerId,
+          imageId,
+        });
         this.composer.hidden = true;
         this.pending = null;
+        this.clearPendingImage();
         this.renderList();
         if (isHtml && markerId) {
           // Confirm the marker into the frame: DRAW only. Asking a question
@@ -371,12 +471,14 @@ export class Drawer {
         existing.answer = a.answer;
         existing.question = a.question;
         existing.anchor = a.anchor;
+        if (a.image_id !== undefined) existing.imageId = a.image_id;
       } else {
         this.entries.set(a.id, {
           id: a.id,
           anchor: a.anchor,
           question: a.question,
           answer: a.answer,
+          imageId: a.image_id,
           isHtml: this.deps.artifactType?.(a.anchor.artifact_id) === "html",
         });
       }
@@ -471,6 +573,16 @@ export class Drawer {
     q.textContent = entry.question; // human-authored, textContent for one rule
 
     el.append(quote, q);
+
+    if (entry.imageId) {
+      // The pasted image the question carried: bearer fetch → blob: URL, so
+      // the capability token never appears in an <img src>.
+      const img = doc.createElement("img");
+      img.className = "drawer-entry-image";
+      img.alt = "pasted image";
+      this.setEntryImageSrc(img, entry.imageId);
+      el.appendChild(img);
+    }
 
     if (entry.answer) {
       const a = doc.createElement("div");
@@ -619,6 +731,51 @@ export class Drawer {
   }
 
   // ── helpers ───────────────────────────────────────────────────────────
+  /** Fill an entry thumbnail's src: reuse this ask-back's cached blob: URL, or
+   *  fetch the bytes (bearer) and mint one. Best-effort — a failed fetch just
+   *  leaves the alt text. */
+  private setEntryImageSrc(img: HTMLImageElement, imageId: string): void {
+    const cached = this.imageUrls.get(imageId);
+    if (cached) {
+      img.src = cached;
+      return;
+    }
+    void this.deps.api
+      .fetchAskbackImage(imageId)
+      .then((blob) => {
+        const url = this.makeObjectUrl(blob);
+        if (!url) return;
+        // A concurrent fetch may have won; revoke the loser, keep one URL.
+        const existing = this.imageUrls.get(imageId);
+        if (existing) {
+          this.revokeObjectUrl(url);
+          img.src = existing;
+          return;
+        }
+        this.imageUrls.set(imageId, url);
+        img.src = url;
+      })
+      .catch(() => {
+        /* thumbnail is best-effort; the alt text remains */
+      });
+  }
+
+  private makeObjectUrl(blob: Blob): string | null {
+    try {
+      return this.doc.defaultView?.URL?.createObjectURL?.(blob) ?? null;
+    } catch {
+      return null; // non-browser test env — the <img> keeps its alt only
+    }
+  }
+
+  private revokeObjectUrl(url: string): void {
+    try {
+      this.doc.defaultView?.URL?.revokeObjectURL?.(url);
+    } catch {
+      /* ignore */
+    }
+  }
+
   private prefersReducedMotion(): boolean {
     try {
       return !!this.doc.defaultView?.matchMedia?.(
@@ -655,4 +812,22 @@ export class Drawer {
 /** Minimal attribute-selector escape for artifact ids (a_[0-9a-f]{8}). */
 function cssEscape(value: string): string {
   return value.replace(/["\\]/g, "\\$&");
+}
+
+const COMPOSER_HINT = "↵ to send · shift+↵ for a new line · esc to cancel";
+
+/** The first image on a pasted clipboard (files first, then file items), or
+ *  null when the paste is plain text/HTML. */
+function imageFromClipboard(data: DataTransfer | null): Blob | null {
+  if (!data) return null;
+  for (const file of Array.from(data.files ?? [])) {
+    if (file.type.startsWith("image/")) return file;
+  }
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) return file;
+    }
+  }
+  return null;
 }

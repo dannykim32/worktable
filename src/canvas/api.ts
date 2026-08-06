@@ -18,6 +18,9 @@ export interface AnsweredAskback {
   anchor: Anchor;
   question: string;
   answer: AskbackAnswer;
+  /** Present when the question carried a pasted image — the drawer refetches
+   *  the thumbnail from GET /api/askbacks/image/:id after a reload. */
+  image_id?: string;
 }
 
 export interface CanvasApi {
@@ -34,8 +37,18 @@ export interface CanvasApi {
     anchor: unknown;
     question: string;
     kind?: "question" | "approval";
+    /** A stored pasted image to attach (from uploadAskbackImage; one per v1). */
+    image_id?: string;
   }): Promise<{ id: string; state: string }>;
   getAnsweredAskbacks(): Promise<AnsweredAskback[]>;
+  /** Upload a pasted image (raw bytes, bearer-authed); the server sniffs the
+   *  real type by magic bytes and returns the minted image id. */
+  uploadAskbackImage(
+    blob: Blob,
+  ): Promise<{ image_id: string; mime: string; bytes: number }>;
+  /** Fetch stored image bytes with the bearer; callers render via a blob: URL
+   *  so the capability token never appears in an <img src>. */
+  fetchAskbackImage(id: string): Promise<Blob>;
   /** Standalone HTML export (latest version); conversation appends the Q&A. */
   exportArtifact(
     id: string,
@@ -68,6 +81,30 @@ export function createApi(token: string): CanvasApi {
     getAnsweredAskbacks: async () =>
       (await getJson<{ askbacks: AnsweredAskback[] }>("/api/askbacks/answered"))
         .askbacks,
+    uploadAskbackImage: async (blob) => {
+      const res = await fetch("/api/askbacks/image", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": blob.type || "application/octet-stream",
+        },
+        body: blob,
+      });
+      if (!res.ok) {
+        throw new Error(`POST /api/askbacks/image failed: ${res.status}`);
+      }
+      return (await res.json()) as {
+        image_id: string;
+        mime: string;
+        bytes: number;
+      };
+    },
+    fetchAskbackImage: async (id) => {
+      const path = `/api/askbacks/image/${encodeURIComponent(id)}`;
+      const res = await fetch(path, { headers });
+      if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+      return await res.blob();
+    },
     exportArtifact: async (id, conversation) => {
       const path =
         `/api/artifacts/${encodeURIComponent(id)}/export` +

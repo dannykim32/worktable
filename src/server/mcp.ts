@@ -11,6 +11,29 @@ import {
 /** Thrown by tool handlers for invalid input; becomes an isError tool result. */
 export class ToolInputError extends Error {}
 
+/** A raw MCP content block (e.g. {type:"text",text} or {type:"image",data,
+ *  mimeType}). Kept structural — the SDK validates the wire shape. */
+export interface McpContentBlock {
+  type: string;
+  [key: string]: unknown;
+}
+
+/** Passthrough sentinel: a handler that returns { _mcpContent: [...] } has its
+ *  blocks forwarded VERBATIM as the tool result content, instead of the default
+ *  JSON-in-one-text-block wrapping. This is how check_askbacks delivers pasted
+ *  images as real MCP image blocks the model can see. */
+export interface McpContentResult {
+  _mcpContent: McpContentBlock[];
+}
+
+export function isMcpContentResult(value: unknown): value is McpContentResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Array.isArray((value as { _mcpContent?: unknown })._mcpContent)
+  );
+}
+
 export interface ToolSpec {
   name: string;
   description: string;
@@ -48,6 +71,9 @@ export function createMcpServer(opts: {
     }
     try {
       const result = await tool.handler(request.params.arguments ?? {});
+      if (isMcpContentResult(result)) {
+        return { content: result._mcpContent };
+      }
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };

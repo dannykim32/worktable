@@ -145,6 +145,11 @@ export interface Askback {
   kind: AskbackKind;
   state: "pending" | "delivered";
   created_at: string;
+  /** A pasted screenshot's ImageStore id (128-bit hex; single image per
+   *  ask-back in v1). The bytes live in the store; check_askbacks delivers
+   *  them to the model as an MCP image block, and the canvas refetches the
+   *  thumbnail from GET /api/askbacks/image/:id. */
+  image_id?: string;
   /** Present once the agent has answered it via answer_askback (issue 22). */
   answer?: AskbackAnswer;
 }
