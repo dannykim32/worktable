@@ -8,7 +8,22 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-06) — v0.5.8: bare install is the whole install
+## Status (updated 2026-08-06) — v0.5.9: canvas-aware listener exits
+
+- **Closing the canvas tab stops nothing** (by design — the tab is a view; the
+  server rides the agent session, and killing the listener per tab-close would
+  waste an agent wake on every refresh). Instead the listener's exit is now
+  INFORMED: every await timeout carries `canvas_open` (a live tab holds an SSE
+  stream), and the CLI's budget-expiry message states the fact — page open →
+  re-arm; page closed → rest. No more guessing whether the human walked away.
+- Found + fixed a runtime-parity bug while testing it: bun's http server never
+  fires `res.on("close")` on client disconnect (node does), so the bun-run
+  test server kept counting closed SSE clients. Both the SSE hub and the await
+  route's unpark now hook response AND socket close, idempotently. The test
+  helper's SSE client also moved to fetch+AbortController (bun's node:http
+  client shim never closes the TCP connection on destroy).
+
+## Previous status (2026-08-06) — v0.5.8: bare install is the whole install
 
 - **`./install.sh` (no arguments) now installs everything user-wide**: MCP
   registration, the guidance block into `~/.claude/CLAUDE.md`, and the ask-back

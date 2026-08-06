@@ -161,78 +161,89 @@ export interface SseListener {
   close(): void;
 }
 
-/** Open a live /api/events stream (bearer-authed) and parse its frames. */
-export function openSse(port: number, token: string): Promise<SseListener> {
-  return new Promise((resolve, reject) => {
-    const frames: SseFrame[] = [];
-    const waiters: Array<{
-      event: string;
-      predicate: (f: SseFrame) => boolean;
-      resolve: (f: SseFrame) => void;
-    }> = [];
-    const req = http.request(
-      { host: "127.0.0.1", port, path: "/api/events", headers: bearer(token) },
-      (res) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`SSE connect failed: ${res.statusCode}`));
-          return;
-        }
-        let buffer = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk: string) => {
-          buffer += chunk;
-          let sep;
-          while ((sep = buffer.indexOf("\n\n")) !== -1) {
-            const raw = buffer.slice(0, sep);
-            buffer = buffer.slice(sep + 2);
-            let event = "message";
-            let data: unknown;
-            for (const line of raw.split("\n")) {
-              if (line.startsWith("event: ")) event = line.slice(7);
-              if (line.startsWith("data: ")) data = JSON.parse(line.slice(6));
-            }
-            if (raw.startsWith(":")) continue; // comment/heartbeat frame
-            const frame = { event, data };
-            frames.push(frame);
-            for (let i = waiters.length - 1; i >= 0; i--) {
-              if (waiters[i]!.event === event && waiters[i]!.predicate(frame)) {
-                waiters[i]!.resolve(frame);
-                waiters.splice(i, 1);
-              }
+/** Open a live /api/events stream (bearer-authed) and parse its frames.
+ *  Built on fetch + AbortController rather than node:http: under bun, the
+ *  node-http client shim does not close the TCP connection on destroy() (even
+ *  via the raw socket), so the node server kept counting closed SSE clients
+ *  until its next heartbeat write — leaking canvas_open=true across tests.
+ *  fetch's abort() tears the connection down for real. */
+export async function openSse(port: number, token: string): Promise<SseListener> {
+  const controller = new AbortController();
+  const res = await fetch(`http://127.0.0.1:${port}/api/events`, {
+    headers: bearer(token),
+    signal: controller.signal,
+  });
+  if (res.status !== 200 || !res.body) {
+    controller.abort();
+    throw new Error(`SSE connect failed: ${res.status}`);
+  }
+
+  const frames: SseFrame[] = [];
+  const waiters: Array<{
+    event: string;
+    predicate: (f: SseFrame) => boolean;
+    resolve: (f: SseFrame) => void;
+  }> = [];
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  void (async () => {
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        let sep;
+        while ((sep = buffer.indexOf("\n\n")) !== -1) {
+          const raw = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          if (raw.startsWith(":")) continue; // comment/heartbeat frame
+          let event = "message";
+          let data: unknown;
+          for (const line of raw.split("\n")) {
+            if (line.startsWith("event: ")) event = line.slice(7);
+            if (line.startsWith("data: ")) data = JSON.parse(line.slice(6));
+          }
+          const frame = { event, data };
+          frames.push(frame);
+          for (let i = waiters.length - 1; i >= 0; i--) {
+            if (waiters[i]!.event === event && waiters[i]!.predicate(frame)) {
+              waiters[i]!.resolve(frame);
+              waiters.splice(i, 1);
             }
           }
+        }
+      }
+    } catch {
+      /* aborted — expected on close() */
+    }
+  })();
+
+  return {
+    frames,
+    waitFor: (event, timeoutMs = 3000, predicate = () => true) =>
+      new Promise<SseFrame>((resolveWait, rejectWait) => {
+        const existing = frames.find((f) => f.event === event && predicate(f));
+        if (existing) {
+          resolveWait(existing);
+          return;
+        }
+        const timer = setTimeout(
+          () => rejectWait(new Error(`no ${event} frame in ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+        waiters.push({
+          event,
+          predicate,
+          resolve: (f) => {
+            clearTimeout(timer);
+            resolveWait(f);
+          },
         });
-        resolve({
-          frames,
-          waitFor: (event, timeoutMs = 3000, predicate = () => true) =>
-            new Promise<SseFrame>((resolveWait, rejectWait) => {
-              const existing = frames.find(
-                (f) => f.event === event && predicate(f),
-              );
-              if (existing) {
-                resolveWait(existing);
-                return;
-              }
-              const timer = setTimeout(
-                () => rejectWait(new Error(`no ${event} frame in ${timeoutMs}ms`)),
-                timeoutMs,
-              );
-              waiters.push({
-                event,
-                predicate,
-                resolve: (f) => {
-                  clearTimeout(timer);
-                  resolveWait(f);
-                },
-              });
-            }),
-          close: () => req.destroy(),
-        });
-      },
-    );
-    req.on("error", reject);
-    req.end();
-  });
+      }),
+    close: () => controller.abort(),
+  };
 }
 
 /** Extract the JSON payload of a tool result's first text content block. */

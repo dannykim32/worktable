@@ -174,7 +174,8 @@ describe("GET /api/askbacks/await — long-poll behavior", () => {
     const res = await getAwait({ timeoutParam: "1", clientTimeoutMs: 12_000 });
     const elapsed = Date.now() - started;
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ status: "timeout" });
+    // canvas_open rides every timeout: no SSE client here → page closed.
+    expect(JSON.parse(res.body)).toEqual({ status: "timeout", canvas_open: false });
     expect(elapsed).toBeGreaterThanOrEqual(4500); // clamped UP to 5000, not 1
     expect(elapsed).toBeLessThan(9000);
   }, 15_000);
@@ -188,7 +189,7 @@ describe("GET /api/askbacks/await — long-poll behavior", () => {
     // The 9th arrival evicted waiter #0 as a timeout, long before its window.
     const oldest = await polls[0]!;
     expect(oldest.status).toBe(200);
-    expect(JSON.parse(oldest.body)).toEqual({ status: "timeout" });
+    expect(JSON.parse(oldest.body)).toEqual({ status: "timeout", canvas_open: false });
 
     // The other 8 are still parked; one enqueue wakes them ALL.
     await postAskback("wake everyone");
@@ -263,7 +264,7 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
     sse.close();
   }, 20_000);
 
-  test("budget loops inner windows; exit message biases toward re-arming", async () => {
+  test("budget expiry with NO canvas tab open → the exit message says rest", async () => {
     const started = Date.now();
     const run = spawnSync(
       "bun",
@@ -279,8 +280,27 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
     // Two full 5s windows fit; the ~1s remainder is under the poll floor.
     expect(elapsed).toBeGreaterThanOrEqual(9_500);
     expect(run.stdout).toContain("listened ~");
-    expect(run.stdout).toContain("RE-ARM");
+    // No SSE client was connected → the server reported the page closed.
+    expect(run.stdout).toContain("canvas page is closed");
+    expect(run.stdout).toContain("rest");
   }, 25_000);
+
+  test("budget expiry WITH a canvas tab open → the exit message says re-arm", async () => {
+    const sse = await openSse(server.port, server.token()); // "a tab is open"
+    const run = spawnSync(
+      "bun",
+      [cliEntry, "--timeout-ms", "5000", "--budget-ms", "6000"],
+      {
+        cwd: repoRoot,
+        env: { ...(process.env as Record<string, string>), HOME: server.home },
+        encoding: "utf8",
+      },
+    );
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain("IS still open");
+    expect(run.stdout).toContain("RE-ARM");
+    sse.close();
+  }, 20_000);
 
   test("an ask in a LATER inner window still wakes; listening never flaps between windows", async () => {
     // The PREVIOUS test's arming ended inside the off-grace window; let it

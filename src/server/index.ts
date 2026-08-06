@@ -202,11 +202,24 @@ async function main(): Promise<void> {
           return;
         }
         const unpark = listeners.park(timeoutMs, (result) =>
-          sendJson(res, 200, result),
+          // A timeout carries whether any canvas tab is still connected, so
+          // the exiting listener CLI can tell the agent a FACT ("the page is
+          // closed — rest" / "still open — re-arm") instead of leaving it to
+          // guess whether the human walked away.
+          sendJson(
+            res,
+            200,
+            result.status === "timeout"
+              ? { ...result, canvas_open: sse.clientCount > 0 }
+              : result,
+          ),
         );
         // A killed job / dropped socket must not linger as "listening".
-        // (After a normal resolve this close fires too; drop() is idempotent.)
-        res.on("close", unpark);
+        // Both hooks for runtime parity (node fires res 'close', bun only the
+        // socket's); after a normal resolve these fire too — unpark is
+        // idempotent.
+        res.once("close", unpark);
+        res.socket?.once("close", unpark);
       },
     },
     {

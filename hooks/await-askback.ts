@@ -65,7 +65,24 @@ function askMessage(pending: number): string {
   );
 }
 
-function budgetMessage(minutes: number): string {
+/** The exit message states a FACT about the canvas page when the server
+ *  reported one (a live tab holds an SSE stream), so the agent's re-arm/rest
+ *  call needs no guessing. `null` = talking to a server that didn't say. */
+function budgetMessage(minutes: number, canvasOpen: boolean | null): string {
+  if (canvasOpen === true) {
+    return (
+      `worktable: listened ~${minutes} min with no questions, and the canvas ` +
+      "page IS still open — the human may still be reading. RE-ARM (same " +
+      "command, in the background)."
+    );
+  }
+  if (canvasOpen === false) {
+    return (
+      `worktable: listened ~${minutes} min with no questions and the canvas ` +
+      "page is closed. Let the listener rest; re-arm if the human reopens the " +
+      "canvas or asks you to publish again."
+    );
+  }
   return (
     `worktable: listened ~${minutes} min with no questions. If the canvas is ` +
     "still the active surface — an artifact is awaiting the human's input or " +
@@ -78,7 +95,7 @@ async function awaitAskbacks(
   port: string,
   token: string,
   timeoutMs: number,
-): Promise<{ status?: string; pending?: number }> {
+): Promise<{ status?: string; pending?: number; canvas_open?: boolean }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs + FETCH_SLACK_MS);
   try {
@@ -137,10 +154,13 @@ async function main(): Promise<void> {
   // silent — only the FINAL exit wakes the agent, so listening for 45 minutes
   // costs the same one wake-up as listening for 4.
   const deadline = Date.now() + budgetMs;
+  let canvasOpen: boolean | null = null;
   for (;;) {
     const remaining = deadline - Date.now();
     if (remaining < TIMEOUT_MIN_MS) {
-      console.log(budgetMessage(Math.max(1, Math.round(budgetMs / 60_000))));
+      console.log(
+        budgetMessage(Math.max(1, Math.round(budgetMs / 60_000)), canvasOpen),
+      );
       return;
     }
     try {
@@ -153,8 +173,10 @@ async function main(): Promise<void> {
         console.log(askMessage(body.pending ?? 1));
         return;
       }
-      // timeout → immediately re-poll (the server debounces its "listening"
-      // indicator across this gap, so the canvas shows one continuous session).
+      // timeout → remember whether a canvas tab was connected, then re-poll
+      // (the server debounces its "listening" indicator across this gap, so
+      // the canvas shows one continuous session).
+      if (typeof body.canvas_open === "boolean") canvasOpen = body.canvas_open;
     } catch (err) {
       // Server down, connection refused/severed, or the poll never answered.
       console.error(`worktable: listener poll failed: ${String(err)}`);

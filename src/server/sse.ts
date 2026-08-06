@@ -16,6 +16,12 @@ export class SseHub {
     this.heartbeat.unref();
   }
 
+  /** Connected canvas tabs. A live tab holds an SSE stream (EventSource
+   *  auto-reconnects), so >0 is a solid "someone has the page open" signal. */
+  get clientCount(): number {
+    return this.clients.size;
+  }
+
   attach(res: ServerResponse): void {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -24,7 +30,13 @@ export class SseHub {
     });
     res.write(":connected\n\n");
     this.clients.add(res);
-    res.on("close", () => this.clients.delete(res));
+    // Disconnect detection on BOTH the response and the raw socket: node fires
+    // res 'close' on client disconnect; bun's http server (used when tests run
+    // the server via `bun src/...`) fires only the socket/request close. The
+    // delete is idempotent, so double-fire is harmless.
+    const drop = () => this.clients.delete(res);
+    res.once("close", drop);
+    res.socket?.once("close", drop);
   }
 
   /** Send one event to a single attached client — for initial-state snapshots
