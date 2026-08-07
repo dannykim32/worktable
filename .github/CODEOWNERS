@@ -1,0 +1,3 @@
+# Default owner for everything in the repo. Required reviewer on PRs once
+# branch protection has "require review from Code Owners" enabled.
+* @dannykim32

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/dannykim32/worktable/security/advisories/new
+    about: Please report security issues privately here, not as a public issue.
+  - name: Questions & ideas
+    url: https://github.com/dannykim32/worktable/discussions
+    about: Ask a question or float an idea before it becomes an issue.

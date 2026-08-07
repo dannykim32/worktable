@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Application dependencies (package.json / bun.lock).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
+  # Keep the GitHub Actions used by CI current (and their pins fresh).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]

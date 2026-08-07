@@ -1,0 +1,59 @@
+name: Bug report
+description: Something isn't working as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for filing a bug. The more concrete the repro, the faster it gets fixed.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what actually happened?
+      placeholder: I asked the agent to render X and expected Y, but the canvas showed Z.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Install the plugin with ...
+        2. Ask the agent to ...
+        3. Select ... and ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Worktable version
+      description: The release tag, or a commit SHA if you're on main.
+      placeholder: "0.7.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: Agent host
+      options:
+        - Claude Code
+        - Codex
+        - Other (name it in Environment)
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, Bun version, and browser.
+      placeholder: macOS 15 · Node 20.11 · Bun 1.3.11 · Chrome 141
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Terminal output and any canvas console errors. Redact tokens, paths, and anything sensitive.
+      render: shell
+    validations:
+      required: false
