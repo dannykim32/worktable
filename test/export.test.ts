@@ -115,3 +115,90 @@ describe("export builder", () => {
     expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&#39;");
   });
 });
+
+describe("export builder — rendered markdown (Part A)", () => {
+  test("a prose artifact exports as rendered HTML, not raw markdown in a <pre>", () => {
+    const out = buildExportHtml({
+      meta: meta({ type: "prose" }),
+      content: { type: "prose", title: "t", markdown: "# Heading\n\n- one\n- two" },
+      conversation: null,
+      exportedAt: "d",
+    });
+    expect(out).toContain(`<div class="wt-body wt-prose">`);
+    expect(out).toContain("<h1>Heading</h1>");
+    expect(out).toContain("<ul><li>one</li><li>two</li></ul>");
+    // The raw markdown source is gone (no leading `# ` / `- `, no escaped pre).
+    expect(out).not.toContain("<pre class=\"wt-prose\">");
+    expect(out).not.toContain("# Heading");
+    expect(out).not.toContain("- one");
+  });
+
+  test("a conversation answer with markdown renders formatted", () => {
+    const out = buildExportHtml({
+      meta: meta(),
+      content: { type: "html", title: "t", html: "" },
+      conversation: [
+        ask({
+          answer: { text: "Two causes:\n\n- stale `port`\n- rotated token", answered_at: "t" },
+        }),
+      ],
+      exportedAt: "d",
+    });
+    expect(out).toContain("<li>stale <code>port</code></li>");
+    expect(out).toContain("<li>rotated token</li>");
+  });
+});
+
+describe("export builder — static anchor links (Part B)", () => {
+  test("prose: entry N and its in-content marker cross-link via #fragments", () => {
+    const out = buildExportHtml({
+      meta: meta({ type: "prose" }),
+      content: {
+        type: "prose",
+        title: "t",
+        markdown: "The opening paragraph here.\n\nA second paragraph.",
+      },
+      conversation: [
+        ask({
+          anchor: { artifact_id: "a", version: 1, block_index: 0, quote: "opening paragraph" },
+          question: "which section?",
+          answer: { text: "the first one.", answered_at: "t" },
+        }),
+      ],
+      exportedAt: "d",
+    });
+    // The entry is numbered + id'd, and its number links to the marker.
+    expect(out).toContain(`<div class="wt-entry" id="wt-entry-1">`);
+    expect(out).toContain(`href="#wt-mark-1"`);
+    // The in-content marker sits after the quote and links back to the entry.
+    expect(out).toContain(`id="wt-mark-1"`);
+    expect(out).toContain(`href="#wt-entry-1"`);
+    // Marker lands right after the quoted words, inside the first paragraph.
+    expect(out).toContain(
+      `The opening paragraph<a class="wt-mark" id="wt-mark-1" href="#wt-entry-1">[1]</a> here.`,
+    );
+  });
+
+  test("html: entries are numbered with quotes but get NO in-content marker", () => {
+    const out = buildExportHtml({
+      meta: meta({ type: "html" }),
+      content: { type: "html", title: "t", html: "<p>verbatim</p>" },
+      conversation: [
+        ask({
+          anchor: { artifact_id: "a", version: 1, block_index: 0, quote: "verbatim" },
+          question: "why?",
+        }),
+      ],
+      exportedAt: "d",
+    });
+    expect(out).toContain(`id="wt-entry-1"`);
+    expect(out).toContain("verbatim"); // quote still shown
+    // No marker injected into the model's exact page, and no backlink from the
+    // entry number ("wt-mark" appears once, only in the always-present CSS rule).
+    expect(out).not.toContain(`class="wt-mark"`);
+    expect(out).not.toContain(`id="wt-mark-1"`);
+    expect(out).not.toContain(`href="#wt-mark-1"`);
+    // The entry number is plain text, not a link.
+    expect(out).toContain(`<span class="wt-entry-n">1</span>`);
+  });
+});
