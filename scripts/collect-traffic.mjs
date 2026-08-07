@@ -15,17 +15,18 @@
 // only and leaves uniques as a per-window figure.
 //
 // Usage: node scripts/collect-traffic.mjs <data-dir>
-//   env: GH_TOKEN (push-access token), REPO (owner/name)
+//   env: TRAFFIC_TOKEN (a token with traffic-read access — see the workflow),
+//        REPO (owner/name)
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const dataDir = process.argv[2];
-const token = process.env.GH_TOKEN;
+const token = process.env.TRAFFIC_TOKEN;
 const repo = process.env.REPO;
 
 if (!dataDir) throw new Error("usage: collect-traffic.mjs <data-dir>");
-if (!token) throw new Error("GH_TOKEN is required");
+if (!token) throw new Error("TRAFFIC_TOKEN is required");
 if (!repo) throw new Error("REPO (owner/name) is required");
 
 async function fetchTraffic(kind) {
@@ -39,8 +40,9 @@ async function fetchTraffic(kind) {
   });
   const body = await res.text();
   if (!res.ok) {
-    // Fail loudly. A 403 here almost always means the token lacks push access
-    // to read traffic — add a PAT as the TRAFFIC_TOKEN secret (see the workflow).
+    // Fail loudly. A 403 here means TRAFFIC_TOKEN can't read traffic — the
+    // default GITHUB_TOKEN never can. Set the TRAFFIC_TOKEN secret to a PAT
+    // with traffic-read (Administration: Read) access; see the workflow.
     throw new Error(`GET /traffic/${kind} -> ${res.status}: ${body.slice(0, 300)}`);
   }
   return JSON.parse(body);
