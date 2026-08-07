@@ -5,6 +5,10 @@ describing an architecture change or a bug fix in a wall of text, the agent draw
 as a page you can open, read, and point at - and when you select something and ask
 about it, the question lands back in the terminal conversation.
 
+![Worktable canvas: a model-authored latency review with a flow diagram, next to the conversation drawer showing an anchored question and the agent's answer](docs/media/hero.png)
+
+<sub>A real artifact on the canvas (left) with a selection-anchored question and the agent's answer in the drawer (right) - not a mockup.</sub>
+
 ## Why
 
 When a coding agent explains a big change - a new module boundary, a refactor, why a
@@ -33,6 +37,8 @@ this" pill hands off to a side drawer where you type the question. It travels ho
 the terminal anchored to exactly what you selected, and the agent's answer fills in
 next to your question. It works from inside a model-drawn HTML page too, not just
 plain prose.
+
+![The conversation drawer: a numbered question tagged with the selected quote, and the agent's markdown-formatted answer with a follow-up button](docs/media/drawer.png)
 
 ## Install as a Claude Code plugin
 
