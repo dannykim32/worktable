@@ -39,6 +39,7 @@ import {
   type ToolSpec,
 } from "./mcp.js";
 import { openInBrowser, shouldOpenCanvas } from "./open.js";
+import { isOrphaned } from "./lifecycle.js";
 import {
   ASKBACK_RATE_LIMIT,
   ASKBACK_RATE_WINDOW_MS,
@@ -848,9 +849,18 @@ async function main(): Promise<void> {
   });
 
   let shuttingDown = false;
+  const initialPpid = process.ppid; // the agent host that spawned us
+  const orphanWatch = setInterval(() => {
+    // Last resort: if the host died without closing our stdin or signalling us,
+    // the OS reparents us to init. Poll for that so the canvas never outlives
+    // the session. unref'd below so it never keeps the process alive itself.
+    if (isOrphaned(initialPpid, process.ppid)) void shutdown();
+  }, Number(process.env.WORKTABLE_ORPHAN_POLL_MS ?? 3000));
+  orphanWatch.unref();
   const shutdown = async () => {
     if (shuttingDown) return; // multiple triggers now exist; run teardown once
     shuttingDown = true;
+    clearInterval(orphanWatch);
     listeners.close(); // end parked long-polls cleanly before the sockets go
     sse.close();
     await running.close().catch(() => {});
@@ -858,11 +868,12 @@ async function main(): Promise<void> {
     process.exit(0);
   };
   // The local HTTP servers must not outlive the agent host. Tear down on EVERY
-  // exit path the host might use: a clean stdin EOF (host closed our pipe), OR a
-  // termination signal (a resumable session may signal/orphan the process rather
-  // than EOF stdin — the observed "localhost still up after closing the session"
-  // bug). mcp.onclose is best-effort: the stdio transport doesn't detect stdin
-  // EOF, so the stdin + signal listeners are the real triggers.
+  // exit path the host might use: a clean stdin EOF (host closed our pipe), a
+  // termination signal, OR the host dying and orphaning us (the orphan watchdog
+  // above) — a resumable session may take any of these paths, and the observed
+  // "localhost still up after closing the session" bug came from one that isn't
+  // a clean stdin EOF. mcp.onclose is best-effort: the stdio transport doesn't
+  // detect stdin EOF, so the stdin + signal + orphan triggers are the real ones.
   for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
     process.on(signal, () => void shutdown());
   }
