@@ -8,7 +8,22 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
-## Status (updated 2026-08-06) — v0.6.0: paste images into ask-backs
+## Status (updated 2026-08-07) — v0.6.1: export renders markdown + anchor links
+
+- The standalone export now **renders markdown** (prose artifacts AND conversation
+  answers) instead of showing raw source — headings, lists, code, tables, links.
+- Markdown parsing was extracted to a shared DOM-free AST (`src/shared/markdown.ts`):
+  **one parser, two emitters** — the canvas builds DOM (`prose.ts`, behavior
+  unchanged, prose-renderer tests byte-identical), the export builds an escaped HTML
+  string (`src/server/markdownHtml.ts`, whitelisted tags only, XSS-tested). They can't
+  drift.
+- The exported **conversation links back to the content**: entries are numbered with
+  bidirectional static `#fragment` anchors to a `[N]` marker at the anchored block
+  (prose artifacts; html entries show the quote but get no in-content marker — a
+  static file can't safely splice into verbatim model HTML). Browser-verified: renders
+  formatted, marker click jumps to the entry. 253 tests.
+
+## Previous status (2026-08-06) — v0.6.0: paste images into ask-backs
 
 - **Paste a screenshot into the composer** and it rides the ask-back to the
   agent: uploaded (`POST /api/askbacks/image`, magic-byte sniffed — png/jpeg/
