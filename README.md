@@ -5,9 +5,9 @@ describing an architecture change or a bug fix in a wall of text, the agent draw
 as a page you can open, read, and point at - and when you select something and ask
 about it, the question lands back in the terminal conversation.
 
-![Worktable canvas: a model-authored latency review with a flow diagram, next to the conversation drawer showing an anchored question and the agent's answer](docs/media/hero.png)
+![Worktable demo: a coding agent renders a latency review to the local canvas; the human selects the slow database hop and asks about it, and the answer lands in the drawer](docs/media/demo.gif)
 
-<sub>A real artifact on the canvas (left) with a selection-anchored question and the agent's answer in the drawer (right) - not a mockup.</sub>
+<sub>Real footage: the agent draws a page, you select any part and ask, and the answer comes back anchored to what you pointed at.</sub>
 
 ## Why
 
