@@ -1,3 +1,5 @@
+<img src="docs/media/worktable-icon.svg" alt="Worktable logo" width="76" />
+
 # Worktable
 
 Worktable gives your terminal coding agent a local browser canvas. Instead of

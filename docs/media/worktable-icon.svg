@@ -1,0 +1,6 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Worktable">
+  <rect width="512" height="512" rx="128" fill="#ffffff"/>
+  <path d="M144 176 L197.3 346.7 L256 240 L314.7 346.7 L368 176"
+        fill="none" stroke="#0f766e" stroke-width="37.3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
