@@ -38,7 +38,7 @@ import {
   type McpContentBlock,
   type ToolSpec,
 } from "./mcp.js";
-import { openInBrowser } from "./open.js";
+import { openInBrowser, shouldOpenCanvas } from "./open.js";
 import {
   ASKBACK_RATE_LIMIT,
   ASKBACK_RATE_WINDOW_MS,
@@ -448,12 +448,21 @@ async function main(): Promise<void> {
     sse.broadcast("artifact", event);
   };
 
-  // Issue 03: the FIRST publish of a server run auto-opens the canvas
-  // (updates never do). openInBrowser is a no-op under WORKTABLE_NO_OPEN=1.
-  let hasAutoOpenedCanvas = false;
-  const autoOpenCanvasOnFirstPublish = () => {
-    if (hasAutoOpenedCanvas) return;
-    hasAutoOpenedCanvas = true;
+  // A publish/update auto-opens the canvas whenever NO tab is watching — the
+  // first publish of a session AND a resume where the human had closed the tab
+  // (previously updates never opened, so a resumed "show me X" via update_artifact
+  // broadcast to zero clients and rendered nothing). A live tab reconnects and
+  // gets the SSE event on its own, so we only open into an empty room; the
+  // debounce keeps a publish-then-update burst from spawning duplicate tabs
+  // before the first connects. openInBrowser is a no-op under WORKTABLE_NO_OPEN=1.
+  const autoOpenDebounceMs = Number(
+    process.env.WORKTABLE_AUTO_OPEN_DEBOUNCE_MS ?? 4000,
+  );
+  let lastAutoOpenAt = -Infinity;
+  const ensureCanvasVisible = () => {
+    if (!shouldOpenCanvas(sse.clientCount, Date.now() - lastAutoOpenAt, autoOpenDebounceMs))
+      return;
+    lastAutoOpenAt = Date.now();
     openInBrowser(canvasUrl());
   };
 
@@ -531,7 +540,7 @@ async function main(): Promise<void> {
             version: 1,
             type: meta.type,
           });
-          autoOpenCanvasOnFirstPublish();
+          ensureCanvasVisible();
           return {
             artifact_id: meta.id,
             version: 1,
@@ -561,6 +570,10 @@ async function main(): Promise<void> {
             version: meta.latest,
             type: meta.type,
           });
+          // Re-open the canvas if the human had closed it (e.g. on session
+          // resume) — otherwise this broadcast lands on zero clients and the
+          // human sees nothing.
+          ensureCanvasVisible();
           return { artifact_id: meta.id, version: meta.latest };
         }),
     },
@@ -729,11 +742,13 @@ async function main(): Promise<void> {
       name: "open_canvas",
       description:
         "Open the workspace's canvas page in the default browser and return its " +
-        "capability URL. You rarely need this: the FIRST publish_artifact of a " +
-        "session auto-opens the canvas with the artifact already on it. Do NOT " +
-        "open the canvas before you have something to show — an empty page while " +
-        "you're still working is worse than no page. Use this only to re-open a " +
-        "canvas the human closed.",
+        "capability URL. You rarely need this: publish_artifact and " +
+        "update_artifact already auto-open the canvas whenever no tab is watching " +
+        "(the first publish of a session, or after the human closed the page), so " +
+        "the artifact is already on screen. Do NOT open the canvas before you " +
+        "have something to show — an empty page while you're still working is " +
+        "worse than no page. Use this only to surface the canvas without " +
+        "publishing or updating anything.",
       inputSchema: {
         type: "object",
         properties: {},
@@ -832,15 +847,25 @@ async function main(): Promise<void> {
     tools,
   });
 
+  let shuttingDown = false;
   const shutdown = async () => {
+    if (shuttingDown) return; // multiple triggers now exist; run teardown once
+    shuttingDown = true;
     listeners.close(); // end parked long-polls cleanly before the sockets go
     sse.close();
     await running.close().catch(() => {});
     await frameServer.close().catch(() => {});
     process.exit(0);
   };
-  // HTTP lifecycle is tied to the stdio transport: stdin closing means the
-  // agent host is gone.
+  // The local HTTP servers must not outlive the agent host. Tear down on EVERY
+  // exit path the host might use: a clean stdin EOF (host closed our pipe), OR a
+  // termination signal (a resumable session may signal/orphan the process rather
+  // than EOF stdin — the observed "localhost still up after closing the session"
+  // bug). mcp.onclose is best-effort: the stdio transport doesn't detect stdin
+  // EOF, so the stdin + signal listeners are the real triggers.
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
+    process.on(signal, () => void shutdown());
+  }
   process.stdin.on("end", () => void shutdown());
   process.stdin.on("close", () => void shutdown());
   mcp.onclose = () => void shutdown();
