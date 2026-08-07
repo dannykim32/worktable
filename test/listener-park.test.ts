@@ -45,6 +45,20 @@ describe("ListenerPark announced-state debounce", () => {
     expect(park.listening).toBe(false);
   });
 
+  test("wake reports whether a live listener was woken (drives the canvas's delivery copy)", () => {
+    const { park } = makePark(5_000);
+
+    // No waiter parked → the question was queued, not live-delivered.
+    expect(park.wake(1)).toBe(false);
+
+    // A parked waiter → the enqueue woke it: live delivery.
+    park.park(10_000, () => {});
+    expect(park.wake(1)).toBe(true);
+
+    // The wake consumed the waiter → the next enqueue is queued again.
+    expect(park.wake(1)).toBe(false);
+  });
+
   test("close during a grace gap forces the off announcement", async () => {
     const { park, transitions } = makePark(5_000);
     park.park(30, () => {});

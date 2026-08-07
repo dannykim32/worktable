@@ -7024,7 +7024,9 @@ class ListenerPark {
     return () => this.drop(waiter);
   }
   wake(pending) {
+    const woke = this.waiters.length > 0;
     this.settleAll({ status: "ask", pending });
+    return woke;
   }
   close() {
     this.settleAll({ status: "timeout" });
@@ -16358,7 +16360,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.7.1";
+    return "0.7.2";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }
@@ -16653,9 +16655,12 @@ async function main() {
           const askback = askbacks.append(validated);
           reviews.onAskback(askback);
           const pendingCount = askbacks.pending().length;
-          if (pendingCount > 0)
-            listeners.wake(pendingCount);
-          sendJson(res, 201, { id: askback.id, state: askback.state });
+          const deliveredLive = pendingCount > 0 && listeners.wake(pendingCount);
+          sendJson(res, 201, {
+            id: askback.id,
+            state: askback.state,
+            delivered: deliveredLive ? "listener" : "queued"
+          });
         } catch (err) {
           if (err instanceof AskbackValidationError) {
             sendJson(res, 400, { error: err.message });
