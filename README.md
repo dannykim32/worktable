@@ -38,7 +38,7 @@ the terminal anchored to exactly what you selected, and the agent's answer fills
 next to your question. It works from inside a model-drawn HTML page too, not just
 plain prose.
 
-![The conversation drawer: a numbered question tagged with the selected quote, and the agent's markdown-formatted answer with a follow-up button](docs/media/drawer.png)
+![The canvas with a line of the artifact highlighted, and the conversation drawer beside it: the question anchored to that selection, the agent's markdown answer, and a follow-up button](docs/media/askback.png)
 
 ## Install as a Claude Code plugin
 
