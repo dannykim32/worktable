@@ -17,3 +17,6 @@ dist-release/
 
 # raw screen recordings — never commit; only rendered assets go in docs/media/
 videos/
+
+# macOS
+.DS_Store
