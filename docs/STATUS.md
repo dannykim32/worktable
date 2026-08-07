@@ -8,6 +8,24 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-07) — v0.7.0: installable as a Claude Code plugin
+
+- **Two-line install** via a self-hosted GitHub marketplace:
+  `/plugin marketplace add dannykim32/worktable` then
+  `/plugin install worktable@worktable`. The plugin bundles the MCP server + the
+  ask-back hook (paths via `${CLAUDE_PLUGIN_ROOT}`), and ships the guidance as a
+  model-invoked skill (`skills/worktable/SKILL.md`) since a plugin's CLAUDE.md
+  isn't auto-loaded.
+- A committed **`bundle/`** (runnable subset of `dist/`) makes the plugin work the
+  moment Claude Code clones the repo — no build. Server paths are name-agnostic
+  (`../canvas`, `../hooks/…`) so one built layout serves as `dist/` (tarball) and
+  `bundle/` (plugin). `package:release` refreshes both so they ship identical bytes.
+- The tarball / `install.sh` path is unchanged as the firewalled fallback. `claude
+  plugin validate` passes. 267 tests.
+- **QA to confirm on real use (dogfood):** the guidance is now a model-invoked skill
+  instead of always-on CLAUDE.md — verify the agent still reaches for the canvas by
+  default on a "walk me through this" prompt with only the plugin installed.
+
 ## Status (updated 2026-08-07) — v0.6.1: export renders markdown + anchor links
 
 - The standalone export now **renders markdown** (prose artifacts AND conversation
