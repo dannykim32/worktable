@@ -107,9 +107,13 @@ export class ListenerPark {
 
   /** A new ask-back was enqueued: wake EVERY parked waiter with the pending
    *  count. The waiters only learn that questions exist — draining them stays
-   *  with check_askbacks. */
-  wake(pending: number): void {
+   *  with check_askbacks. Returns whether a live listener was actually woken
+   *  (≥1 waiter parked), so the enqueue path can tell the asker their question
+   *  reached the agent without a keystroke. */
+  wake(pending: number): boolean {
+    const woke = this.waiters.length > 0;
     this.settleAll({ status: "ask", pending });
+    return woke;
   }
 
   /** Server shutdown: end every parked response cleanly (as a timeout) instead

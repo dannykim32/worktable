@@ -8,6 +8,23 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-07) — v0.7.2: ask-back banner reflects real delivery
+
+- **The "type anything in your terminal" banner no longer lies.** Asking a
+  question while the agent's poll-wake listener was parked delivered the question
+  *and* announced `listening` off in the same enqueue (`ListenerPark.wake` →
+  `announce(false)`). The drawer keyed its banner off that momentary flag, so a
+  question the agent was already answering still showed the "go type in your
+  terminal" copy. The banner is now decided **per question** from how it was
+  delivered: `POST /api/askbacks` returns `delivered: "listener" | "queued"`
+  (`wake()` now reports whether it woke a live waiter), the drawer stores
+  `needsTerminalTurn`, and shows "Sent — the agent is answering" for
+  live-delivered questions vs the keystroke nudge only for genuinely queued ones.
+- The `listening` SSE signal is retained (contract + a possible future ambient
+  indicator) but is no longer the banner's source of truth.
+- 282 tests (added a `wake()` return-value unit test + delivery-copy /
+  regression drawer tests). `bundle/` rebuilt so plugin installs carry the fix.
+
 ## Status (updated 2026-08-07) — v0.7.1: reliable canvas lifecycle on resume/close
 
 - **Resume re-shows the canvas.** `update_artifact` used to broadcast over SSE

@@ -42,6 +42,12 @@ interface DrawerEntry {
   isHtml: boolean;
   /** The frame-assigned markerId (html only); undefined for prose/absence. */
   markerId?: string;
+  /** True when this question was queued with no live listener parked, so it
+   *  needs a terminal turn to be delivered. False when the enqueue woke a
+   *  listener (the agent is already answering). Set from the POST response, not
+   *  the momentary `listening` flag — that flag is torn down by the same
+   *  enqueue that delivers the question, so it can't answer this per-question. */
+  needsTerminalTurn?: boolean;
   /** The rendered drawer list item (for highlight-on-locate). */
   entryEl?: HTMLElement;
 }
@@ -87,8 +93,10 @@ export class Drawer {
 
   private open_ = false;
   /** True while the agent has a poll-wake listener parked on the server (SSE
-   *  `listening`): a question reaches it with no terminal keystroke, so the
-   *  nudge banner switches to the calmer "listening" copy. */
+   *  `listening`). NOT the banner's source of truth — the banner is decided per
+   *  question from how it was delivered (see `needsTerminalTurn` / refreshNudge),
+   *  because this flag is torn down by the same enqueue that delivers a question.
+   *  Retained for the SSE contract and a possible future ambient indicator. */
   private listening = false;
   /** The in-progress question, before submit. */
   private pending:
@@ -438,6 +446,7 @@ export class Drawer {
           isHtml,
           markerId,
           imageId,
+          needsTerminalTurn: res.delivered !== "listener",
         });
         this.composer.hidden = true;
         this.pending = null;
@@ -512,41 +521,55 @@ export class Drawer {
   }
 
   /** SSE `listening` (and its connect-time snapshot): the agent armed or
-   *  dropped its poll-wake listener — swap the nudge copy accordingly. */
+   *  dropped its poll-wake listener. Tracked for the SSE contract / a future
+   *  ambient indicator; the nudge copy itself is delivery-driven, not gated on
+   *  this (see refreshNudge), so this no longer changes the banner. */
   setListening(on: boolean): void {
-    if (this.listening === on) return;
     this.listening = on;
-    this.refreshNudge();
   }
 
-  /** Show the nudge iff a question is still waiting for its answer. Two static
-   *  copies for the same banner: while the agent is LISTENING (a parked
-   *  poll-wake waiter) the question arrives automatically; otherwise an idle
-   *  agent can't be woken from here, so make the terminal keystroke obvious. */
+  /** Show the nudge iff a question is still waiting for its answer. The copy is
+   *  decided PER QUESTION by how it was delivered, not by the momentary
+   *  `listening` flag: a question enqueued while a listener was parked woke the
+   *  agent (it is already answering), while one queued with nobody parked needs
+   *  a terminal turn to be delivered. Keying off `listening` was the old bug —
+   *  the same enqueue that delivers a question tears the flag down, so a
+   *  live-delivered question wrongly showed the "type in your terminal" copy. */
   private refreshNudge(): void {
     let waiting = 0;
-    for (const e of this.entries.values()) if (!e.answer) waiting++;
-    this.nudge.classList.toggle("drawer-nudge--listening", this.listening);
+    let needTurn = 0;
+    for (const e of this.entries.values()) {
+      if (e.answer) continue;
+      waiting++;
+      if (e.needsTerminalTurn) needTurn++;
+    }
     if (waiting === 0) {
       this.nudge.hidden = true;
       this.nudge.replaceChildren();
+      this.nudge.classList.remove("drawer-nudge--listening");
       return;
     }
+    // Any question still needing a keystroke wins the banner — that is the one
+    // action the human must take; live-delivered questions need nothing.
+    const needsKeystroke = needTurn > 0;
+    this.nudge.classList.toggle("drawer-nudge--listening", !needsKeystroke);
     this.nudge.replaceChildren();
     const icon = this.doc.createElement("span");
     icon.className = "drawer-nudge-icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.textContent = this.listening ? "●" : "⌨";
+    icon.textContent = needsKeystroke ? "⌨" : "●";
     const text = this.doc.createElement("span");
     text.className = "drawer-nudge-text";
-    if (this.listening) {
-      text.textContent =
-        "The agent is listening — your question will reach it automatically.";
-    } else {
+    if (!needsKeystroke) {
       text.textContent =
         waiting === 1
+          ? "Sent — the agent is answering your question."
+          : "Sent — the agent is answering your questions.";
+    } else {
+      text.textContent =
+        needTurn === 1
           ? "Type anything in your terminal to send this question to the agent."
-          : `Type anything in your terminal to send your ${waiting} pending questions.`;
+          : `Type anything in your terminal to send your ${needTurn} pending questions.`;
     }
     this.nudge.append(icon, text);
     this.nudge.hidden = false;

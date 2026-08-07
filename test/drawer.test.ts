@@ -41,15 +41,25 @@ interface PostCall {
 function fakeApi(answered: AnsweredAskback[] = []) {
   const posts: PostCall[] = [];
   let seq = 0;
+  // What the next POST reports: "queued" (no listener parked, needs a terminal
+  // turn) or "listener" (the enqueue woke a live listener). Default queued so
+  // the keystroke-copy tests read naturally.
+  let delivered: "listener" | "queued" = "queued";
   const api = {
     postAskback: async (body: { anchor: unknown; question: string }) => {
       posts.push({ anchor: body.anchor, question: body.question });
       seq++;
-      return { id: `ab_${seq}`, state: "pending" };
+      return { id: `ab_${seq}`, state: "pending", delivered };
     },
     getAnsweredAskbacks: async () => answered,
   } as unknown as CanvasApi;
-  return { api, posts };
+  return {
+    api,
+    posts,
+    setDelivered: (d: "listener" | "queued") => {
+      delivered = d;
+    },
+  };
 }
 
 const blockAnchor: Anchor = {
@@ -372,10 +382,26 @@ describe("Drawer markers + click-to-locate (issue 27)", () => {
   });
 });
 
-describe("Drawer listening state (poll-wake listener)", () => {
-  test("setListening switches the nudge copy while a question waits, and back", async () => {
+describe("Drawer nudge delivery copy (poll-wake listener)", () => {
+  test("a question that woke a live listener shows the 'agent is answering' copy, not the keystroke nudge", async () => {
     const { galleryRoot } = makeGallery();
-    const { api } = fakeApi();
+    const { api, setDelivered } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    setDelivered("listener"); // the enqueue woke the parked listener
+    drawer.startAsk(blockAnchor, { isHtml: false });
+    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
+    await drawer.submit();
+
+    const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
+    expect(nudge.hidden).toBe(false);
+    expect(nudge.textContent).toContain("agent is answering");
+    expect(nudge.textContent).not.toContain("terminal");
+    expect(nudge.classList.contains("drawer-nudge--listening")).toBe(true);
+  });
+
+  test("a question queued with no listener parked shows the terminal-keystroke copy", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api } = fakeApi(); // default: "queued"
     const drawer = makeDrawer(galleryRoot, api);
     drawer.startAsk(blockAnchor, { isHtml: false });
     (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
@@ -383,39 +409,38 @@ describe("Drawer listening state (poll-wake listener)", () => {
 
     const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
     expect(nudge.hidden).toBe(false);
-    // Not listening: the existing type-in-your-terminal copy.
-    expect(nudge.textContent).toContain("terminal");
-    expect(nudge.classList.contains("drawer-nudge--listening")).toBe(false);
-
-    // SSE said the agent armed its listener → calmer, automatic-delivery copy.
-    drawer.setListening(true);
-    expect(nudge.hidden).toBe(false);
-    expect(nudge.textContent).toContain("The agent is listening");
-    expect(nudge.textContent).toContain("automatically");
-    expect(nudge.textContent).not.toContain("terminal");
-    expect(nudge.classList.contains("drawer-nudge--listening")).toBe(true);
-
-    // Listener gone (timeout / job exit) → back to the keystroke copy.
-    drawer.setListening(false);
-    expect(nudge.textContent).toContain(
-      "Type anything in your terminal to send this question",
-    );
+    expect(nudge.textContent).toContain("Type anything in your terminal");
     expect(nudge.classList.contains("drawer-nudge--listening")).toBe(false);
   });
 
-  test("listening with nothing waiting keeps the banner hidden; it appears in listening copy once a question is asked", async () => {
+  // Regression for the reported bug: asking WHILE a listener is parked delivers
+  // the question AND flips the server's `listening` flag off in the same enqueue.
+  // The banner must stay delivery-driven — a live-delivered question must never
+  // regress to "type in your terminal" just because listening went false.
+  test("setListening(false) after a live delivery does NOT regress the copy", async () => {
+    const { galleryRoot } = makeGallery();
+    const { api, setDelivered } = fakeApi();
+    const drawer = makeDrawer(galleryRoot, api);
+    setDelivered("listener");
+    drawer.startAsk(blockAnchor, { isHtml: false });
+    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
+    await drawer.submit();
+
+    const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
+    expect(nudge.textContent).toContain("agent is answering");
+
+    drawer.setListening(false); // the enqueue tore the flag down
+    expect(nudge.textContent).toContain("agent is answering");
+    expect(nudge.textContent).not.toContain("terminal");
+  });
+
+  test("listening with nothing waiting keeps the banner hidden", async () => {
     const { galleryRoot } = makeGallery();
     const { api } = fakeApi();
     const drawer = makeDrawer(galleryRoot, api);
     const nudge = drawer.panel.querySelector(".drawer-nudge") as HTMLElement;
     drawer.setListening(true);
-    expect(nudge.hidden).toBe(true); // no waiting question → no banner at all
-
-    drawer.startAsk(blockAnchor, { isHtml: false });
-    (drawer.panel.querySelector(".drawer-input") as HTMLInputElement).value = "q?";
-    await drawer.submit();
-    expect(nudge.hidden).toBe(false);
-    expect(nudge.textContent).toContain("The agent is listening");
+    expect(nudge.hidden).toBe(true); // no waiting question → no banner
   });
 });
 

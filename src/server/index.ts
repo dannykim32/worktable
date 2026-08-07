@@ -401,10 +401,17 @@ async function main(): Promise<void> {
           reviews.onAskback(askback);
           // Wake the poll-wake listeners with what is STILL pending: if a
           // blocked request_review just consumed this item there is nothing
-          // for a listener to fetch, so the park stays parked.
+          // for a listener to fetch, so the park stays parked. `wake` reports
+          // whether it woke a live listener — that (not the momentary
+          // "listening" flag, which this same enqueue tears down) is what tells
+          // the asker their question reached the agent without a keystroke.
           const pendingCount = askbacks.pending().length;
-          if (pendingCount > 0) listeners.wake(pendingCount);
-          sendJson(res, 201, { id: askback.id, state: askback.state });
+          const deliveredLive = pendingCount > 0 && listeners.wake(pendingCount);
+          sendJson(res, 201, {
+            id: askback.id,
+            state: askback.state,
+            delivered: deliveredLive ? "listener" : "queued",
+          });
         } catch (err) {
           if (err instanceof AskbackValidationError) {
             sendJson(res, 400, { error: err.message });

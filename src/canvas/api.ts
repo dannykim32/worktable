@@ -39,7 +39,7 @@ export interface CanvasApi {
     kind?: "question" | "approval";
     /** A stored pasted image to attach (from uploadAskbackImage; one per v1). */
     image_id?: string;
-  }): Promise<{ id: string; state: string }>;
+  }): Promise<{ id: string; state: string; delivered: "listener" | "queued" }>;
   getAnsweredAskbacks(): Promise<AnsweredAskback[]>;
   /** Upload a pasted image (raw bytes, bearer-authed); the server sniffs the
    *  real type by magic bytes and returns the minted image id. */
@@ -76,7 +76,11 @@ export function createApi(token: string): CanvasApi {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`POST /api/askbacks failed: ${res.status}`);
-      return (await res.json()) as { id: string; state: string };
+      return (await res.json()) as {
+        id: string;
+        state: string;
+        delivered: "listener" | "queued";
+      };
     },
     getAnsweredAskbacks: async () =>
       (await getJson<{ askbacks: AnsweredAskback[] }>("/api/askbacks/answered"))
