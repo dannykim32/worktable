@@ -1,0 +1,65 @@
+name: Traffic snapshot
+
+# GitHub keeps repo traffic (clones/views) for only a rolling 14-day window and
+# retains no history. This job snapshots it daily and merges the per-day series
+# into a dedicated `traffic-data` branch, so we accumulate a permanent record.
+# See scripts/collect-traffic.mjs for the merge rules and the uniques caveat.
+on:
+  schedule:
+    - cron: "17 4 * * *" # daily, 04:17 UTC
+  workflow_dispatch: {} # allow manual runs (seed it right after merge)
+
+# Least privilege: needs write only to push snapshots to the data branch.
+permissions:
+  contents: write
+
+concurrency:
+  group: traffic-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Snapshot traffic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (collector script)
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Collect + merge into traffic-data branch
+        env:
+          # The traffic API requires push access. The default GITHUB_TOKEN
+          # usually suffices; if a run 403s on the traffic call, create a
+          # fine-grained PAT (Contents: read + Administration: read) or a
+          # classic PAT (repo scope) and add it as the TRAFFIC_TOKEN secret —
+          # this picks it up automatically.
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          DATA_DIR="${RUNNER_TEMP}/traffic-data"
+
+          if git clone --depth 1 --branch traffic-data "$REMOTE" "$DATA_DIR" 2>/dev/null; then
+            echo "cloned existing traffic-data branch"
+          else
+            echo "traffic-data branch missing — bootstrapping an orphan branch"
+            git clone --depth 1 "$REMOTE" "$DATA_DIR"
+            git -C "$DATA_DIR" checkout --orphan traffic-data
+            git -C "$DATA_DIR" rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          node scripts/collect-traffic.mjs "$DATA_DIR"
+
+          git -C "$DATA_DIR" config user.name "github-actions[bot]"
+          git -C "$DATA_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$DATA_DIR" add -A
+          if git -C "$DATA_DIR" diff --cached --quiet; then
+            echo "no traffic changes to commit"
+            exit 0
+          fi
+          git -C "$DATA_DIR" commit -m "chore(traffic): daily snapshot"
+          git -C "$DATA_DIR" push origin HEAD:traffic-data
