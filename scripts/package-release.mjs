@@ -6,6 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { readFileSync, rmSync, mkdirSync, cpSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { syncBundle } from "./build-bundle.mjs";
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const version = JSON.parse(readFileSync(join(repo, "package.json"), "utf8")).version;
@@ -20,6 +21,12 @@ console.log(`Packaging worktable v${version}…`);
 console.log("  building standalone bundle…");
 execFileSync("node", [join(repo, "scripts", "build-standalone.mjs")], { cwd: repo, stdio: "inherit" });
 if (!existsSync(join(repo, "dist", "server", "index.js"))) throw new Error("build produced no dist/server/index.js");
+
+// 1a. Refresh the COMMITTED plugin bundle/ from the SAME dist/ we just built, so
+// the Claude Code plugin and this tarball ship byte-identical runtime each version.
+// (Commit the updated bundle/ alongside the release.)
+console.log("  syncing committed plugin bundle/…");
+syncBundle(repo);
 
 // 1b. Publish-smoke the built bundle over REAL MCP. A bundle can START cleanly
 // yet reject artifacts (schema shape / validator drift — exactly the 0.2.1 bug,
