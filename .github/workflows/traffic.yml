@@ -31,16 +31,24 @@ jobs:
 
       - name: Collect + merge into traffic-data branch
         env:
-          # The traffic API requires push access. The default GITHUB_TOKEN
-          # usually suffices; if a run 403s on the traffic call, create a
-          # fine-grained PAT (Contents: read + Administration: read) or a
-          # classic PAT (repo scope) and add it as the TRAFFIC_TOKEN secret —
-          # this picks it up automatically.
-          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN || github.token }}
+          # Two tokens, least privilege:
+          #  - PUSH_TOKEN (default GITHUB_TOKEN) clones the repo and pushes the
+          #    snapshot to the unprotected traffic-data branch (contents: write).
+          #  - TRAFFIC_TOKEN reads the traffic API, which the GITHUB_TOKEN CANNOT
+          #    do (always 403s). Set the TRAFFIC_TOKEN secret to a fine-grained
+          #    PAT scoped to this repo with only "Administration: Read" (or a
+          #    classic PAT with repo scope). It never needs write access.
+          PUSH_TOKEN: ${{ github.token }}
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          if [ -z "${TRAFFIC_TOKEN}" ]; then
+            echo "::error::TRAFFIC_TOKEN secret is not set. The default token cannot read the traffic API." \
+                 "Create a PAT with 'Administration: Read' and add it as the TRAFFIC_TOKEN secret."
+            exit 1
+          fi
+          REMOTE="https://x-access-token:${PUSH_TOKEN}@github.com/${REPO}.git"
           DATA_DIR="${RUNNER_TEMP}/traffic-data"
 
           if git clone --depth 1 --branch traffic-data "$REMOTE" "$DATA_DIR" 2>/dev/null; then
