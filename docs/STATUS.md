@@ -22,6 +22,12 @@ state lives.
   (prose artifacts; html entries show the quote but get no in-content marker — a
   static file can't safely splice into verbatim model HTML). Browser-verified: renders
   formatted, marker click jumps to the entry. 253 tests.
+- **Now installable as a Claude Code plugin** via a self-hosted marketplace
+  (`.claude-plugin/{plugin,marketplace}.json`) that ships a committed `bundle/` +
+  the guidance as `skills/worktable/SKILL.md`. Server paths are name-agnostic
+  (sibling-relative), so `dist/` (tarball) and `bundle/` (plugin) run the same file.
+  The tarball/`install.sh` path is unchanged as the firewalled fallback. (coordinator
+  to finalize this section for the release.)
 
 ## Previous status (2026-08-06) — v0.6.0: paste images into ask-backs
 

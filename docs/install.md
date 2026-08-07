@@ -1,3 +1,26 @@
+# Installing worktable
+
+## Install as a Claude Code plugin (default)
+
+If Claude Code can reach GitHub, install from the self-hosted marketplace — two
+lines, no clone or build:
+
+```
+/plugin marketplace add dannykim32/worktable
+/plugin install worktable@worktable
+```
+
+The plugin bundles the MCP server, the `UserPromptSubmit` ask-back hook, and the
+canvas guidance skill. It ships a committed `bundle/` (the runnable subset of
+`dist/`), so it runs the moment Claude Code clones the repo — no `bun install`, no
+build. The plugin's server and hook paths resolve under `${CLAUDE_PLUGIN_ROOT}/bundle`.
+
+Everything below is the **firewalled fallback**: the self-contained tarball +
+network-free registration helper, for machines that can't reach GitHub/npm. That
+path is unchanged and fully supported.
+
+---
+
 # Installing worktable on a firewalled machine
 
 worktable isn't published to npm — it's distributed as a self-contained bundle,

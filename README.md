@@ -34,6 +34,20 @@ the terminal anchored to exactly what you selected, and the agent's answer fills
 next to your question. It works from inside a model-drawn HTML page too, not just
 plain prose.
 
+## Install as a Claude Code plugin
+
+The quickest path. Add the self-hosted marketplace, then install the plugin:
+
+```
+/plugin marketplace add dannykim32/worktable
+/plugin install worktable@worktable
+```
+
+That wires the MCP server, the ask-back hook, and the canvas guidance skill in one
+step — the plugin ships a committed `bundle/`, so it works right after Claude Code
+clones the repo. On a firewalled machine that can't reach GitHub, use the
+self-contained tarball instead (see below and `docs/install.md`).
+
 ## Quickstart
 
 Requires [Bun](https://bun.sh) for dev and Node 20+ to run.

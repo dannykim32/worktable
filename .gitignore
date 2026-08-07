@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# bundle/ is intentionally COMMITTED (not ignored): it is the runnable subset the
+# Claude Code plugin loads, so the plugin must work after a plain `git clone`.
+# `bun run bundle` rebuilds it from dist/; keep it in sync on every version bump.
 .worktable/
 .gstack/
 

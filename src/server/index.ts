@@ -65,19 +65,22 @@ import { openWorkspace } from "./workspace.js";
 
 async function main(): Promise<void> {
   const workspace = openWorkspace();
-  // The listener CLI ships beside this server; resolving it here lets tool
-  // results hand the agent a ready-to-run arm command (same layout in dev and
-  // in the standalone bundle).
+  // The listener CLI and the built canvas ship as SIBLINGS of this server dir,
+  // so resolve them sibling-relative — NEVER by a hardcoded top-level dir name.
+  // From the compiled `<root>/server/index.js`, `../hooks/...` and `../canvas`
+  // land in `<root>/hooks/...` and `<root>/canvas` for ANY `<root>`: identical
+  // whether the runnable layout is the dev/tarball `dist/` or the committed
+  // plugin `bundle/`. That name-agnosticism is what lets the same server file
+  // run from both. (Tool results hand the agent a ready-to-run arm command;
+  // this path is correct in every shipped layout.)
   const awaitCliPath = fileURLToPath(
-    new URL("../../dist/hooks/await-askback.js", import.meta.url),
+    new URL("../hooks/await-askback.js", import.meta.url),
   );
   const armListenerHint =
     `Arm the listener so canvas questions reach you without a terminal turn: ` +
     `run \`node ${awaitCliPath}\` as a BACKGROUND Bash job (never foreground). ` +
     `When it completes reporting questions: check_askbacks, answer, re-arm.`;
-  const canvasDistDir = fileURLToPath(
-    new URL("../../dist/canvas", import.meta.url),
-  );
+  const canvasDistDir = fileURLToPath(new URL("../canvas", import.meta.url));
 
   const store = new ArtifactStore(workspace.dir);
   // Frame slugs for the html hatch (issue 25): a fresh 128-bit slug per html
