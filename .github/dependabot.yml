@@ -1,16 +1,10 @@
 version: 2
+# No "npm" ecosystem on purpose: Dependabot's npm updater edits package.json but
+# does NOT maintain Bun's bun.lock, so every such PR fails CI's
+# `bun install --frozen-lockfile`. App-dependency security is covered by
+# `bun audit` (the CI audit job) plus GitHub's Dependabot security alerts;
+# refresh versions deliberately with `bun update` + `bun test` when wanted.
 updates:
-  # Application dependencies (package.json / bun.lock).
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels: ["dependencies"]
-    groups:
-      dev-dependencies:
-        dependency-type: "development"
-
   # Keep the GitHub Actions used by CI current (and their pins fresh).
   - package-ecosystem: "github-actions"
     directory: "/"
