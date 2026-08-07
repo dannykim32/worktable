@@ -14835,7 +14835,16 @@ async function connectStdio(server) {
 
 // src/server/open.ts
 import { spawn } from "node:child_process";
+import { appendFileSync as appendFileSync2 } from "node:fs";
 function openInBrowser(url) {
+  const logPath = process.env.WORKTABLE_OPEN_LOG;
+  if (logPath) {
+    try {
+      appendFileSync2(logPath, `${url}
+`);
+    } catch {}
+    return;
+  }
   if (process.env.WORKTABLE_NO_OPEN === "1")
     return;
   const command = process.platform === "darwin" ? "open" : "xdg-open";
@@ -14848,6 +14857,14 @@ function openInBrowser(url) {
   } catch (err) {
     console.error(`worktable: could not open browser: ${String(err)}`);
   }
+}
+function shouldOpenCanvas(clientCount, msSinceLastOpen, debounceMs) {
+  return clientCount === 0 && msSinceLastOpen >= debounceMs;
+}
+
+// src/server/lifecycle.ts
+function isOrphaned(initialPpid, currentPpid) {
+  return initialPpid !== 1 && currentPpid === 1;
 }
 
 // src/server/rateLimit.ts
@@ -16341,7 +16358,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.7.0";
+    return "0.7.1";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }
@@ -16670,11 +16687,12 @@ async function main() {
   const broadcastArtifactEvent = (event) => {
     sse.broadcast("artifact", event);
   };
-  let hasAutoOpenedCanvas = false;
-  const autoOpenCanvasOnFirstPublish = () => {
-    if (hasAutoOpenedCanvas)
+  const autoOpenDebounceMs = Number(process.env.WORKTABLE_AUTO_OPEN_DEBOUNCE_MS ?? 4000);
+  let lastAutoOpenAt = -Infinity;
+  const ensureCanvasVisible = () => {
+    if (!shouldOpenCanvas(sse.clientCount, Date.now() - lastAutoOpenAt, autoOpenDebounceMs))
       return;
-    hasAutoOpenedCanvas = true;
+    lastAutoOpenAt = Date.now();
     openInBrowser(canvasUrl());
   };
   const mapErrors = (fn) => {
@@ -16702,7 +16720,7 @@ async function main() {
           version: 1,
           type: meta2.type
         });
-        autoOpenCanvasOnFirstPublish();
+        ensureCanvasVisible();
         return {
           artifact_id: meta2.id,
           version: 1,
@@ -16725,6 +16743,7 @@ async function main() {
           version: meta2.latest,
           type: meta2.type
         });
+        ensureCanvasVisible();
         return { artifact_id: meta2.id, version: meta2.latest };
       })
     },
@@ -16843,7 +16862,7 @@ async function main() {
     },
     {
       name: "open_canvas",
-      description: "Open the workspace's canvas page in the default browser and return its " + "capability URL. You rarely need this: the FIRST publish_artifact of a " + "session auto-opens the canvas with the artifact already on it. Do NOT " + "open the canvas before you have something to show — an empty page while " + "you're still working is worse than no page. Use this only to re-open a " + "canvas the human closed.",
+      description: "Open the workspace's canvas page in the default browser and return its " + "capability URL. You rarely need this: publish_artifact and " + "update_artifact already auto-open the canvas whenever no tab is watching " + "(the first publish of a session, or after the human closed the page), so " + "the artifact is already on screen. Do NOT open the canvas before you " + "have something to show — an empty page while you're still working is " + "worse than no page. Use this only to surface the canvas without " + "publishing or updating anything.",
       inputSchema: {
         type: "object",
         properties: {},
@@ -16922,13 +16941,27 @@ async function main() {
     version: SERVER_VERSION,
     tools
   });
+  let shuttingDown = false;
+  const initialPpid = process.ppid;
+  const orphanWatch = setInterval(() => {
+    if (isOrphaned(initialPpid, process.ppid))
+      shutdown();
+  }, Number(process.env.WORKTABLE_ORPHAN_POLL_MS ?? 3000));
+  orphanWatch.unref();
   const shutdown = async () => {
+    if (shuttingDown)
+      return;
+    shuttingDown = true;
+    clearInterval(orphanWatch);
     listeners.close();
     sse.close();
     await running.close().catch(() => {});
     await frameServer.close().catch(() => {});
     process.exit(0);
   };
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+    process.on(signal, () => void shutdown());
+  }
   process.stdin.on("end", () => void shutdown());
   process.stdin.on("close", () => void shutdown());
   mcp.onclose = () => void shutdown();

@@ -8,6 +8,22 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-07) — v0.7.1: reliable canvas lifecycle on resume/close
+
+- **Resume re-shows the canvas.** `update_artifact` used to broadcast over SSE
+  only, so if the human had closed the tab (e.g. on session resume) the render
+  landed on zero clients and nothing appeared. Both `publish_artifact` and
+  `update_artifact` now auto-open the canvas whenever no tab is watching
+  (`sse.clientCount === 0`), debounced so a publish→update burst doesn't spawn
+  duplicate tabs; a live tab reconnects and receives the event on its own.
+- **The server no longer outlives the session.** Teardown fired only on stdin EOF
+  (and a `mcp.onclose` that never fires on host exit). Added `SIGTERM`/`SIGINT`/
+  `SIGHUP` handlers, an idempotent `shutdown`, and an orphan watchdog
+  (reparented-to-init ⇒ shut down) so the local servers die on every host-exit
+  path. The host-keeps-alive-by-design case (server pooled while the host itself
+  still runs) is intentionally out of scope.
+- 279 tests. `bundle/` rebuilt so plugin installs carry the fix.
+
 ## Status (updated 2026-08-07) — v0.7.0: installable as a Claude Code plugin
 
 - **Two-line install** via a self-hosted GitHub marketplace:

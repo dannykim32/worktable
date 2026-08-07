@@ -61,7 +61,7 @@ Requires [Bun](https://bun.sh) for dev and Node 20+ to run.
 ```sh
 bun install
 bun run build
-bun test          # ~267 tests
+bun test          # ~279 tests
 ```
 
 Register the canvas with Claude Code for every session:
