@@ -9,13 +9,19 @@
 //   dist/hooks/askback-hook.js  — the Claude Code ask-back hook, bundled the same way.
 //   dist/hooks/await-askback.js — the poll-wake listener CLI, bundled the same way.
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
 const version = pkg.version;
+
+// Clean dist/ first: this bundle is what ships in the release tarball, and a
+// stale compiled output from a since-DELETED source (e.g. the retired gate
+// config.js) would otherwise linger here and ride into the tarball. A from-
+// scratch dist/ guarantees the shipped bytes match the current source.
+rmSync(join(repoRoot, "dist"), { recursive: true, force: true });
 
 function run(cmd, args) {
   process.stdout.write(`\n$ ${cmd} ${args.join(" ")}\n`);
