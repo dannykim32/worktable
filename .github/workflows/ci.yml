@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly run so a newly-disclosed advisory against UNCHANGED deps is caught by
+  # the audit job even with no push/PR (push/PR alone only audits on changes).
+  schedule:
+    - cron: "23 5 * * 1" # Mondays 05:23 UTC
+  workflow_dispatch: {}
 
 # Least privilege: CI only needs to read the checkout.
 permissions:

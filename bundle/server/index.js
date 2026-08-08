@@ -7095,6 +7095,15 @@ function tokensEqual(candidate, actual) {
   const b = createHash("sha256").update(actual).digest();
   return timingSafeEqual(a, b);
 }
+function parseBearerToken(header) {
+  if (!header || !header.startsWith("Bearer"))
+    return null;
+  const rest = header.slice("Bearer".length);
+  const token = rest.trimStart();
+  if (token.length === 0 || token.length === rest.length)
+    return null;
+  return token;
+}
 var BODY_LIMIT_BYTES = 64 * 1024;
 function readJsonBody(req) {
   return new Promise((resolve2, reject) => {
@@ -7277,11 +7286,7 @@ async function startCanvasHttpServer(deps) {
     res.end(body);
   }
   function bearerToken(req) {
-    const header = req.headers.authorization;
-    if (!header)
-      return null;
-    const match = /^Bearer\s+(.+)$/.exec(header);
-    return match ? match[1] : null;
+    return parseBearerToken(req.headers.authorization);
   }
   boundPort = await bindFirstFreePort(server, PORT_SCAN_START, PORT_SCAN_END);
   return {
@@ -16360,7 +16365,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.7.2";
+    return "0.7.3";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }

@@ -44,7 +44,8 @@ plain prose.
 
 ## Install as a Claude Code plugin
 
-The quickest path. Add the self-hosted marketplace, then install the plugin:
+The quickest path, and all an end-user needs. Add the self-hosted marketplace, then
+install the plugin:
 
 ```
 /plugin marketplace add dannykim32/worktable
@@ -53,17 +54,37 @@ The quickest path. Add the self-hosted marketplace, then install the plugin:
 
 That wires the MCP server, the ask-back hook, and the canvas guidance skill in one
 step — the plugin ships a committed `bundle/`, so it works right after Claude Code
-clones the repo. On a firewalled machine that can't reach GitHub, use the
-self-contained tarball instead (see below and `docs/install.md`).
+clones the repo. Restart Claude Code, run `/mcp` to confirm `worktable` is connected,
+then ask for something visual — "walk me through this architecture."
 
-## Quickstart
+- **Update:** `/plugin update worktable@worktable`, then restart Claude Code.
+- **Uninstall:** `/plugin uninstall worktable@worktable`. To also remove stored
+  data, see [Local data](#local-data).
+- **Other hosts (Codex CLI, etc.):** the two-line install is Claude Code only. Other
+  MCP hosts need a one-time manual setup — see
+  [`docs/install.md`](docs/install.md#codex-and-other-mcp-hosts).
+- **Firewalled / no npm:** use the self-contained tarball — see
+  [`docs/install.md`](docs/install.md).
 
+## Local data
+
+Worktable keeps all state under `~/.worktable/<workspace-id>/` (0700 dirs, 0600
+files) and it never leaves your machine: the capability token, **every** published
+artifact version, the ask-back queue and answers, and any pasted images. Nothing is
+auto-expired — versions and images are retained until you remove them. To clear one
+project's data, delete its workspace directory; to wipe everything, remove
+`~/.worktable`. (Do it while Claude Code isn't running; the server recreates what it
+needs on next launch.)
+
+## Build from source (contributors)
+
+Everything below is for hacking on Worktable itself — end-users don't need it.
 Requires [Bun](https://bun.sh) for dev and Node 20+ to run.
 
 ```sh
 bun install
 bun run build
-bun test          # ~279 tests
+bun test          # ~282 tests
 ```
 
 Register the canvas with Claude Code for every session:

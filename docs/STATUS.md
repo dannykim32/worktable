@@ -8,6 +8,36 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-07) — v0.7.3: post-launch hardening (security hygiene + onboarding docs)
+
+Addresses the "do now" tier of the post-v0.7.2 launch audit. (Deferred to a
+separate decision: standalone-export CSS isolation — model `<style>` can restyle
+the export's trusted chrome since the static file drops the live canvas's iframe
+isolation; and a data clear/reset tool + orphan-image cleanup. Both are real but
+need a design call; see the audit discussion.)
+
+- **Bearer-header ReDoS fixed.** `http.ts`'s `/^Bearer\s+(.+)$/` had `\s+`/`.+`
+  overlapping on spaces (CodeQL `js/polynomial-redos`, HIGH): a caller-controlled
+  `Bearer ` + many spaces forced quadratic backtracking. Replaced with a pure,
+  exported `parseBearerToken()` using `startsWith` + `trimStart` (linear), with a
+  unit test incl. a 200k-space hostile-input canary.
+- **CodeQL triaged.** The other open alerts are dismissed with written
+  justification: hook/test `file-access-to-http` is the by-design 127.0.0.1
+  loopback reading its own 0600 port/token (ADR-0005); `missing-regexp-anchor` are
+  test-only assertions; `register.mjs` `file-system-race` is a single-user local
+  installer. Generated output (`bundle/`, `dist/`) is now `paths-ignore`d in the
+  CodeQL config so it stops duplicating source findings.
+- **Scheduled dependency audit.** CI's `bun audit` ran on push/PR only; added a
+  weekly `schedule` + `workflow_dispatch` so a newly-disclosed advisory against
+  unchanged deps is caught.
+- **Onboarding docs.** README now separates the Claude-Code plugin two-liner (all
+  an end-user needs) from a "Build from source (contributors)" section, adds plugin
+  update/uninstall, a non-Claude-Code-host pointer, and a "Local data" section; the
+  stale `~279` test count is corrected. `setup.md` fixes the false "no global state"
+  uninstall claim and documents where workspace data lives (incl. pasted images),
+  that it is retained until removed, and how to clear it.
+- 285 tests. `bundle/` rebuilt so plugin installs carry the ReDoS fix.
+
 ## Status (updated 2026-08-07) — v0.7.2: ask-back banner reflects real delivery
 
 - **The "type anything in your terminal" banner no longer lies.** Asking a

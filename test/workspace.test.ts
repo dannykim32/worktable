@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   hostAllowed,
   injectTokenIntoCanvasHtml,
+  parseBearerToken,
   tokensEqual,
 } from "../src/server/http.js";
 import { deriveWorkspaceId, openWorkspace } from "../src/server/workspace.js";
@@ -72,6 +73,33 @@ describe("host allowlist", () => {
     expect(hostAllowed("sub.localhost", 8787)).toBe(false);
     expect(hostAllowed(undefined, 8787)).toBe(false);
     expect(hostAllowed("", 8787)).toBe(false);
+  });
+
+  describe("parseBearerToken", () => {
+    test("extracts the token, tolerating whitespace like the old regex", () => {
+      expect(parseBearerToken("Bearer abc123")).toBe("abc123");
+      expect(parseBearerToken("Bearer   abc123")).toBe("abc123"); // many spaces
+      expect(parseBearerToken("Bearer\tabc123")).toBe("abc123"); // tab delimiter
+      expect(parseBearerToken("Bearer abc 123")).toBe("abc 123"); // inner space kept
+    });
+
+    test("rejects malformed / missing headers", () => {
+      expect(parseBearerToken(undefined)).toBeNull();
+      expect(parseBearerToken("")).toBeNull();
+      expect(parseBearerToken("Bearer")).toBeNull(); // no delimiter, no token
+      expect(parseBearerToken("Bearer ")).toBeNull(); // delimiter, empty token
+      expect(parseBearerToken("Bearerabc")).toBeNull(); // no whitespace delimiter
+      expect(parseBearerToken("Basic abc123")).toBeNull(); // wrong scheme
+    });
+
+    test("no polynomial backtracking on a hostile all-whitespace header", () => {
+      // The old /^Bearer\s+(.+)$/ backtracked quadratically here. This value has
+      // no non-whitespace token, so the parser returns null in linear time.
+      const hostile = "Bearer" + " ".repeat(200_000);
+      const start = performance.now();
+      expect(parseBearerToken(hostile)).toBeNull();
+      expect(performance.now() - start).toBeLessThan(50); // milliseconds, not seconds
+    });
   });
 
   test("token injection touches only /assets/ URLs and keeps query strings", () => {
