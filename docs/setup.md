@@ -32,9 +32,13 @@ this repo's absolute path):
 
 Restart Claude Code in the workspace. The server exposes the tools
 `publish_artifact`, `update_artifact`, `check_askbacks`, `request_review`,
-`open_canvas`, and `rotate_token`. Workspace state (capability token, artifacts,
-ask-back queue) lives under `~/.worktable/<workspaceId>/` (0700 dirs, 0600
-files).
+`open_canvas`, and `rotate_token`. Workspace state lives under
+`~/.worktable/<workspaceId>/` (0700 dirs, 0600 files): the capability token, **every**
+published artifact version, the ask-back queue and answers, and any pasted images.
+It is retained until you remove it — there is no auto-expiry or version pruning. To
+clear one project's data, delete its `~/.worktable/<workspaceId>/` directory; to wipe
+everything, remove `~/.worktable`. Do it while Claude Code isn't running; the server
+recreates what it needs on next launch.
 
 The canvas URL carries the per-workspace capability token
 (`http://127.0.0.1:<port>/?token=…`). Every browser-facing endpoint requires
@@ -83,9 +87,11 @@ text on the canvas and ask a question, then type *anything* in Claude Code
 (e.g. "ok"). The agent should answer the canvas ask-back — citing the quoted
 anchor — without you telling it to check.
 
-**Uninstall:** delete the `UserPromptSubmit` block above from `settings.json`.
-Nothing else is installed — no daemon, no global state — and the portable
-`check_askbacks` loop keeps working without it.
+**Uninstall:** delete the `UserPromptSubmit` block above from `settings.json` and
+remove the MCP server entry (`claude mcp remove worktable`); the portable
+`check_askbacks` loop keeps working without the hook. No daemon runs, but persistent
+workspace state remains under `~/.worktable/` — remove that directory to delete it
+(see the data-retention note above).
 
 ## Optional: request_review (blocking Review Moment)
 

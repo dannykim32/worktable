@@ -57,6 +57,23 @@ export function tokensEqual(candidate: string, actual: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/** Parse `Authorization: Bearer <token>` with string ops only — no backtracking
+ *  regex. The old `/^Bearer\s+(.+)$/` had `\s+` and `.+` overlapping on spaces
+ *  (CodeQL js/polynomial-redos): a header of "Bearer " + many spaces forced
+ *  quadratic backtracking on a caller-controlled value. `trimStart()` is linear.
+ *  Behaviour is preserved: requires the literal "Bearer", ≥1 whitespace
+ *  delimiter, and a non-empty remainder (leading delimiter stripped, the token
+ *  itself untouched). */
+export function parseBearerToken(header: string | undefined): string | null {
+  if (!header || !header.startsWith("Bearer")) return null;
+  const rest = header.slice("Bearer".length);
+  const token = rest.trimStart();
+  // token.length === rest.length ⇒ no whitespace delimiter was present
+  // ("Bearerfoo"); token empty ⇒ nothing after the delimiter.
+  if (token.length === 0 || token.length === rest.length) return null;
+  return token;
+}
+
 const BODY_LIMIT_BYTES = 64 * 1024;
 
 /** Read and parse a JSON request body (bounded). Throws on malformed input. */
@@ -330,10 +347,7 @@ export async function startCanvasHttpServer(
   }
 
   function bearerToken(req: IncomingMessage): string | null {
-    const header = req.headers.authorization;
-    if (!header) return null;
-    const match = /^Bearer\s+(.+)$/.exec(header);
-    return match ? match[1]! : null;
+    return parseBearerToken(req.headers.authorization);
   }
 
   boundPort = await bindFirstFreePort(server, PORT_SCAN_START, PORT_SCAN_END);
