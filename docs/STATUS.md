@@ -12,16 +12,19 @@ state lives.
 
 - **The stacked gallery now has a map.** When the agent publishes more than one
   artifact into the same session, the cards stack vertically and the extra
-  renderings sit below the fold, easy to miss. Added a compact fixed index
-  (top-left — the right edge belongs to the ask-back drawer) that names each
+  renderings sit below the fold, easy to miss. Added a **docked navigator rail**:
+  `#app` is now a 2-column grid (rail + content), so the index reserves its own
+  space and can never overlap a card — an earlier floating-overlay version was
+  scrapped because it covered content on narrower windows. The rail names each
   rendering, numbers them in visual order, and jumps to one on click with a brief
-  teal flash on the target. A scroll-spy marker (IntersectionObserver, progressively
-  enhanced) highlights the rendering currently in view. The panel is hidden
-  entirely while there are 0–1 artifacts, is collapsible via its header, and drops
-  out below 720px where the gutter is gone.
-- New `src/canvas/gallery-nav.ts` (`GalleryNav`); `Gallery.syncNav()` rebuilds it
-  from DOM order on every card add / title change. Single-theme (canvas is
-  light-only) and built from existing palette tokens.
+  teal flash on the target; long titles truncate with a native-tooltip fallback on
+  hover. A scroll-spy marker (IntersectionObserver, progressively enhanced)
+  highlights the rendering currently in view. The rail is sticky, hidden entirely
+  while there are 0–1 artifacts, collapsible to a pill via its header, and below
+  760px the layout drops to a single column with the rail removed.
+- New `src/canvas/gallery-nav.ts` (`GalleryNav`, mounted into the `#app` grid);
+  `Gallery.syncNav()` rebuilds it from DOM order on every card add / title change.
+  Single-theme (canvas is light-only) and built from existing palette tokens.
 - 290 tests (+5 GalleryNav). `bundle/` rebuilt.
 
 ## Status (updated 2026-08-07) — v0.7.3: post-launch hardening (security hygiene + onboarding docs)

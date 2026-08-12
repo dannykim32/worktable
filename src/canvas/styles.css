@@ -925,23 +925,44 @@ body {
   }
 }
 
+/* ── Page layout: docked navigator rail + content column ────────────────
+   #app is a 2-column grid. The navigator (GalleryNav) mounts as column 1 and
+   the header + gallery as column 2, so the rail reserves its own space and can
+   never overlap a card. When the rail is hidden ([hidden] → display:none) its
+   auto track collapses to 0 and the content column takes the full width. The
+   whole block is width-capped and centered so content sits right beside the
+   rail rather than drifting to the page center. */
+#app {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+  max-width: 1168px;
+  margin: 0 auto;
+  padding: 0 20px; /* a page gutter once the viewport is narrower than the cap */
+}
+.canvas-main {
+  grid-column: 2;
+  min-width: 0; /* let the content column shrink instead of overflowing */
+}
+
 /* ── Gallery navigator (multi-rendering index) ──────────────────────────
-   A compact, fixed index that appears only when ≥2 artifacts share the canvas
-   (GalleryNav toggles [hidden]). Pinned top-left — the right edge belongs to
-   the ask-back drawer + its tab. It sits below the drawer (z 40/41). */
+   A compact rail that appears only when ≥2 artifacts share the canvas
+   (GalleryNav toggles [hidden]). Sticky, so it stays in view while the content
+   column scrolls. */
 .gallery-nav {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 35;
+  grid-column: 1;
+  position: sticky;
+  top: 24px;
+  align-self: start;
   display: flex;
   flex-direction: column;
-  width: 208px;
-  max-height: calc(100vh - 40px);
+  width: 216px;
+  max-height: calc(100vh - 48px);
+  margin: 24px 0;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 4px 18px rgba(20, 26, 34, 0.1);
   font-size: 13px;
   overflow: hidden;
 }
@@ -1044,9 +1065,13 @@ body {
 .gallery-nav-type--absence {
   background: var(--baseline);
 }
-/* On phones the gutter is gone and a fixed panel would cover the reading
-   column; drop it there (the cards still scroll normally). */
-@media (max-width: 720px) {
+/* Below this width a two-column layout squeezes the cards too far; fall back to
+   a single column (normal flow) and drop the rail. The cards still scroll, just
+   without the index. */
+@media (max-width: 760px) {
+  #app {
+    display: block;
+  }
   .gallery-nav {
     display: none;
   }

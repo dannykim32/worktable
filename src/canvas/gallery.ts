@@ -71,6 +71,8 @@ export class Gallery {
   constructor(
     private readonly root: HTMLElement,
     private readonly api: CanvasApi,
+    /** The page grid container (#app) the navigator rail docks into. */
+    railHost: HTMLElement,
     private readonly options: GalleryOptions = {},
   ) {
     const doc = root.ownerDocument;
@@ -80,7 +82,7 @@ export class Gallery {
       "Nothing here yet — this page fills in the moment the agent publishes. " +
       "You can leave it open while it works.";
     root.appendChild(this.emptyNote);
-    this.nav = new GalleryNav(doc);
+    this.nav = new GalleryNav(doc, railHost);
   }
 
   /** Rebuild the navigator from the cards in visual (DOM) order. New cards are

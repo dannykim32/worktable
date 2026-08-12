@@ -1,11 +1,13 @@
-// Gallery navigator: a compact, fixed index of the renderings on this canvas.
+// Gallery navigator: a compact DOCKED rail indexing the renderings on this
+// canvas.
 //
 // When the agent publishes more than one artifact into the same session the
 // cards stack vertically, and the extra renderings sit below the fold where
-// they're easy to miss. This top-left panel names each rendering and jumps to
-// it on click, with a scroll-spy marker for the one currently in view. It stays
-// hidden while there is 0–1 artifact so the common single-render case is
-// uncluttered. Pure DOM; no framework.
+// they're easy to miss. This left rail names each rendering and jumps to it on
+// click, with a scroll-spy marker for the one currently in view. It is a real
+// grid column (not a floating overlay), so it reserves its own space and never
+// covers a card; it stays hidden while there is 0–1 artifact so the common
+// single-render case is uncluttered. Pure DOM; no framework.
 import type { ArtifactType } from "../shared/artifacts.js";
 
 export interface NavEntry {
@@ -34,7 +36,12 @@ export class GalleryNav {
   private readonly observer: IntersectionObserver | null;
   private collapsed = false;
 
-  constructor(private readonly doc: Document) {
+  /** `host` is the page grid container (#app); the rail mounts as its first
+   *  child so it occupies grid column 1 beside the content column. */
+  constructor(
+    private readonly doc: Document,
+    host: HTMLElement,
+  ) {
     const nav = doc.createElement("nav");
     nav.className = "gallery-nav";
     nav.hidden = true;
@@ -59,7 +66,7 @@ export class GalleryNav {
     nav.append(head, this.list);
     this.head = head;
     this.nav = nav;
-    doc.body.appendChild(nav);
+    host.insertBefore(nav, host.firstChild);
 
     // Scroll-spy is a progressive enhancement: without IntersectionObserver
     // (older host, test DOM) the panel still navigates, just without the marker.
@@ -95,6 +102,9 @@ export class GalleryNav {
       btn.type = "button";
       btn.className = "gallery-nav-item";
       btn.dataset.navId = entry.id;
+      // The rail truncates long titles with an ellipsis; the native tooltip
+      // reveals the full title on hover.
+      btn.title = entry.title;
 
       const num = this.doc.createElement("span");
       num.className = "gallery-nav-num";

@@ -23,7 +23,7 @@ function makeEntry(
 describe("GalleryNav", () => {
   test("stays hidden for 0 or 1 rendering (no clutter for the common case)", () => {
     const { document } = makeDom();
-    const nav = new GalleryNav(document);
+    const nav = new GalleryNav(document, document.body);
     const el = document.querySelector(".gallery-nav") as HTMLElement;
     expect(el.hidden).toBe(true);
 
@@ -34,7 +34,7 @@ describe("GalleryNav", () => {
 
   test("shows a numbered index once ≥2 renderings exist", () => {
     const { document } = makeDom();
-    const nav = new GalleryNav(document);
+    const nav = new GalleryNav(document, document.body);
     nav.sync([
       makeEntry(document, "a_1", "Architecture", "html"),
       makeEntry(document, "a_2", "Latency review", "prose"),
@@ -55,11 +55,14 @@ describe("GalleryNav", () => {
     expect(
       items[0]!.querySelector(".gallery-nav-type--html"),
     ).not.toBeNull();
+    // Full title on hover, since the rail truncates it.
+    expect((items[0] as HTMLButtonElement).title).toBe("Architecture");
+    expect((items[1] as HTMLButtonElement).title).toBe("Latency review");
   });
 
   test("clicking an entry scrolls to its card and flashes it", () => {
     const { document } = makeDom();
-    const nav = new GalleryNav(document);
+    const nav = new GalleryNav(document, document.body);
     const target = makeEntry(document, "a_2", "Second");
     let scrolledTo: HTMLElement | null = null;
     // happy-dom has no scrollIntoView; stub it to observe the call.
@@ -80,7 +83,7 @@ describe("GalleryNav", () => {
 
   test("re-syncing down to one rendering hides the panel again", () => {
     const { document } = makeDom();
-    const nav = new GalleryNav(document);
+    const nav = new GalleryNav(document, document.body);
     nav.sync([
       makeEntry(document, "a_1", "One"),
       makeEntry(document, "a_2", "Two"),
@@ -95,7 +98,7 @@ describe("GalleryNav", () => {
 
   test("the header toggles the collapsed state", () => {
     const { document } = makeDom();
-    const nav = new GalleryNav(document);
+    const nav = new GalleryNav(document, document.body);
     nav.sync([
       makeEntry(document, "a_1", "One"),
       makeEntry(document, "a_2", "Two"),

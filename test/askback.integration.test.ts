@@ -158,7 +158,7 @@ describe("ask-back loop", () => {
       postAskback: async () => ({ id: "ab_stub", state: "pending" }),
       getAnsweredAskbacks: async () => [],
     };
-    const gallery = new Gallery(mount, api);
+    const gallery = new Gallery(mount, api, mount.ownerDocument.body);
     await gallery.init();
     const card = mount.querySelector(`[data-artifact-id="${id}"]`)!;
     (card.querySelector("button.prev") as HTMLButtonElement).click();
