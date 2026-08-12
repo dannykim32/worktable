@@ -43,7 +43,7 @@ describe("GalleryNav", () => {
     const el = document.querySelector(".gallery-nav") as HTMLElement;
     expect(el.hidden).toBe(false);
     expect(el.querySelector(".gallery-nav-count")!.textContent).toBe(
-      "2 renderings",
+      "2 Worktables",
     );
     const items = el.querySelectorAll(".gallery-nav-item");
     expect(items).toHaveLength(2);

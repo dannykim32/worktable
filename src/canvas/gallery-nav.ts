@@ -95,7 +95,8 @@ export class GalleryNav {
       return;
     }
 
-    this.countLabel.textContent = `${entries.length} renderings`;
+    // Only shown for ≥2, so always plural — "N Worktables" (on-brand naming).
+    this.countLabel.textContent = `${entries.length} Worktables`;
     entries.forEach((entry, i) => {
       const li = this.doc.createElement("li");
       const btn = this.doc.createElement("button");
