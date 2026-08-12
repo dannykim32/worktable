@@ -653,7 +653,11 @@ async function main(): Promise<void> {
           hint:
             "For EACH question: answer it in your reply, then call " +
             "answer_askback(askback_id, answer) so the reply appears inline on " +
-            "the canvas exactly where the human asked. Calling answer_askback is " +
+            "the canvas exactly where the human asked. Answer each item against " +
+            "its OWN askback_id: two items can share the same quote/anchor (a " +
+            "question and its follow-up), so pair id→question carefully and " +
+            "never reuse an earlier id or copy one item's answer onto another. " +
+            "Calling answer_askback is " +
             "required to close the loop, not optional — a terminal-only answer " +
             "never reaches the browser where they're reading. When done, re-arm " +
             "the listener (background `node " +
@@ -790,7 +794,9 @@ async function main(): Promise<void> {
         "inline next to the anchored selection in the browser, where the human " +
         "is reading. A terminal-only answer never reaches them there, so this " +
         "is the step that actually closes the loop — not optional. You still " +
-        "answer in the terminal too. Pass the askback_id from check_askbacks and " +
+        "answer in the terminal too. Pass the askback_id from check_askbacks — " +
+        "the SPECIFIC id for THIS question; two items can share a quote (a " +
+        "question and its follow-up), so never reuse an earlier id — and " +
         "your answer text, FORMATTED AS COMPACT MARKDOWN — short bullets over " +
         "paragraphs, `code` for literals, links for any ticket/doc you cite. It " +
         "renders formatted in a narrow drawer column; a flat paragraph blob " +
