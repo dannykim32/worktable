@@ -67,7 +67,7 @@ async function until(
 describe("gallery live behavior", () => {
   test("SSE-driven update re-renders the open card within 1s, no reload", async () => {
     const { mount } = makeDom();
-    const gallery = new Gallery(mount, apiFor(server));
+    const gallery = new Gallery(mount, apiFor(server), mount.ownerDocument.body);
     await gallery.init();
 
     const sse = await openSse(server.port, server.token());
@@ -119,7 +119,7 @@ describe("gallery live behavior", () => {
 
   test("scrubbing back shows v1 content plus the viewing marker", async () => {
     const { mount } = makeDom();
-    const gallery = new Gallery(mount, apiFor(server));
+    const gallery = new Gallery(mount, apiFor(server), mount.ownerDocument.body);
     const published = toolJson(
       await server.client.callTool({
         name: "publish_artifact",

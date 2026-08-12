@@ -45,7 +45,12 @@ function boot(): void {
 
   const galleryRoot = document.createElement("main");
   galleryRoot.id = "gallery";
-  app.append(header, galleryRoot);
+  // #app is a 2-column grid: the navigator rail docks into column 1 (inserted by
+  // Gallery), and the header + gallery live in the content column beside it.
+  const content = document.createElement("div");
+  content.className = "canvas-main";
+  content.append(header, galleryRoot);
+  app.append(content);
 
   void api
     .health()
@@ -70,7 +75,7 @@ function boot(): void {
   });
   drawer.attach(document.body);
 
-  gallery = new Gallery(galleryRoot, api, {
+  gallery = new Gallery(galleryRoot, api, app, {
     onAskArtifact: (meta, viewing) =>
       drawer.startAsk(wholeArtifactAnchor(meta.id, viewing, meta.title), {
         isHtml: meta.type === "html",

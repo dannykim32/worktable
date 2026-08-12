@@ -99,6 +99,11 @@ describe("ask-back loop", () => {
     expect(item.anchor.char_start).toBe(0);
     expect(item.anchor.char_end).toBe(9);
     expect(item.artifact_title).toBe("Loop doc");
+    // Id-discipline hardening: the drain hint tells the agent to answer each
+    // item by its OWN id (a question and its follow-up can share a quote), so a
+    // follow-up's answer never overwrites its parent. Guard it from regressing.
+    expect(first.hint).toContain("OWN askback_id");
+    expect(first.hint).toContain("never reuse an earlier id");
 
     const second = toolJson(
       await server.client.callTool({ name: "check_askbacks", arguments: {} }),
@@ -158,7 +163,7 @@ describe("ask-back loop", () => {
       postAskback: async () => ({ id: "ab_stub", state: "pending" }),
       getAnsweredAskbacks: async () => [],
     };
-    const gallery = new Gallery(mount, api);
+    const gallery = new Gallery(mount, api, mount.ownerDocument.body);
     await gallery.init();
     const card = mount.querySelector(`[data-artifact-id="${id}"]`)!;
     (card.querySelector("button.prev") as HTMLButtonElement).click();

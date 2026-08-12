@@ -8,6 +8,43 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-12) — v0.8.0: gallery navigator + ask-back hardening
+
+Batched release: the navigator plus two small ask-back guidance changes.
+
+- **Ask-back id-discipline (answer-crossing hardening).** A reported "a follow-up's
+  answer overwrote the parent question" symptom turned out NOT to be a client/server
+  defect — answers are strictly per-id (proven in code, and confirmed by a live
+  dogfood where both ids kept their own answer). It's an intermittent model slip:
+  when a question and its follow-up share an identical quote/anchor, the agent can
+  call `answer_askback` with the wrong id. Hardened the two spots the agent reads at
+  answer time — the `check_askbacks` drain hint (beside the items) and the
+  `answer_askback` description: answer each item by its OWN `askback_id`, never reuse
+  an earlier id, never copy one answer onto another. (Deferred: a separate, unrelated
+  html follow-up marker-collision fix on branch `fix/followup-answer-duplication` —
+  real but non-urgent, needs a browser look at its new caret pin.)
+- **Skills from an ask-back.** Guidance so the agent reads a delivered ask-back that
+  is a bare `/some-skill` (naming a skill it actually has) as a request to run that
+  skill via the Skill tool — a hint, not an auto-run, never a shell command, with a
+  prose carve-out (`/etc/hosts`, API routes). Guidance-only, host-agnostic (acts on
+  the `check_askbacks` channel, not the Claude-Code-only hook).
+- **The stacked gallery now has a map.** When the agent publishes more than one
+  artifact into the same session, the cards stack vertically and the extra
+  renderings sit below the fold, easy to miss. Added a **docked navigator rail**:
+  `#app` is now a 2-column grid (rail + content), so the index reserves its own
+  space and can never overlap a card — an earlier floating-overlay version was
+  scrapped because it covered content on narrower windows. The rail names each
+  rendering, numbers them in visual order, and jumps to one on click with a brief
+  teal flash on the target; long titles truncate with a native-tooltip fallback on
+  hover. A scroll-spy marker (IntersectionObserver, progressively enhanced)
+  highlights the rendering currently in view. The rail is sticky, hidden entirely
+  while there are 0–1 artifacts, collapsible to a pill via its header, and below
+  760px the layout drops to a single column with the rail removed.
+- New `src/canvas/gallery-nav.ts` (`GalleryNav`, mounted into the `#app` grid);
+  `Gallery.syncNav()` rebuilds it from DOM order on every card add / title change.
+  Single-theme (canvas is light-only) and built from existing palette tokens.
+- 290 tests (+5 GalleryNav). `bundle/` rebuilt.
+
 ## Status (updated 2026-08-07) — v0.7.3: post-launch hardening (security hygiene + onboarding docs)
 
 Addresses the "do now" tier of the post-v0.7.2 launch audit. (Deferred to a
