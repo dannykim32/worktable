@@ -8,6 +8,22 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-12) — v0.8.0: gallery navigator for multi-rendering sessions
+
+- **The stacked gallery now has a map.** When the agent publishes more than one
+  artifact into the same session, the cards stack vertically and the extra
+  renderings sit below the fold, easy to miss. Added a compact fixed index
+  (top-left — the right edge belongs to the ask-back drawer) that names each
+  rendering, numbers them in visual order, and jumps to one on click with a brief
+  teal flash on the target. A scroll-spy marker (IntersectionObserver, progressively
+  enhanced) highlights the rendering currently in view. The panel is hidden
+  entirely while there are 0–1 artifacts, is collapsible via its header, and drops
+  out below 720px where the gutter is gone.
+- New `src/canvas/gallery-nav.ts` (`GalleryNav`); `Gallery.syncNav()` rebuilds it
+  from DOM order on every card add / title change. Single-theme (canvas is
+  light-only) and built from existing palette tokens.
+- 290 tests (+5 GalleryNav). `bundle/` rebuilt.
+
 ## Status (updated 2026-08-07) — v0.7.3: post-launch hardening (security hygiene + onboarding docs)
 
 Addresses the "do now" tier of the post-v0.7.2 launch audit. (Deferred to a

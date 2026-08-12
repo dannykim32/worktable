@@ -9,6 +9,7 @@ import type {
 } from "../shared/artifacts.js";
 import { rendererRegistry } from "./components/registry.js";
 import { renderHtmlCard, type HtmlCardHandle } from "./components/html.js";
+import { GalleryNav, type NavEntry } from "./gallery-nav.js";
 
 export function relativeTime(iso: string, nowMs: number = Date.now()): string {
   const seconds = Math.max(0, Math.floor((nowMs - Date.parse(iso)) / 1000));
@@ -61,6 +62,8 @@ export interface GalleryOptions {
 export class Gallery {
   private readonly cards = new Map<string, CardState>();
   private readonly emptyNote: HTMLElement;
+  /** Top-left index of the renderings on this canvas; hidden until ≥2 exist. */
+  private readonly nav: GalleryNav;
   /** The frame-serving origin for html artifacts (issue 25), fetched once at
    *  init from /api/health. null until known (html cards show a note). */
   private frameOrigin: string | null = null;
@@ -77,6 +80,22 @@ export class Gallery {
       "Nothing here yet — this page fills in the moment the agent publishes. " +
       "You can leave it open while it works.";
     root.appendChild(this.emptyNote);
+    this.nav = new GalleryNav(doc);
+  }
+
+  /** Rebuild the navigator from the cards in visual (DOM) order. New cards are
+   *  inserted at the top, so DOM order is newest-first — the index matches. */
+  private syncNav(): void {
+    const entries: NavEntry[] = [];
+    for (const el of Array.from(this.root.children)) {
+      const html = el as HTMLElement;
+      if (!html.classList?.contains("artifact")) continue;
+      const id = html.dataset.artifactId;
+      const card = id ? this.cards.get(id) : undefined;
+      if (!id || !card) continue;
+      entries.push({ id, title: card.meta.title, type: card.meta.type, el: html });
+    }
+    this.nav.sync(entries);
   }
 
   async init(): Promise<void> {
@@ -180,15 +199,18 @@ export class Gallery {
       this.cards.set(meta.id, card);
       this.root.insertBefore(card.root, this.root.firstChild);
       this.renderVersion(card, latestContent, meta.latest);
+      this.syncNav(); // a new rendering joined — refresh the index
       return;
     }
     const followingLatest = existing.viewing === existing.meta.latest;
+    const titleChanged = existing.meta.title !== meta.title;
     existing.meta = meta;
     if (followingLatest) {
       this.renderVersion(existing, latestContent, meta.latest);
     } else {
       this.refreshChrome(existing); // stay pinned; update "viewing vN of M"
     }
+    if (titleChanged) this.syncNav(); // keep the index label in sync
   }
 
   private buildCard(meta: ArtifactMeta): CardState {
