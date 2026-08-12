@@ -16800,7 +16800,7 @@ async function main() {
             const enriched = enrichAskback(a);
             return a.image_id ? { ...enriched, image: "attached below" } : enriched;
           }),
-          hint: "For EACH question: answer it in your reply, then call " + "answer_askback(askback_id, answer) so the reply appears inline on " + "the canvas exactly where the human asked. Calling answer_askback is " + "required to close the loop, not optional — a terminal-only answer " + "never reaches the browser where they're reading. When done, re-arm " + "the listener (background `node " + awaitCliPath + "`) so their next question wakes you too."
+          hint: "For EACH question: answer it in your reply, then call " + "answer_askback(askback_id, answer) so the reply appears inline on " + "the canvas exactly where the human asked. Answer each item against " + "its OWN askback_id: two items can share the same quote/anchor (a " + "question and its follow-up), so pair id→question carefully and " + "never reuse an earlier id or copy one item's answer onto another. " + "Calling answer_askback is " + "required to close the loop, not optional — a terminal-only answer " + "never reaches the browser where they're reading. When done, re-arm " + "the listener (background `node " + awaitCliPath + "`) so their next question wakes you too."
         };
         const imageBlocks = [];
         for (const a of drained) {
@@ -16899,7 +16899,7 @@ async function main() {
     },
     {
       name: "answer_askback",
-      description: "Always call this after answering an ask-back: it shows your reply " + "inline next to the anchored selection in the browser, where the human " + "is reading. A terminal-only answer never reaches them there, so this " + "is the step that actually closes the loop — not optional. You still " + "answer in the terminal too. Pass the askback_id from check_askbacks and " + "your answer text, FORMATTED AS COMPACT MARKDOWN — short bullets over " + "paragraphs, `code` for literals, links for any ticket/doc you cite. It " + "renders formatted in a narrow drawer column; a flat paragraph blob " + "reads poorly there. The reply appears live on the canvas and survives " + "a reload. This does NOT re-open or re-deliver the ask-back.",
+      description: "Always call this after answering an ask-back: it shows your reply " + "inline next to the anchored selection in the browser, where the human " + "is reading. A terminal-only answer never reaches them there, so this " + "is the step that actually closes the loop — not optional. You still " + "answer in the terminal too. Pass the askback_id from check_askbacks — " + "the SPECIFIC id for THIS question; two items can share a quote (a " + "question and its follow-up), so never reuse an earlier id — and " + "your answer text, FORMATTED AS COMPACT MARKDOWN — short bullets over " + "paragraphs, `code` for literals, links for any ticket/doc you cite. It " + "renders formatted in a narrow drawer column; a flat paragraph blob " + "reads poorly there. The reply appears live on the canvas and survives " + "a reload. This does NOT re-open or re-deliver the ask-back.",
       inputSchema: {
         type: "object",
         properties: {
