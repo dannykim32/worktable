@@ -8,6 +8,34 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-19) — v0.8.1: listener retries unreachable + honest exit contract
+
+Hardening pass on the `await-askback` poll-wake listener, from a dogfood field report.
+All three reported defects verified against `hooks/await-askback.ts`.
+
+- **Retry, don't give up.** The listener now re-reads `port`/`token` and retries within
+  its budget (2s→30s backoff) instead of exiting on the first missing-state or refused
+  poll. The MCP server and the HTTP canvas are one process, so "publish now, human opens
+  the canvas later" is the normal case; and a server restart rebinds to the first free
+  port in `[8787,8887]`, which the old read-port-once loop could never follow. Only a cwd
+  that yields no workspace id is structural (retry can't fix a wrong directory) — that
+  exits at once, naming the cwd mismatch.
+- **Honest, machine-parseable exit line.** Every exit leads stdout with
+  `WORKTABLE_LISTENER status=<questions|idle|unreachable> action=<check|rearm|rest|retry>`.
+  This disambiguates a healthy quiet expiry from a server that never answered without
+  parsing prose, and `action` always names a live next step — replacing the old
+  "Do not re-arm." dead end. Exit code stays 0 so a dead server never fails a background
+  job loudly. (Skipped the report's distinct-exit-code idea: the Agent Host wakes on any
+  exit and reads stdout, not the code.)
+- **Throttled retry logging.** Caught by dogfooding this very fix — arming against a
+  disconnected server produced 68 identical `fetch failed` lines. Now logs the first
+  failure, then a 5-min heartbeat, and resets on recovery.
+- **Not doing** MCP-server-arms-listener (a server-spawned job isn't harness-tracked, so
+  its exit can't wake the agent — the agent must own the launch). **Deferred (tickets):**
+  a listener-status hint in `check_askbacks`; server-side single-listener supersede.
+- 291 tests (rewrote the two "Do not re-arm" cases → retry/unreachable; added status-line
+  and log-throttle assertions). `bundle/` rebuilt.
+
 ## Status (updated 2026-08-12) — v0.8.0: gallery navigator + ask-back hardening
 
 Batched release: the navigator plus two small ask-back guidance changes.
