@@ -54,7 +54,11 @@ have to trust.
   When it completes reporting questions, call `check_askbacks`, answer, then
   re-arm. When its budget ends quietly, DEFAULT TO RE-ARMING while the canvas is
   still the active surface (an artifact awaiting the human's decisions counts);
-  only let it rest once the conversation has clearly moved on.
+  only let it rest once the conversation has clearly moved on. The stdout leads
+  with `WORKTABLE_LISTENER status=… action=<check|rearm|rest|retry>` — branch on
+  `action`. An unreachable server (`status=unreachable action=retry`) is retried
+  within the budget, not fatal, so one arm survives a late canvas open or a
+  server restart onto a new port.
 - After answering an ask-back, also call `answer_askback` with its `askback_id` —
   your reply then appears in the canvas drawer, threaded under the exact
   selection. **Format that answer as compact markdown** (short bullets over

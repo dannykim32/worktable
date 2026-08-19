@@ -17,7 +17,8 @@ var TIMEOUT_DEFAULT_MS = 240000;
 var FETCH_SLACK_MS = 1e4;
 var BUDGET_DEFAULT_MS = 45 * 60000;
 var BUDGET_MAX_MS = 4 * 60 * 60000;
-var IDLE_MESSAGE = "worktable: canvas server not reachable — listener idle. Do not re-arm.";
+var RETRY_BACKOFF_MIN_MS = 2000;
+var RETRY_BACKOFF_MAX_MS = 30000;
 function parseFlagMs(argv, flag) {
   const i = argv.indexOf(flag);
   if (i === -1 || argv[i + 1] === undefined)
@@ -39,6 +40,10 @@ function parseBudgetMs(argv, timeoutMs) {
     return timeoutMs;
   return BUDGET_DEFAULT_MS;
 }
+function emit(status, action, detail) {
+  console.log(`WORKTABLE_LISTENER status=${status} action=${action}`);
+  console.log(detail);
+}
 function askMessage(pending) {
   return `worktable: ${pending} canvas question(s) waiting — call check_askbacks, ` + "answer each, then re-arm the listener (run this same command in the " + "background again).";
 }
@@ -50,6 +55,22 @@ function budgetMessage(minutes, canvasOpen) {
     return `worktable: listened ~${minutes} min with no questions and the canvas ` + "page is closed. Let the listener rest; re-arm if the human reopens the " + "canvas or asks you to publish again.";
   }
   return `worktable: listened ~${minutes} min with no questions. If the canvas is ` + "still the active surface — an artifact is awaiting the human's input or " + "they're reading — RE-ARM (same command, in the background). Only let it " + "rest if the conversation has clearly moved on from the canvas.";
+}
+function unreachableMessage(minutes) {
+  return `worktable: no canvas server answered for this workspace across ~${minutes} ` + "min. Either the canvas server isn't running, or this background job's " + "working directory doesn't match the one the server was started in (the " + "workspace id is derived from the cwd). If you expect the server to be up " + "— you just published — RE-ARM from the project directory; otherwise let it " + "rest until the human reopens the canvas or you publish again.";
+}
+function readState(portPath, tokenPath) {
+  if (!existsSync(portPath) || !existsSync(tokenPath))
+    return null;
+  try {
+    const port = readFileSync(portPath, "utf8").trim();
+    const token = readFileSync(tokenPath, "utf8").trim();
+    if (!port || !token)
+      return null;
+    return { port, token };
+  } catch {
+    return null;
+  }
 }
 async function awaitAskbacks(port, token, timeoutMs) {
   const controller = new AbortController;
@@ -66,59 +87,69 @@ async function awaitAskbacks(port, token, timeoutMs) {
     clearTimeout(timer);
   }
 }
+var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function main() {
   const argv = process.argv.slice(2);
   const timeoutMs = parseTimeoutMs(argv);
   const budgetMs = parseBudgetMs(argv, timeoutMs);
+  const minutes = Math.max(1, Math.round(budgetMs / 60000));
   let workspaceId;
   try {
     workspaceId = deriveWorkspaceId();
   } catch (err) {
     console.error(`worktable: cannot derive workspace from cwd: ${String(err)}`);
-    console.log(IDLE_MESSAGE);
+    emit("unreachable", "rest", "worktable: this directory isn't a recognizable workspace — could not " + "derive a workspace id from the cwd, so there is no canvas server to " + "address here. Re-arm only from the project directory where the server " + "is running.");
     return;
   }
   const dir = join(homedir(), ".worktable", workspaceId);
   const portPath = join(dir, "port");
   const tokenPath = join(dir, "token");
-  if (!existsSync(portPath) || !existsSync(tokenPath)) {
-    console.log(IDLE_MESSAGE);
-    return;
-  }
-  let port;
-  let token;
-  try {
-    port = readFileSync(portPath, "utf8").trim();
-    token = readFileSync(tokenPath, "utf8").trim();
-  } catch (err) {
-    console.error(`worktable: cannot read workspace state: ${String(err)}`);
-    console.log(IDLE_MESSAGE);
-    return;
-  }
-  if (!port || !token) {
-    console.log(IDLE_MESSAGE);
-    return;
-  }
   const deadline = Date.now() + budgetMs;
   let canvasOpen = null;
+  let everReached = false;
+  let backoff = RETRY_BACKOFF_MIN_MS;
+  let consecutiveFailures = 0;
+  let lastFailureLogAt = 0;
   for (;; ) {
     const remaining = deadline - Date.now();
     if (remaining < TIMEOUT_MIN_MS) {
-      console.log(budgetMessage(Math.max(1, Math.round(budgetMs / 60000)), canvasOpen));
+      if (!everReached) {
+        emit("unreachable", "retry", unreachableMessage(minutes));
+      } else {
+        emit("idle", canvasOpen === false ? "rest" : "rearm", budgetMessage(minutes, canvasOpen));
+      }
       return;
     }
+    const state = readState(portPath, tokenPath);
+    if (!state) {
+      await sleep(Math.min(backoff, Math.max(0, remaining)));
+      backoff = Math.min(RETRY_BACKOFF_MAX_MS, backoff * 2);
+      continue;
+    }
     try {
-      const body = await awaitAskbacks(port, token, Math.min(timeoutMs, remaining));
+      const body = await awaitAskbacks(state.port, state.token, Math.min(timeoutMs, remaining));
+      everReached = true;
+      backoff = RETRY_BACKOFF_MIN_MS;
+      consecutiveFailures = 0;
       if (body.status === "ask") {
-        console.log(askMessage(body.pending ?? 1));
+        emit("questions", "check", askMessage(body.pending ?? 1));
         return;
       }
       if (typeof body.canvas_open === "boolean")
         canvasOpen = body.canvas_open;
     } catch (err) {
-      console.error(`worktable: listener poll failed: ${String(err)}`);
-      console.log(IDLE_MESSAGE);
-      return;
+      consecutiveFailures += 1;
+      const now = Date.now();
+      if (consecutiveFailures === 1) {
+        console.error(`worktable: listener poll failed (${String(err)}); retrying within budget.`);
+        lastFailureLogAt = now;
+      } else if (now - lastFailureLogAt >= 300000) {
+        const elapsedMin = Math.round((budgetMs - (deadline - now)) / 60000);
+        console.error(`worktable: still unreachable after ${consecutiveFailures} attempts ` + `(~${elapsedMin} min); retrying.`);
+        lastFailureLogAt = now;
+      }
+      await sleep(Math.min(backoff, Math.max(0, remaining)));
+      backoff = Math.min(RETRY_BACKOFF_MAX_MS, backoff * 2);
     }
   }
 }

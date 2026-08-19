@@ -9,7 +9,9 @@
 //    the 9th concurrent waiter evicts the OLDEST with a timeout (cap 8);
 //  · `listening` broadcasts fire on 0↔≥1 transitions and a newly-connected
 //    SSE client receives the current state immediately;
-//  · the CLI's stdout states the agent's next action and it always exits 0.
+//  · the CLI's stdout leads with a machine-parseable `WORKTABLE_LISTENER
+//    status=… action=…` line and always exits 0; an unreachable server is
+//    RETRIED within the budget, not treated as a fatal "do not re-arm".
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -253,6 +255,7 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
     await postAskback("wake the CLI");
 
     expect(await exited).toBe(0);
+    expect(stdout).toContain("WORKTABLE_LISTENER status=questions action=check");
     expect(stdout).toContain("1 canvas question(s) waiting");
     expect(stdout).toContain("call check_askbacks");
     expect(stdout).toContain("re-arm the listener");
@@ -279,6 +282,8 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
     expect(run.status).toBe(0);
     // Two full 5s windows fit; the ~1s remainder is under the poll floor.
     expect(elapsed).toBeGreaterThanOrEqual(9_500);
+    // Reached a live server, just quiet → idle, and rest since the page closed.
+    expect(run.stdout).toContain("WORKTABLE_LISTENER status=idle action=rest");
     expect(run.stdout).toContain("listened ~");
     // No SSE client was connected → the server reported the page closed.
     expect(run.stdout).toContain("canvas page is closed");
@@ -297,6 +302,7 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
       },
     );
     expect(run.status).toBe(0);
+    expect(run.stdout).toContain("WORKTABLE_LISTENER status=idle action=rearm");
     expect(run.stdout).toContain("IS still open");
     expect(run.stdout).toContain("RE-ARM");
     sse.close();
@@ -343,28 +349,72 @@ describe("await-askback CLI (backgrounded Bash job)", () => {
     sse.close();
   }, 30_000);
 
-  test("server not running (stale state files) → 'Do not re-arm', exit 0", async () => {
+  test("server down (stale state files) → retries the budget, then status=unreachable", async () => {
     const doomed = await spawnServer();
     const home = doomed.home;
     await doomed.close(); // port + token files remain, nothing listens
-    const run = spawnSync("bun", [cliEntry, "--timeout-ms", "5000"], {
-      cwd: repoRoot,
-      env: { ...(process.env as Record<string, string>), HOME: home },
-      encoding: "utf8",
-    });
+    // A short collapsed budget (timeout with no --budget-ms) bounds the retry.
+    const run = spawnSync(
+      "bun",
+      [cliEntry, "--timeout-ms", "5000", "--budget-ms", "6000"],
+      {
+        cwd: repoRoot,
+        env: { ...(process.env as Record<string, string>), HOME: home },
+        encoding: "utf8",
+      },
+    );
     expect(run.status).toBe(0);
-    expect(run.stdout).toContain("canvas server not reachable");
-    expect(run.stdout).toContain("Do not re-arm.");
+    // Never reached a server across the budget → unreachable, and the action is
+    // a live next step (retry), NOT the old dead-end "do not re-arm".
+    expect(run.stdout).toContain(
+      "WORKTABLE_LISTENER status=unreachable action=retry",
+    );
+    expect(run.stdout).toContain("no canvas server answered");
+    expect(run.stdout).not.toContain("Do not re-arm");
+    // It actually retried rather than giving up on the first refused poll.
+    expect(run.stderr).toContain("listener poll failed");
   }, 20_000);
 
-  test("missing state files entirely → 'Do not re-arm', exit 0", () => {
-    const emptyHome = mkdtempSync(join(tmpdir(), "worktable-await-empty-"));
-    const run = spawnSync("bun", [cliEntry], {
-      cwd: repoRoot,
-      env: { ...(process.env as Record<string, string>), HOME: emptyHome },
-      encoding: "utf8",
-    });
+  test("a sustained outage logs the failure ONCE, not once per retry", async () => {
+    const doomed = await spawnServer();
+    const home = doomed.home;
+    await doomed.close(); // state files remain; nothing listens → every poll fails
+    // A budget long enough for several backoff retries (2s+4s+8s…).
+    const run = spawnSync(
+      "bun",
+      [cliEntry, "--timeout-ms", "5000", "--budget-ms", "20000"],
+      {
+        cwd: repoRoot,
+        env: { ...(process.env as Record<string, string>), HOME: home },
+        encoding: "utf8",
+      },
+    );
     expect(run.status).toBe(0);
-    expect(run.stdout).toContain("Do not re-arm.");
-  });
+    // Multiple attempts happened, but only the FIRST failure is logged; the
+    // 5-min heartbeat never fires inside a 20s budget.
+    const failureLines = (run.stderr.match(/listener poll failed/g) ?? []).length;
+    expect(failureLines).toBe(1);
+    expect(run.stderr).not.toContain("still unreachable after");
+    expect(run.stdout).toContain(
+      "WORKTABLE_LISTENER status=unreachable action=retry",
+    );
+  }, 30_000);
+
+  test("missing state files entirely → retries within budget, then status=unreachable", () => {
+    const emptyHome = mkdtempSync(join(tmpdir(), "worktable-await-empty-"));
+    const run = spawnSync(
+      "bun",
+      [cliEntry, "--timeout-ms", "5000", "--budget-ms", "6000"],
+      {
+        cwd: repoRoot,
+        env: { ...(process.env as Record<string, string>), HOME: emptyHome },
+        encoding: "utf8",
+      },
+    );
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain(
+      "WORKTABLE_LISTENER status=unreachable action=retry",
+    );
+    expect(run.stdout).not.toContain("Do not re-arm");
+  }, 20_000);
 });

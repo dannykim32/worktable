@@ -5,9 +5,23 @@
 //
 // READ-ONLY by construction: the await route never marks delivery, so this job
 // and check_askbacks never race destructively (delivery stays with the tool).
-// stdout is the re-invoked agent's instruction and always states the next
-// action; errors go to stderr; the exit code is always 0 so a dead server can
-// never fail a background job loudly.
+//
+// EXIT CONTRACT. The exit code is ALWAYS 0 — a dead or slow canvas server must
+// never fail a background job loudly, and the Agent Host re-invokes the agent on
+// any exit regardless of code. All signal rides stdout, whose FIRST line is a
+// stable, machine-parseable status the agent branches on without parsing prose:
+//   WORKTABLE_LISTENER status=<questions|idle|unreachable> action=<check|rearm|rest|retry>
+// A human-readable line follows it. `status` disambiguates the two exits that
+// used to look identical (a healthy quiet expiry vs. a server that never
+// answered); `action` always names a live next step, so there is no dead end.
+//
+// UNREACHABLE IS RETRIED, NOT FATAL. "Publish now, the human opens the canvas
+// later" is the normal case, and a canvas-server restart can rebind to a
+// different port in [8787,8887]. So the listener RE-READS the port/token files
+// and RETRIES within its budget (short backoff) instead of giving up on the
+// first missing-state or refused-connection. Only a cwd that yields no workspace
+// id at all is structural (retrying can't fix a wrong directory) — that exits at
+// once. Everything else keeps trying until a question arrives or the budget ends.
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -30,8 +44,13 @@ const FETCH_SLACK_MS = 10_000;
 const BUDGET_DEFAULT_MS = 45 * 60_000;
 const BUDGET_MAX_MS = 4 * 60 * 60_000;
 
-const IDLE_MESSAGE =
-  "worktable: canvas server not reachable — listener idle. Do not re-arm.";
+// Backoff between UNREACHABLE attempts (server down / state files absent). A
+// live-but-quiet server needs no backoff — its long-poll already blocks for the
+// window — so this gap only paces the retries when there is nothing to talk to,
+// keeping a down server from becoming a busy loop while staying responsive when
+// it comes up.
+const RETRY_BACKOFF_MIN_MS = 2_000;
+const RETRY_BACKOFF_MAX_MS = 30_000;
 
 function parseFlagMs(argv: string[], flag: string): number | null {
   const i = argv.indexOf(flag);
@@ -55,6 +74,16 @@ function parseBudgetMs(argv: string[], timeoutMs: number): number {
   if (n !== null) return Math.min(BUDGET_MAX_MS, Math.max(timeoutMs, n));
   if (parseFlagMs(argv, "--timeout-ms") !== null) return timeoutMs;
   return BUDGET_DEFAULT_MS;
+}
+
+type Status = "questions" | "idle" | "unreachable";
+type Action = "check" | "rearm" | "rest" | "retry";
+
+/** The single exit point. Prints the stable status line the agent branches on,
+ *  then the human-readable detail. Exit code stays 0 (see EXIT CONTRACT). */
+function emit(status: Status, action: Action, detail: string): void {
+  console.log(`WORKTABLE_LISTENER status=${status} action=${action}`);
+  console.log(detail);
 }
 
 function askMessage(pending: number): string {
@@ -91,6 +120,39 @@ function budgetMessage(minutes: number, canvasOpen: boolean | null): string {
   );
 }
 
+/** Budget spent without a single successful contact. Names both hypotheses —
+ *  server not up, or wrong working directory — so the agent can judge whether a
+ *  re-arm is worthwhile rather than being told a flat "do not re-arm". */
+function unreachableMessage(minutes: number): string {
+  return (
+    `worktable: no canvas server answered for this workspace across ~${minutes} ` +
+    "min. Either the canvas server isn't running, or this background job's " +
+    "working directory doesn't match the one the server was started in (the " +
+    "workspace id is derived from the cwd). If you expect the server to be up " +
+    "— you just published — RE-ARM from the project directory; otherwise let it " +
+    "rest until the human reopens the canvas or you publish again."
+  );
+}
+
+/** Read the current port/token for this workspace. Returns null when either
+ *  file is absent or empty — a transient "no live server right now" state that
+ *  the caller retries, since the server may (re)appear and rewrite them. Read
+ *  fresh on EVERY attempt: a restarted server can bind a different port. */
+function readState(
+  portPath: string,
+  tokenPath: string,
+): { port: string; token: string } | null {
+  if (!existsSync(portPath) || !existsSync(tokenPath)) return null;
+  try {
+    const port = readFileSync(portPath, "utf8").trim();
+    const token = readFileSync(tokenPath, "utf8").trim();
+    if (!port || !token) return null;
+    return { port, token };
+  } catch {
+    return null;
+  }
+}
+
 async function awaitAskbacks(
   port: string,
   token: string,
@@ -113,75 +175,117 @@ async function awaitAskbacks(
   }
 }
 
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const timeoutMs = parseTimeoutMs(argv);
   const budgetMs = parseBudgetMs(argv, timeoutMs);
+  const minutes = Math.max(1, Math.round(budgetMs / 60_000));
 
+  // Structural, not transient: a cwd that yields no workspace id can never be
+  // fixed by waiting, so this is the one case that exits at once.
   let workspaceId: string;
   try {
     workspaceId = deriveWorkspaceId();
   } catch (err) {
     console.error(`worktable: cannot derive workspace from cwd: ${String(err)}`);
-    console.log(IDLE_MESSAGE);
+    emit(
+      "unreachable",
+      "rest",
+      "worktable: this directory isn't a recognizable workspace — could not " +
+        "derive a workspace id from the cwd, so there is no canvas server to " +
+        "address here. Re-arm only from the project directory where the server " +
+        "is running.",
+    );
     return;
   }
 
   const dir = join(homedir(), ".worktable", workspaceId);
   const portPath = join(dir, "port");
   const tokenPath = join(dir, "token");
-  if (!existsSync(portPath) || !existsSync(tokenPath)) {
-    console.log(IDLE_MESSAGE);
-    return;
-  }
-
-  let port: string;
-  let token: string;
-  try {
-    port = readFileSync(portPath, "utf8").trim();
-    token = readFileSync(tokenPath, "utf8").trim();
-  } catch (err) {
-    console.error(`worktable: cannot read workspace state: ${String(err)}`);
-    console.log(IDLE_MESSAGE);
-    return;
-  }
-  if (!port || !token) {
-    console.log(IDLE_MESSAGE);
-    return;
-  }
 
   // Poll until a question arrives or the budget runs out. Inner timeouts are
   // silent — only the FINAL exit wakes the agent, so listening for 45 minutes
-  // costs the same one wake-up as listening for 4.
+  // costs the same one wake-up as listening for 4. A missing server or refused
+  // poll is retried (re-reading the state files each time) rather than fatal.
   const deadline = Date.now() + budgetMs;
   let canvasOpen: boolean | null = null;
+  let everReached = false;
+  let backoff = RETRY_BACKOFF_MIN_MS;
+  // Throttle unreachable-retry noise: a long outage retries many times, but the
+  // failure is the same every time. Log the first, then a heartbeat every 5 min,
+  // and reset on any successful contact — so stderr stays readable instead of
+  // hundreds of identical lines.
+  let consecutiveFailures = 0;
+  let lastFailureLogAt = 0;
+
   for (;;) {
     const remaining = deadline - Date.now();
     if (remaining < TIMEOUT_MIN_MS) {
-      console.log(
-        budgetMessage(Math.max(1, Math.round(budgetMs / 60_000)), canvasOpen),
-      );
+      if (!everReached) {
+        // Never once reached a server across the whole budget.
+        emit("unreachable", "retry", unreachableMessage(minutes));
+      } else {
+        emit(
+          "idle",
+          canvasOpen === false ? "rest" : "rearm",
+          budgetMessage(minutes, canvasOpen),
+        );
+      }
       return;
     }
+
+    const state = readState(portPath, tokenPath);
+    if (!state) {
+      // No live server state for this workspace right now — it may appear
+      // (server starting, or recordPort not yet written). Back off and retry.
+      await sleep(Math.min(backoff, Math.max(0, remaining)));
+      backoff = Math.min(RETRY_BACKOFF_MAX_MS, backoff * 2);
+      continue;
+    }
+
     try {
       const body = await awaitAskbacks(
-        port,
-        token,
+        state.port,
+        state.token,
         Math.min(timeoutMs, remaining),
       );
+      everReached = true;
+      backoff = RETRY_BACKOFF_MIN_MS; // reset after a good contact
+      consecutiveFailures = 0;
       if (body.status === "ask") {
-        console.log(askMessage(body.pending ?? 1));
+        emit("questions", "check", askMessage(body.pending ?? 1));
         return;
       }
       // timeout → remember whether a canvas tab was connected, then re-poll
-      // (the server debounces its "listening" indicator across this gap, so
-      // the canvas shows one continuous session).
+      // immediately (the server's own long-poll paced us; no backoff needed).
+      // The server debounces its "listening" indicator across this gap, so the
+      // canvas shows one continuous session.
       if (typeof body.canvas_open === "boolean") canvasOpen = body.canvas_open;
     } catch (err) {
       // Server down, connection refused/severed, or the poll never answered.
-      console.error(`worktable: listener poll failed: ${String(err)}`);
-      console.log(IDLE_MESSAGE);
-      return;
+      // Not fatal: back off and retry — the next attempt re-reads the state
+      // files, so a server that restarted onto a new port is picked up. Only
+      // the first failure and a 5-min heartbeat are logged (see counters above).
+      consecutiveFailures += 1;
+      const now = Date.now();
+      if (consecutiveFailures === 1) {
+        console.error(
+          `worktable: listener poll failed (${String(err)}); retrying within budget.`,
+        );
+        lastFailureLogAt = now;
+      } else if (now - lastFailureLogAt >= 300_000) {
+        const elapsedMin = Math.round((budgetMs - (deadline - now)) / 60_000);
+        console.error(
+          `worktable: still unreachable after ${consecutiveFailures} attempts ` +
+            `(~${elapsedMin} min); retrying.`,
+        );
+        lastFailureLogAt = now;
+      }
+      await sleep(Math.min(backoff, Math.max(0, remaining)));
+      backoff = Math.min(RETRY_BACKOFF_MAX_MS, backoff * 2);
     }
   }
 }

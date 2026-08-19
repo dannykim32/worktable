@@ -39,7 +39,15 @@ have to trust.
   minutes. When it completes reporting questions, call `check_askbacks`, answer,
   then re-arm. When its budget ends quietly, DEFAULT TO RE-ARMING while the
   canvas is still the active surface (an artifact awaiting the human's decisions
-  counts); only let it rest once the conversation has clearly moved on.
+  counts); only let it rest once the conversation has clearly moved on. The
+  job's stdout leads with a stable status line —
+  `WORKTABLE_LISTENER status=<questions|idle|unreachable> action=<check|rearm|rest|retry>` —
+  branch on `action`: `check` (questions arrived), `rearm`/`rest` (a quiet
+  expiry), or `retry` (the server was never reachable across the whole budget —
+  usually it isn't running, or this job's cwd isn't the project directory the
+  server was started in). An unreachable server is retried inside the budget, so
+  a single arm survives the human opening the canvas late or the server
+  restarting onto a new port.
 - After answering an ask-back, also call `answer_askback` with its `askback_id` —
   your reply then appears in the canvas drawer, threaded under the exact
   selection. **Format that answer as compact markdown** (short bullets over
