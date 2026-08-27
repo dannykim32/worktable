@@ -6630,6 +6630,7 @@ var require_dist = __commonJS((exports, module) => {
 
 // src/server/index.ts
 import { fileURLToPath } from "node:url";
+import { randomBytes as randomBytes7 } from "node:crypto";
 
 // src/shared/constraints.ts
 var ARTIFACT_ID_PATTERN = /^a_[0-9a-f]{8}$/;
@@ -15416,6 +15417,205 @@ function renderMarkdownToHtml(md, markers = []) {
   }
 }
 
+// src/server/frameShell.ts
+function stripMetaRefresh(html) {
+  return html.replace(/<meta\b[^>]*\bhttp-equiv\s*=\s*("\s*refresh\s*"|'\s*refresh\s*'|refresh)[^>]*>/gi, "");
+}
+function stripNonceAttributes(html) {
+  return html.replace(/\snonce\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+}
+function sanitizeModelHtmlMarkup(html) {
+  return stripNonceAttributes(stripMetaRefresh(html));
+}
+function capturePrelude() {
+  return [
+    "(function () {",
+    "  'use strict';",
+    "  var QUOTE_MAX = " + QUOTE_MAX + ";",
+    "  var HREF_MAX = " + HREF_MAX + ";",
+    "  var port = null;",
+    "  function send(msg) { if (port) { try { port.postMessage(msg); } catch (e) {} } }",
+    "  // markerId -> { range: Range, el: HTMLElement|null }. The counter is the",
+    "  // prelude's own; a marker is DRAWN only once its question is confirmed",
+    "  // (parent -> focusMarker), so a cancelled composer leaves nothing behind.",
+    "  var markers = Object.create(null);",
+    "  var markerSeq = 0;",
+    "  var reduceMotion = false;",
+    "  try { reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}",
+    "  // Receive the transferred MessageChannel port from the parent. Accept it",
+    "  // ONLY from our own parent window; ignore any other source.",
+    "  function onInit(e) {",
+    "    if (e.source !== window.parent) return;",
+    "    if (!e.data || e.data.v !== 'port' || !e.ports || !e.ports[0]) return;",
+    "    port = e.ports[0];",
+    "    port.onmessage = onPortMessage;",
+    "    window.removeEventListener('message', onInit);",
+    "    reportHeight();",
+    "  }",
+    "  window.addEventListener('message', onInit);",
+    "  // Parent -> frame verbs over the private port. CLOSED set: focusMarker.",
+    "  // Anything else is dropped.",
+    "  function onPortMessage(e) {",
+    "    var d = e && e.data;",
+    "    if (!d || typeof d !== 'object') return;",
+    "    if (d.v === 'focusMarker') {",
+    "      if (typeof d.markerId !== 'string') return;",
+    "      // scroll:false = submit confirmation (draw the marker, move nothing);",
+    "      // scroll:true (default) = an explicit locate click.",
+    "      focusMarker(d.markerId, d.scroll !== false);",
+    "      return;",
+    "    }",
+    "    // Unknown verb -> dropped.",
+    "  }",
+    "  // Announce readiness to the parent so it can identity-check us",
+    "  // (event.source === our iframe) and transfer the bridge port.",
+    "  function announce() { try { window.parent.postMessage({ v: 'ready' }, '*'); } catch (e) {} }",
+    "  if (document.readyState === 'complete') announce();",
+    "  window.addEventListener('load', announce);",
+    "  // Auto-resize: report content height so the parent can size the iframe.",
+    "  var lastPx = -1;",
+    "  function reportHeight() {",
+    "    var px = Math.max(",
+    "      document.documentElement ? document.documentElement.scrollHeight : 0,",
+    "      document.body ? document.body.scrollHeight : 0",
+    "    );",
+    "    px = Math.max(0, Math.min(20000, px | 0));",
+    "    if (px !== lastPx) { lastPx = px; send({ v: 'resize', px: px }); }",
+    "  }",
+    "  if (typeof ResizeObserver !== 'undefined') {",
+    "    try {",
+    "      var ro = new ResizeObserver(reportHeight);",
+    "      // Observe the BODY: its box grows with content. documentElement's box",
+    "      // is pinned to the iframe height we set, so it would never re-fire.",
+    "      if (document.body) ro.observe(document.body);",
+    "    } catch (e) {}",
+    "  }",
+    "  window.addEventListener('load', reportHeight);",
+    "  window.addEventListener('resize', reportHeight);",
+    "  // Late layout (fonts, images, reflow) can grow the page after load — and",
+    "  // fonts.ready may resolve later still. Re-measure a few times to catch it.",
+    "  [50, 250, 800, 2000].forEach(function (ms) { setTimeout(reportHeight, ms); });",
+    "  if (document.fonts && document.fonts.ready && document.fonts.ready.then) {",
+    "    document.fonts.ready.then(reportHeight).catch(function () {});",
+    "  }",
+    "  // Draw the persistent in-content marker for markerId from its stashed",
+    "  // Range: try to wrap the selection; fall back to a caret glyph at its",
+    "  // start. Clicking it asks the parent to highlight the drawer entry.",
+    "  function drawMarker(id) {",
+    "    var m = markers[id];",
+    "    if (!m || m.el) return m ? m.el : null;",
+    "    var el = document.createElement('span');",
+    "    el.setAttribute('data-wt-marker', id);",
+    "    el.setAttribute('role', 'button');",
+    "    el.setAttribute('tabindex', '0');",
+    "    el.setAttribute('aria-label', 'asked about this — show in the conversation');",
+    "    el.setAttribute('style', 'background:#fde68a;outline:1px solid #f59e0b;border-radius:2px;cursor:pointer;');",
+    "    try {",
+    "      m.range.surroundContents(el);",
+    "    } catch (e) {",
+    "      try {",
+    "        var r2 = m.range.cloneRange();",
+    "        r2.collapse(true);",
+    "        el.textContent = '\\u25C6';",
+    "        el.setAttribute('style', 'color:#b45309;cursor:pointer;font-size:0.8em;vertical-align:super;');",
+    "        r2.insertNode(el);",
+    "      } catch (e2) { return null; }",
+    "    }",
+    "    el.addEventListener('click', function () { send({ v: 'focusEntry', markerId: id }); });",
+    "    m.el = el;",
+    "    return el;",
+    "  }",
+    "  function focusMarker(id, scroll) {",
+    "    var el = drawMarker(id);",
+    "    if (!el) return;",
+    "    if (!scroll) return; // draw-only confirmation: never move any page",
+    "    try { el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }",
+    "    el.setAttribute('data-wt-flash', '1');",
+    "    setTimeout(function () { if (el) el.removeAttribute('data-wt-flash'); }, 1600);",
+    "  }",
+    "  // Clickable external references: the sandboxed frame must NEVER navigate",
+    "  // itself, so intercept clicks on any <a href> (walking up from the click",
+    "  // target — clicks often land on a child span). Absolute http(s) hrefs",
+    "  // within HREF_MAX become the closed {v:'openlink',href} verb for the",
+    "  // parent to open; pure in-page #fragment links keep their default",
+    "  // same-document scroll; everything else (javascript:, data:, relative,",
+    "  // mailto, oversized) is preventDefault'ed and dropped silently. These",
+    "  // checks are convenience — the parent re-validates at the boundary.",
+    "  document.addEventListener('click', function (ev) {",
+    "    var node = ev.target;",
+    "    var a = null;",
+    "    while (node && node !== document) {",
+    "      if (node.nodeType === 1 && node.tagName === 'A' && node.getAttribute('href') !== null) { a = node; break; }",
+    "      node = node.parentNode;",
+    "    }",
+    "    if (!a) return;",
+    "    var raw = String(a.getAttribute('href'));",
+    "    if (raw.charAt(0) === '#') return; // in-page fragment: default scroll is harmless",
+    "    ev.preventDefault(); // no self-navigation, ever",
+    "    var url = null;",
+    "    try { url = new URL(raw); } catch (e) { return; } // relative/garbage -> drop",
+    "    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;",
+    "    var href = url.href;",
+    "    if (href.length > HREF_MAX) return;",
+    "    send({ v: 'openlink', href: href });",
+    "  }, true);",
+    "  // Ask-about-this affordance on text selection (pill only — the composer",
+    "  // lives in the parent drawer now).",
+    "  var host = document.createElement('div');",
+    "  host.setAttribute('style', 'position:fixed;z-index:2147483647;top:0;left:0;');",
+    "  var pill = document.createElement('button');",
+    "  pill.type = 'button';",
+    "  pill.textContent = 'Ask about this';",
+    "  pill.setAttribute('style', 'position:fixed;display:none;font:13px/1.4 system-ui,sans-serif;padding:4px 10px;border-radius:14px;border:1px solid #8883;background:#0f766e;color:#fff;cursor:pointer;box-shadow:0 2px 8px #0004;');",
+    "  host.appendChild(pill);",
+    "  var currentQuote = '';",
+    "  var currentRange = null;",
+    "  function hideAll() { pill.style.display = 'none'; }",
+    "  function place(el, x, y) { el.style.left = Math.max(4, x) + 'px'; el.style.top = Math.max(4, y) + 'px'; }",
+    "  document.addEventListener('mouseup', function (ev) {",
+    "    if (host.contains(ev.target)) return;",
+    "    var sel = window.getSelection && window.getSelection();",
+    "    if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hideAll(); return; }",
+    "    var text = String(sel.toString()).trim();",
+    "    if (text === '') { hideAll(); return; }",
+    "    currentQuote = text.slice(0, QUOTE_MAX);",
+    "    currentRange = sel.getRangeAt(0).cloneRange();",
+    "    var rect = sel.getRangeAt(0).getBoundingClientRect();",
+    "    place(pill, rect.left, Math.max(4, rect.top - 34));",
+    "    pill.style.display = 'inline-block';",
+    "  });",
+    "  pill.addEventListener('click', function () {",
+    "    if (currentQuote === '' || !currentRange) { hideAll(); return; }",
+    "    markerSeq++;",
+    "    var markerId = 'm' + markerSeq;",
+    "    // Stash the Range so a later focusMarker can draw the persistent marker.",
+    "    markers[markerId] = { range: currentRange, el: null };",
+    "    send({ v: 'askstart', quote: currentQuote, markerId: markerId });",
+    "    hideAll();",
+    "  });",
+    "  function attachHost() { if (document.body) document.body.appendChild(host); }",
+    "  if (document.body) attachHost();",
+    "  else window.addEventListener('DOMContentLoaded', attachHost);",
+    "})();"
+  ].join(`
+`);
+}
+function buildFrameDocument(modelHtml, nonce) {
+  const body = sanitizeModelHtmlMarkup(modelHtml);
+  return `<!doctype html>
+` + `<html lang="en">
+` + `<head>
+` + `<meta charset="utf-8" />
+` + `<meta name="viewport" content="width=device-width, initial-scale=1" />
+` + `</head>
+` + `<body>
+` + body + `
+` + '<script nonce="' + nonce + '">' + capturePrelude() + `</script>
+` + `</body>
+` + `</html>
+`;
+}
+
 // src/server/export.ts
 function escapeHtml(text) {
   return text.replace(/[&<>"']/g, (c) => {
@@ -15437,12 +15637,23 @@ function exportFilename(title, artifactId) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
   return `${slug || artifactId}.html`;
 }
-var EXPORT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'";
+function exportCsp(nonce) {
+  return "default-src 'none'; img-src data:; style-src 'unsafe-inline'; " + `frame-src 'self'; script-src 'nonce-${nonce}'`;
+}
+function frameSrcdocCsp(nonce) {
+  return "default-src 'none'; img-src data:; style-src 'unsafe-inline'; " + `script-src 'nonce-${nonce}'`;
+}
 var SHELL_CSS = `
   body { margin: 0; font: 15px/1.55 system-ui, -apple-system, sans-serif; color: #141a22; background: #eaeef3; }
   .wt-chrome { max-width: 880px; margin: 0 auto; padding: 14px 20px; font-size: 13px; color: #4e5866; display: flex; gap: 10px; align-items: baseline; border-bottom: 2px solid #0f766e; }
   .wt-chrome strong { font-size: 16px; color: #141a22; }
   .wt-body { background: #ffffff; max-width: 1200px; margin: 20px auto; border: 1px solid rgba(20,26,34,0.14); border-radius: 10px; overflow: hidden; }
+  .wt-frame-wrap { max-width: 1200px; margin: 20px auto; border: 1px solid rgba(20,26,34,0.14); border-radius: 10px; overflow: hidden; }
+  /* Start at the iframe's default 150px (as the live canvas does) and grow to
+     content via the resize shim — so short pages fit tight and tall pages fill
+     out. With JS off (rare for a local file) a tall page keeps this height and
+     scrolls internally; the footer notes the copy is static. */
+  .wt-frame { display: block; width: 100%; height: 150px; border: 0; }
   .wt-prose { padding: 24px 28px; overflow-wrap: anywhere; }
   .wt-prose > :first-child { margin-top: 0; }
   .wt-prose > :last-child { margin-bottom: 0; }
@@ -15474,6 +15685,53 @@ var SHELL_CSS = `
   .wt-a .wt-who, .wt-unanswered { display: block; color: #0b5b55; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
   .wt-foot { max-width: 880px; margin: 28px auto 40px; padding: 0 20px; font-size: 12px; color: #8a93a1; }
 `;
+function frameResizeReporter() {
+  return [
+    "(function () {",
+    "  'use strict';",
+    "  function report() {",
+    "    var px = Math.max(",
+    "      document.documentElement ? document.documentElement.scrollHeight : 0,",
+    "      document.body ? document.body.scrollHeight : 0",
+    "    );",
+    "    px = Math.max(0, Math.min(20000, px | 0));",
+    "    try { parent.postMessage({ v: 'wt-export-resize', px: px }, '*'); } catch (e) {}",
+    "  }",
+    "  window.addEventListener('load', report);",
+    "  window.addEventListener('resize', report);",
+    "  [50, 250, 800, 2000].forEach(function (ms) { setTimeout(report, ms); });",
+    "  if (typeof ResizeObserver !== 'undefined') {",
+    "    try { var ro = new ResizeObserver(report); if (document.body) ro.observe(document.body); } catch (e) {}",
+    "  }",
+    "  if (document.fonts && document.fonts.ready && document.fonts.ready.then) {",
+    "    document.fonts.ready.then(report).catch(function () {});",
+    "  }",
+    "  report();",
+    "})();"
+  ].join(`
+`);
+}
+function shellResizeListener() {
+  return [
+    "(function () {",
+    "  'use strict';",
+    "  var f = document.getElementById('wt-frame');",
+    "  if (!f) return;",
+    "  window.addEventListener('message', function (e) {",
+    "    if (e.source !== f.contentWindow) return;",
+    "    var d = e && e.data;",
+    "    if (!d || d.v !== 'wt-export-resize' || typeof d.px !== 'number' || !isFinite(d.px)) return;",
+    "    f.style.height = Math.max(80, Math.min(20000, d.px | 0)) + 'px';",
+    "  });",
+    "})();"
+  ].join(`
+`);
+}
+function frameSrcdoc(modelHtml, nonce) {
+  const body = sanitizeModelHtmlMarkup(modelHtml);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" />` + `<meta name="viewport" content="width=device-width, initial-scale=1" />` + `<meta http-equiv="Content-Security-Policy" content="${frameSrcdocCsp(nonce)}" />` + `</head><body>${body}
+` + `<script nonce="${nonce}">${frameResizeReporter()}</script>` + `</body></html>`;
+}
 function conversationSection(conversation, hasMarker) {
   if (conversation.length === 0)
     return "";
@@ -15488,10 +15746,10 @@ function conversationSection(conversation, hasMarker) {
 ${entries}
 </section>`;
 }
-function artifactBody(content, markers) {
+function artifactBody(content, markers, nonce, title) {
   switch (content.type) {
     case "html":
-      return `<div class="wt-body">${content.html ?? ""}</div>`;
+      return `<div class="wt-frame-wrap"><iframe class="wt-frame" id="wt-frame" ` + `title="${title}" sandbox="allow-scripts" ` + `srcdoc="${escapeHtml(frameSrcdoc(content.html ?? "", nonce))}"` + `></iframe></div>`;
     case "prose":
       return `<div class="wt-body wt-prose">${renderMarkdownToHtml(content.markdown, markers)}</div>`;
     case "absence":
@@ -15499,7 +15757,7 @@ function artifactBody(content, markers) {
   }
 }
 function buildExportHtml(opts) {
-  const { meta: meta2, content, conversation, exportedAt } = opts;
+  const { meta: meta2, content, conversation, exportedAt, nonce } = opts;
   const title = escapeHtml(meta2.title);
   const conv = conversation ?? [];
   const isProse = content.type === "prose";
@@ -15516,21 +15774,23 @@ function buildExportHtml(opts) {
     }
     return wants;
   });
+  const isHtml = content.type === "html";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-` + `<meta http-equiv="Content-Security-Policy" content="${EXPORT_CSP}" />
+` + `<meta http-equiv="Content-Security-Policy" content="${exportCsp(nonce)}" />
 ` + `<meta name="viewport" content="width=device-width, initial-scale=1" />
 ` + `<title>${title}</title>
 <style>${SHELL_CSS}</style>
 </head>
 <body>
 ` + `<header class="wt-chrome"><strong>${title}</strong>` + `<span>v${meta2.latest} · exported ${escapeHtml(exportedAt)}</span></header>
-` + artifactBody(content, markers) + `
+` + artifactBody(content, markers, nonce, title) + `
 ` + (conversation ? conversationSection(conv, hasMarker) + `
-` : "") + `<footer class="wt-foot">Exported from Worktable — a static copy. ` + `Scripts and network access are disabled in this file; the ` + `select-and-ask-back loop lives on the local canvas.</footer>
-` + `</body>
+` : "") + `<footer class="wt-foot">Exported from Worktable — a static copy. ` + `Network access is disabled and the model's own scripts are inert; the ` + `select-and-ask-back loop lives on the local canvas.</footer>
+` + (isHtml ? `<script nonce="${nonce}">${shellResizeListener()}</script>
+` : "") + `</body>
 </html>
 `;
 }
@@ -15775,207 +16035,6 @@ class FrameRegistry {
 // src/server/frameHttp.ts
 import { randomBytes as randomBytes5 } from "node:crypto";
 import http2 from "node:http";
-
-// src/server/frameShell.ts
-function stripMetaRefresh(html) {
-  return html.replace(/<meta\b[^>]*\bhttp-equiv\s*=\s*("\s*refresh\s*"|'\s*refresh\s*'|refresh)[^>]*>/gi, "");
-}
-function stripNonceAttributes(html) {
-  return html.replace(/\snonce\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-}
-function sanitizeModelHtmlMarkup(html) {
-  return stripNonceAttributes(stripMetaRefresh(html));
-}
-function capturePrelude() {
-  return [
-    "(function () {",
-    "  'use strict';",
-    "  var QUOTE_MAX = " + QUOTE_MAX + ";",
-    "  var HREF_MAX = " + HREF_MAX + ";",
-    "  var port = null;",
-    "  function send(msg) { if (port) { try { port.postMessage(msg); } catch (e) {} } }",
-    "  // markerId -> { range: Range, el: HTMLElement|null }. The counter is the",
-    "  // prelude's own; a marker is DRAWN only once its question is confirmed",
-    "  // (parent -> focusMarker), so a cancelled composer leaves nothing behind.",
-    "  var markers = Object.create(null);",
-    "  var markerSeq = 0;",
-    "  var reduceMotion = false;",
-    "  try { reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}",
-    "  // Receive the transferred MessageChannel port from the parent. Accept it",
-    "  // ONLY from our own parent window; ignore any other source.",
-    "  function onInit(e) {",
-    "    if (e.source !== window.parent) return;",
-    "    if (!e.data || e.data.v !== 'port' || !e.ports || !e.ports[0]) return;",
-    "    port = e.ports[0];",
-    "    port.onmessage = onPortMessage;",
-    "    window.removeEventListener('message', onInit);",
-    "    reportHeight();",
-    "  }",
-    "  window.addEventListener('message', onInit);",
-    "  // Parent -> frame verbs over the private port. CLOSED set: focusMarker.",
-    "  // Anything else is dropped.",
-    "  function onPortMessage(e) {",
-    "    var d = e && e.data;",
-    "    if (!d || typeof d !== 'object') return;",
-    "    if (d.v === 'focusMarker') {",
-    "      if (typeof d.markerId !== 'string') return;",
-    "      // scroll:false = submit confirmation (draw the marker, move nothing);",
-    "      // scroll:true (default) = an explicit locate click.",
-    "      focusMarker(d.markerId, d.scroll !== false);",
-    "      return;",
-    "    }",
-    "    // Unknown verb -> dropped.",
-    "  }",
-    "  // Announce readiness to the parent so it can identity-check us",
-    "  // (event.source === our iframe) and transfer the bridge port.",
-    "  function announce() { try { window.parent.postMessage({ v: 'ready' }, '*'); } catch (e) {} }",
-    "  if (document.readyState === 'complete') announce();",
-    "  window.addEventListener('load', announce);",
-    "  // Auto-resize: report content height so the parent can size the iframe.",
-    "  var lastPx = -1;",
-    "  function reportHeight() {",
-    "    var px = Math.max(",
-    "      document.documentElement ? document.documentElement.scrollHeight : 0,",
-    "      document.body ? document.body.scrollHeight : 0",
-    "    );",
-    "    px = Math.max(0, Math.min(20000, px | 0));",
-    "    if (px !== lastPx) { lastPx = px; send({ v: 'resize', px: px }); }",
-    "  }",
-    "  if (typeof ResizeObserver !== 'undefined') {",
-    "    try {",
-    "      var ro = new ResizeObserver(reportHeight);",
-    "      // Observe the BODY: its box grows with content. documentElement's box",
-    "      // is pinned to the iframe height we set, so it would never re-fire.",
-    "      if (document.body) ro.observe(document.body);",
-    "    } catch (e) {}",
-    "  }",
-    "  window.addEventListener('load', reportHeight);",
-    "  window.addEventListener('resize', reportHeight);",
-    "  // Late layout (fonts, images, reflow) can grow the page after load — and",
-    "  // fonts.ready may resolve later still. Re-measure a few times to catch it.",
-    "  [50, 250, 800, 2000].forEach(function (ms) { setTimeout(reportHeight, ms); });",
-    "  if (document.fonts && document.fonts.ready && document.fonts.ready.then) {",
-    "    document.fonts.ready.then(reportHeight).catch(function () {});",
-    "  }",
-    "  // Draw the persistent in-content marker for markerId from its stashed",
-    "  // Range: try to wrap the selection; fall back to a caret glyph at its",
-    "  // start. Clicking it asks the parent to highlight the drawer entry.",
-    "  function drawMarker(id) {",
-    "    var m = markers[id];",
-    "    if (!m || m.el) return m ? m.el : null;",
-    "    var el = document.createElement('span');",
-    "    el.setAttribute('data-wt-marker', id);",
-    "    el.setAttribute('role', 'button');",
-    "    el.setAttribute('tabindex', '0');",
-    "    el.setAttribute('aria-label', 'asked about this — show in the conversation');",
-    "    el.setAttribute('style', 'background:#fde68a;outline:1px solid #f59e0b;border-radius:2px;cursor:pointer;');",
-    "    try {",
-    "      m.range.surroundContents(el);",
-    "    } catch (e) {",
-    "      try {",
-    "        var r2 = m.range.cloneRange();",
-    "        r2.collapse(true);",
-    "        el.textContent = '\\u25C6';",
-    "        el.setAttribute('style', 'color:#b45309;cursor:pointer;font-size:0.8em;vertical-align:super;');",
-    "        r2.insertNode(el);",
-    "      } catch (e2) { return null; }",
-    "    }",
-    "    el.addEventListener('click', function () { send({ v: 'focusEntry', markerId: id }); });",
-    "    m.el = el;",
-    "    return el;",
-    "  }",
-    "  function focusMarker(id, scroll) {",
-    "    var el = drawMarker(id);",
-    "    if (!el) return;",
-    "    if (!scroll) return; // draw-only confirmation: never move any page",
-    "    try { el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }",
-    "    el.setAttribute('data-wt-flash', '1');",
-    "    setTimeout(function () { if (el) el.removeAttribute('data-wt-flash'); }, 1600);",
-    "  }",
-    "  // Clickable external references: the sandboxed frame must NEVER navigate",
-    "  // itself, so intercept clicks on any <a href> (walking up from the click",
-    "  // target — clicks often land on a child span). Absolute http(s) hrefs",
-    "  // within HREF_MAX become the closed {v:'openlink',href} verb for the",
-    "  // parent to open; pure in-page #fragment links keep their default",
-    "  // same-document scroll; everything else (javascript:, data:, relative,",
-    "  // mailto, oversized) is preventDefault'ed and dropped silently. These",
-    "  // checks are convenience — the parent re-validates at the boundary.",
-    "  document.addEventListener('click', function (ev) {",
-    "    var node = ev.target;",
-    "    var a = null;",
-    "    while (node && node !== document) {",
-    "      if (node.nodeType === 1 && node.tagName === 'A' && node.getAttribute('href') !== null) { a = node; break; }",
-    "      node = node.parentNode;",
-    "    }",
-    "    if (!a) return;",
-    "    var raw = String(a.getAttribute('href'));",
-    "    if (raw.charAt(0) === '#') return; // in-page fragment: default scroll is harmless",
-    "    ev.preventDefault(); // no self-navigation, ever",
-    "    var url = null;",
-    "    try { url = new URL(raw); } catch (e) { return; } // relative/garbage -> drop",
-    "    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;",
-    "    var href = url.href;",
-    "    if (href.length > HREF_MAX) return;",
-    "    send({ v: 'openlink', href: href });",
-    "  }, true);",
-    "  // Ask-about-this affordance on text selection (pill only — the composer",
-    "  // lives in the parent drawer now).",
-    "  var host = document.createElement('div');",
-    "  host.setAttribute('style', 'position:fixed;z-index:2147483647;top:0;left:0;');",
-    "  var pill = document.createElement('button');",
-    "  pill.type = 'button';",
-    "  pill.textContent = 'Ask about this';",
-    "  pill.setAttribute('style', 'position:fixed;display:none;font:13px/1.4 system-ui,sans-serif;padding:4px 10px;border-radius:14px;border:1px solid #8883;background:#0f766e;color:#fff;cursor:pointer;box-shadow:0 2px 8px #0004;');",
-    "  host.appendChild(pill);",
-    "  var currentQuote = '';",
-    "  var currentRange = null;",
-    "  function hideAll() { pill.style.display = 'none'; }",
-    "  function place(el, x, y) { el.style.left = Math.max(4, x) + 'px'; el.style.top = Math.max(4, y) + 'px'; }",
-    "  document.addEventListener('mouseup', function (ev) {",
-    "    if (host.contains(ev.target)) return;",
-    "    var sel = window.getSelection && window.getSelection();",
-    "    if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hideAll(); return; }",
-    "    var text = String(sel.toString()).trim();",
-    "    if (text === '') { hideAll(); return; }",
-    "    currentQuote = text.slice(0, QUOTE_MAX);",
-    "    currentRange = sel.getRangeAt(0).cloneRange();",
-    "    var rect = sel.getRangeAt(0).getBoundingClientRect();",
-    "    place(pill, rect.left, Math.max(4, rect.top - 34));",
-    "    pill.style.display = 'inline-block';",
-    "  });",
-    "  pill.addEventListener('click', function () {",
-    "    if (currentQuote === '' || !currentRange) { hideAll(); return; }",
-    "    markerSeq++;",
-    "    var markerId = 'm' + markerSeq;",
-    "    // Stash the Range so a later focusMarker can draw the persistent marker.",
-    "    markers[markerId] = { range: currentRange, el: null };",
-    "    send({ v: 'askstart', quote: currentQuote, markerId: markerId });",
-    "    hideAll();",
-    "  });",
-    "  function attachHost() { if (document.body) document.body.appendChild(host); }",
-    "  if (document.body) attachHost();",
-    "  else window.addEventListener('DOMContentLoaded', attachHost);",
-    "})();"
-  ].join(`
-`);
-}
-function buildFrameDocument(modelHtml, nonce) {
-  const body = sanitizeModelHtmlMarkup(modelHtml);
-  return `<!doctype html>
-` + `<html lang="en">
-` + `<head>
-` + `<meta charset="utf-8" />
-` + `<meta name="viewport" content="width=device-width, initial-scale=1" />
-` + `</head>
-` + `<body>
-` + body + `
-` + '<script nonce="' + nonce + '">' + capturePrelude() + `</script>
-` + `</body>
-` + `</html>
-`;
-}
-
-// src/server/frameHttp.ts
 var FRAME_PORT_SCAN_START = 8888;
 var FRAME_PORT_SCAN_END = 8988;
 function frameCsp(nonce, canvasOrigin) {
@@ -16365,7 +16424,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.8.1";
+    return "0.8.2";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }
@@ -16518,7 +16577,8 @@ async function main() {
           meta: meta2,
           content,
           conversation: withConversation ? askbacks.forArtifact(meta2.id) : null,
-          exportedAt: new Date().toISOString().slice(0, 10)
+          exportedAt: new Date().toISOString().slice(0, 10),
+          nonce: randomBytes7(16).toString("base64")
         });
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
