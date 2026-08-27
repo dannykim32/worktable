@@ -235,7 +235,10 @@ describe("artifact store + tools + SSE", () => {
     expect(plain.status).toBe(200);
     expect(plain.headers["content-type"]).toContain("text/html");
     expect(plain.headers["content-disposition"]).toContain('filename="export-me.html"');
-    expect(plain.body).toContain("<p>content</p>");
+    // The html artifact is framed in a sandboxed srcdoc iframe (issue:
+    // html-export-isolation), so its body rides escaped inside the srcdoc.
+    expect(plain.body).toContain('sandbox="allow-scripts"');
+    expect(plain.body).toContain("&lt;p&gt;content&lt;/p&gt;");
     expect(plain.body).toContain("Content-Security-Policy");
     expect(plain.body).not.toContain("why export?"); // no appendix by default
 

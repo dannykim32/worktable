@@ -8,6 +8,41 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-26) — v0.8.2: HTML export isolates artifacts like the canvas
+
+Bug fix from a coworker's dogfood report: exporting an `html` artifact produced a page
+with unreadable, faded text. Root cause in `src/server/export.ts` — an html artifact's
+full, self-contained page (which styles its own `html`/`body`/`:root` and may be
+dark-first) was flattened into `<div class="wt-body">` with a forced white background.
+The model's ground never painted and its light-on-dark text landed on white. The live
+canvas never had this bug because it serves each html artifact as its OWN document inside
+a sandboxed iframe (`src/canvas/components/html.ts` + `frameShell.ts`).
+
+- **Isolate, don't flatten.** An html artifact now exports as a `sandbox="allow-scripts"`
+  `<iframe srcdoc>` carrying the model page as its own document — its `body`/`:root`/
+  `@media` styles paint the frame exactly as on the canvas. Prose and absence exports are
+  unchanged (still plain trusted markup, no frame, no script).
+- **Same trust boundary as the canvas.** The srcdoc's own `<meta>` CSP is
+  `default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-N'` —
+  the model's `<script>`/`onclick` carry no nonce and stay inert, and
+  `sanitizeModelHtmlMarkup` (reused from `frameShell.ts`) strips any model `nonce=` and
+  `<meta http-equiv=refresh>`. The sandbox omits `allow-same-origin` (opaque origin), and
+  the whole srcdoc is attribute-escaped so a model `</script>` can't break the shell
+  parser. Outer CSP adds `frame-src 'self'` (loads the srcdoc frame) and
+  `script-src 'nonce-N'`.
+- **Posture change, stated honestly.** The export used to advertise "static, zero
+  scripts." It now carries **two trusted, nonce'd scripts** — a resize reporter inside the
+  frame and a listener in the shell — so the framed page flows at its natural height
+  instead of an inner scrollbar (breaks Ctrl-F / print otherwise). Still **no model
+  scripts** and **no network**, matching the live canvas frame. The nonce is a fresh
+  128-bit value generated per response by the export route and threaded into
+  `buildExportHtml` (kept pure/deterministic for tests).
+- **Verified.** Full suite 295 pass; `tsc` clean; build succeeds. Browser-checked in
+  Chromium: dark-first page renders legibly, an injected model `<script>` does not run,
+  the frame grows to full content height. Known gap: not yet verified in Safari/Firefox
+  from `file://` (Chromium is the dogfood browser); a blocked srcdoc frame there would
+  show blank rather than faded — a fast follow if it surfaces.
+
 ## Status (updated 2026-08-19) — v0.8.1: listener retries unreachable + honest exit contract
 
 Hardening pass on the `await-askback` poll-wake listener, from a dogfood field report.

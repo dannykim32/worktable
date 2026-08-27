@@ -19,6 +19,13 @@ const meta = (over: Partial<ArtifactMeta> = {}): ArtifactMeta => ({
   ...over,
 });
 
+// A fixed nonce keeps the builder deterministic in tests (the route supplies a
+// fresh 128-bit one at runtime). base64 chars only, like randomBytes emits.
+const NONCE = "TESTn0nce1234567890ab==";
+const build = (
+  o: Omit<Parameters<typeof buildExportHtml>[0], "nonce">,
+): string => buildExportHtml({ ...o, nonce: NONCE });
+
 const ask = (over: Partial<Askback> = {}): Askback =>
   ({
     id: "ab_1",
@@ -31,27 +38,32 @@ const ask = (over: Partial<Askback> = {}): Askback =>
 
 describe("export builder", () => {
   test("shell: CSP meta (no scripts, no network), title, version, footer", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta(),
       content: { type: "html", title: "Plain title", html: "<p>hi</p>" },
       conversation: null,
       exportedAt: "2026-08-06",
     });
+    // Outer CSP: no network, frames only from 'self' (the srcdoc frame),
+    // scripts only via the response nonce (the shell's resize listener).
     expect(out).toContain(
-      `content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"`,
+      `content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; ` +
+        `frame-src 'self'; script-src 'nonce-${NONCE}'"`,
     );
     expect(out).toContain("<title>Plain title</title>");
     expect(out).toContain("v2 · exported 2026-08-06");
     expect(out).toContain("static copy");
-    // Model html embedded VERBATIM.
-    expect(out).toContain("<p>hi</p>");
+    // Model html rides in the frame's srcdoc (attribute-escaped), not raw in the
+    // shell — so a `<p>hi</p>` appears only as escaped srcdoc text.
+    expect(out).toContain("&lt;p&gt;hi&lt;/p&gt;");
+    expect(out).not.toContain("<p>hi</p>");
     // No conversation section without the flag (the CSS class definition is
     // always in the shell; the SECTION must not be).
     expect(out).not.toContain('<section class="wt-conv">');
   });
 
   test("XSS: a hostile TITLE is escaped, never markup", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta({ title: `<script>window.x=1</script>"'` }),
       content: { type: "html", title: "t", html: "" },
       conversation: null,
@@ -63,7 +75,7 @@ describe("export builder", () => {
 
   test("XSS: prose markdown cannot break out of its pre (</pre><script>)", () => {
     const payload = "</pre><script>window.x=1</script>";
-    const out = buildExportHtml({
+    const out = build({
       meta: meta({ type: "prose" }),
       content: { type: "prose", title: "t", markdown: payload },
       conversation: null,
@@ -75,7 +87,7 @@ describe("export builder", () => {
 
   test("XSS: conversation quote/question/answer are all escaped; unanswered is honest", () => {
     const evil = `<img src=x onerror="window.x=1">`;
-    const out = buildExportHtml({
+    const out = build({
       meta: meta(),
       content: { type: "html", title: "t", html: "" },
       conversation: [
@@ -95,7 +107,7 @@ describe("export builder", () => {
   });
 
   test("absence exports its reason, escaped", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta({ type: "absence" }),
       content: { type: "absence", title: "t", reason: "too <big>" },
       conversation: null,
@@ -118,7 +130,7 @@ describe("export builder", () => {
 
 describe("export builder — rendered markdown (Part A)", () => {
   test("a prose artifact exports as rendered HTML, not raw markdown in a <pre>", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta({ type: "prose" }),
       content: { type: "prose", title: "t", markdown: "# Heading\n\n- one\n- two" },
       conversation: null,
@@ -134,7 +146,7 @@ describe("export builder — rendered markdown (Part A)", () => {
   });
 
   test("a conversation answer with markdown renders formatted", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta(),
       content: { type: "html", title: "t", html: "" },
       conversation: [
@@ -151,7 +163,7 @@ describe("export builder — rendered markdown (Part A)", () => {
 
 describe("export builder — static anchor links (Part B)", () => {
   test("prose: entry N and its in-content marker cross-link via #fragments", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta({ type: "prose" }),
       content: {
         type: "prose",
@@ -180,7 +192,7 @@ describe("export builder — static anchor links (Part B)", () => {
   });
 
   test("html: entries are numbered with quotes but get NO in-content marker", () => {
-    const out = buildExportHtml({
+    const out = build({
       meta: meta({ type: "html" }),
       content: { type: "html", title: "t", html: "<p>verbatim</p>" },
       conversation: [
@@ -200,5 +212,97 @@ describe("export builder — static anchor links (Part B)", () => {
     expect(out).not.toContain(`href="#wt-mark-1"`);
     // The entry number is plain text, not a link.
     expect(out).toContain(`<span class="wt-entry-n">1</span>`);
+  });
+});
+
+describe("export builder — html isolation (issue: html-export-isolation)", () => {
+  // A dark-first page: its own `body`/`:root` set the ground, so flattening it
+  // into a white div made the light text unreadable. Framing it as its own
+  // document (srcdoc) is what restores canvas fidelity.
+  const darkPage =
+    `<style>:root{--ink:#e6edf3}body{background:#0d1117;color:var(--ink)}` +
+    `code{background:#161b22;color:#e6edf3}</style>` +
+    `<h1>Dark heading</h1><p>Body text on a dark ground.</p>` +
+    `<pre><code>const x = 1;</code></pre>`;
+
+  test("an html artifact is framed in a sandboxed srcdoc iframe, not a bare div", () => {
+    const out = build({
+      meta: meta({ type: "html" }),
+      content: { type: "html", title: "t", html: darkPage },
+      conversation: null,
+      exportedAt: "d",
+    });
+    // Framed, sandboxed, script-capable but opaque-origin.
+    expect(out).toContain(`<iframe class="wt-frame" id="wt-frame"`);
+    expect(out).toContain(`sandbox="allow-scripts"`);
+    expect(out).toContain("srcdoc=");
+    // allow-same-origin + allow-scripts is a total sandbox escape — never present.
+    expect(out).not.toContain("allow-same-origin");
+    // The model page is NOT flattened into the white shell body.
+    expect(out).not.toContain(`<div class="wt-body">`);
+    // The model's own CSS/markup survives, attribute-escaped, inside the srcdoc.
+    expect(out).toContain("background:#0d1117");
+    expect(out).toContain("Dark heading");
+  });
+
+  test("the frame's srcdoc carries its own nonce CSP", () => {
+    const out = build({
+      meta: meta({ type: "html" }),
+      content: { type: "html", title: "t", html: darkPage },
+      conversation: null,
+      exportedAt: "d",
+    });
+    // The srcdoc's meta CSP is attribute-escaped (quotes become &quot;/&#39;).
+    expect(out).toContain(
+      `content=&quot;default-src &#39;none&#39;; img-src data:; ` +
+        `style-src &#39;unsafe-inline&#39;; script-src &#39;nonce-${NONCE}&#39;`,
+    );
+  });
+
+  test("a model <script> in the frame body is inert — present but nonce-less", () => {
+    const withScript =
+      `<h1>Hi</h1><script>document.body.innerHTML='PWNED'</script>`;
+    const out = build({
+      meta: meta({ type: "html" }),
+      content: { type: "html", title: "t", html: withScript },
+      conversation: null,
+      exportedAt: "d",
+    });
+    // The model script rides in the srcdoc (escaped) but has no nonce, so the
+    // frame CSP `script-src 'nonce-…'` never runs it.
+    expect(out).toContain("&lt;script&gt;document.body.innerHTML=");
+    // It must not gain the response nonce (that would authorize it).
+    expect(out).not.toContain(`&lt;script nonce=&quot;${NONCE}&quot;&gt;document.body`);
+    // The one nonce'd script in the srcdoc is OUR trusted resize reporter.
+    expect(out).toContain(`&lt;script nonce=&quot;${NONCE}&quot;&gt;(function`);
+  });
+
+  test("only html exports carry the shell resize listener; prose/absence do not", () => {
+    const htmlOut = build({
+      meta: meta({ type: "html" }),
+      content: { type: "html", title: "t", html: "<p>x</p>" },
+      conversation: null,
+      exportedAt: "d",
+    });
+    expect(htmlOut).toContain(`<script nonce="${NONCE}">(function`);
+    expect(htmlOut).toContain("getElementById('wt-frame')");
+
+    const proseOut = build({
+      meta: meta({ type: "prose" }),
+      content: { type: "prose", title: "t", markdown: "# Hi" },
+      conversation: null,
+      exportedAt: "d",
+    });
+    // Prose stays fully script-free.
+    expect(proseOut).not.toContain("<script");
+    expect(proseOut).toContain(`<div class="wt-body wt-prose">`);
+
+    const absenceOut = build({
+      meta: meta({ type: "absence" }),
+      content: { type: "absence", title: "t", reason: "nope" },
+      conversation: null,
+      exportedAt: "d",
+    });
+    expect(absenceOut).not.toContain("<script");
   });
 });

@@ -1,6 +1,7 @@
 // Canvas Server entry: one MCP stdio server that owns the local HTTP canvas
 // service (ADR-0003). Log to stderr only — stdout is the MCP transport.
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
 import type {
   ArtifactContent,
   ArtifactEvent,
@@ -209,6 +210,9 @@ async function main(): Promise<void> {
           content,
           conversation: withConversation ? askbacks.forArtifact(meta.id) : null,
           exportedAt: new Date().toISOString().slice(0, 10),
+          // Fresh 128-bit nonce per response: authorizes the export's trusted
+          // resize scripts while the framed model's own scripts stay inert.
+          nonce: randomBytes(16).toString("base64"),
         });
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
