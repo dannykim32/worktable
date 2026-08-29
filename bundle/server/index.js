@@ -16424,7 +16424,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.8.2";
+    return "0.8.3";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }

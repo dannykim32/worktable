@@ -47,19 +47,31 @@ export function textOffsetWithin(
   return total;
 }
 
-/** Build the Anchor for a selection Range inside a single document block. */
+/** Build the Anchor for a selection Range anchored to `blockEl` (the block the
+ *  selection STARTS in). char_start always lands inside blockEl; char_end may
+ *  point into a LATER block when the selection was dragged across a boundary, in
+ *  which case it clamps to the end of blockEl — the anchor marks this block while
+ *  the quote carries the whole selected text (ADR-0006). */
 export function anchorFromRange(
   range: Range,
   blockEl: HTMLElement,
   artifactId: string,
   version: number,
 ): Anchor {
+  const charStart = textOffsetWithin(
+    blockEl,
+    range.startContainer,
+    range.startOffset,
+  );
+  const charEnd = blockEl.contains(range.endContainer)
+    ? textOffsetWithin(blockEl, range.endContainer, range.endOffset)
+    : (blockEl.textContent?.length ?? charStart);
   return {
     artifact_id: artifactId,
     version,
     block_index: Number(blockEl.dataset.blockIndex),
-    char_start: textOffsetWithin(blockEl, range.startContainer, range.startOffset),
-    char_end: textOffsetWithin(blockEl, range.endContainer, range.endOffset),
+    char_start: charStart,
+    char_end: charEnd,
     quote: range.toString().slice(0, QUOTE_MAX),
   };
 }
@@ -114,7 +126,11 @@ export class AskbackUi {
     });
   }
 
-  /** mouseup handler: show the pill when a selection sits in one block. */
+  /** mouseup handler: show the pill for any non-empty selection that STARTS in a
+   *  document block. A selection kept inside one block anchors to that block; one
+   *  dragged across a block boundary (e.g. a heading into the paragraph below)
+   *  anchors to the block it STARTS in, its quote carrying the full selected text
+   *  (ADR-0006) so the ask-back stays faithful. */
   handleSelection(): void {
     this.pill.hidden = true;
     this.pendingRangeAnchor = null;
@@ -122,8 +138,12 @@ export class AskbackUi {
     const sel = win?.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
-    const blockEl = this.closestBlock(range.commonAncestorContainer);
-    if (!blockEl) return; // selection outside a block, or spanning blocks
+    // Anchor to the block the selection STARTS in. range.startContainer is the
+    // earlier boundary point in document order regardless of drag direction, so
+    // the choice is deterministic; commonAncestorContainer would resolve to the
+    // card (no block index) for a cross-block drag and lose the anchor entirely.
+    const blockEl = this.closestBlock(range.startContainer);
+    if (!blockEl) return; // selection starts outside any document block
     const card = blockEl.closest("[data-artifact-id]") as HTMLElement | null;
     if (!card) return;
     const artifactId = card.dataset.artifactId!;

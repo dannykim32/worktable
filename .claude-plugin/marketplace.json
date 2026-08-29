@@ -10,7 +10,7 @@
       "name": "worktable",
       "source": "./",
       "description": "A local browser canvas for terminal coding agents — the model renders its work as a page you can see, select, and ask about, instead of a wall of text. Bundles the MCP server, the ask-back hook, and the canvas guidance skill.",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "author": {
         "name": "Danny Kim"
       },
