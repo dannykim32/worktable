@@ -70,6 +70,33 @@ describe("anchor capture from a Range", () => {
     expect(anchor.quote).toBe("canvas");
   });
 
+  test("a selection dragged across a block boundary anchors to the START block; char_end clamps, quote spans both", () => {
+    const { document, mount } = makeDom();
+    const card = document.createElement("section");
+    card.dataset.artifactId = "a_12ab34cd";
+    const h = document.createElement("h2");
+    h.dataset.blockIndex = "0";
+    h.textContent = "R2 — The capacity crisis";
+    const p = document.createElement("p");
+    p.dataset.blockIndex = "1";
+    p.textContent = "2026 verify before using";
+    card.append(h, p);
+    mount.appendChild(card);
+
+    const range = document.createRange();
+    range.setStart(h.firstChild!, 5); // inside the heading
+    range.setEnd(p.firstChild!, 4); // into the paragraph ("2026")
+    const anchor = anchorFromRange(range, h, "a_12ab34cd", 3);
+
+    expect(anchor.block_index).toBe(0); // the START block, not the end block
+    expect(anchor.char_start).toBe(5);
+    // char_end points into a later block, so it clamps to the end of block 0.
+    expect(anchor.char_end).toBe(h.textContent!.length);
+    expect(anchor.char_end).toBeGreaterThanOrEqual(anchor.char_start!);
+    // The quote carries the full cross-block selection (ADR-0006).
+    expect(anchor.quote).toContain("2026");
+  });
+
   test("quotes are clamped to 300 chars; whole-artifact anchors use the title", () => {
     const { document, mount } = makeDom();
     const p = document.createElement("p");
@@ -212,6 +239,36 @@ describe("AskbackUi pill → drawer (issue 27)", () => {
     expect(dom.asked[0]!.quote).toBe("the exact");
     // The pill hides once the composer takes over.
     expect(dom.ui.pill.hidden).toBe(true);
+  });
+
+  test("a selection dragged across a block boundary still shows the pill, anchored to the start block", () => {
+    const dom = makeUi();
+    const { document, mount } = dom;
+    const card = document.createElement("section");
+    card.dataset.artifactId = "a_12ab34cd";
+    const h = document.createElement("h2");
+    h.dataset.blockIndex = "0";
+    h.textContent = "R2 — The capacity crisis";
+    const p = document.createElement("p");
+    p.dataset.blockIndex = "1";
+    p.textContent = "2026 verify before using";
+    card.append(h, p);
+    mount.appendChild(card);
+
+    const sel = (document.defaultView as unknown as Window).getSelection()!;
+    const range = document.createRange();
+    range.setStart(h.firstChild!, 0);
+    range.setEnd(p.firstChild!, 4); // heading → into the paragraph below
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    dom.ui.handleSelection();
+    expect(dom.ui.pill.hidden).toBe(false); // used to stay hidden (the bug)
+
+    (dom.ui.pill as HTMLButtonElement).click();
+    expect(dom.asked).toHaveLength(1);
+    expect(dom.asked[0]!.block_index).toBe(0); // start block
+    expect(dom.asked[0]!.quote.length).toBeGreaterThan(0);
   });
 
   test("a collapsed selection keeps the pill hidden and asks nothing", () => {

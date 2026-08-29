@@ -8,6 +8,26 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-08-29) — v0.8.3: cross-block text selection shows "Ask about this"
+
+Dogfood papercut: selecting text that spanned a block boundary — e.g. dragging from a
+heading down into the paragraph below it — showed no "Ask about this" pill, with no
+feedback, so it read as broken. Root cause in `src/canvas/askback.ts`: `handleSelection`
+resolved the block from `range.commonAncestorContainer`, which for a cross-block drag is
+the artifact card (no `data-block-index`), so `closestBlock` returned null and the handler
+bailed. Only single-block selections ever showed the pill.
+
+Fix: anchor to the block the selection **starts** in (`range.startContainer`) instead.
+`startContainer` is the earlier boundary in document order regardless of drag direction,
+so the anchor is deterministic. An ask-back anchor addresses a char range within one block
+(`block_index` + `char_start`/`char_end`), so `char_end` now clamps to the end of the start
+block when the selection runs past it, while the `quote` carries the full cross-block
+selection (ADR-0006) — the anchor marks where the selection began, the quote tells the true
+story. No regression for single-block selections (`commonAncestorContainer` and
+`startContainer` resolve to the same block there). Marker placement was already `block_index`-only
+(`drawer.ts` `mountMarker`), so it needed no change. Two new unit tests in
+`test/askback.test.ts` (anchor clamp + pill-shows behavior); 297 pass. PR #15, release v0.8.3.
+
 ## Status (updated 2026-08-26) — v0.8.2: HTML export isolates artifacts like the canvas
 
 Bug fix from a coworker's dogfood report: exporting an `html` artifact produced a page
