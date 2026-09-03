@@ -22,6 +22,7 @@
 // this DOM via textContent ONLY — never innerHTML (XSS canary).
 import type { CanvasApi } from "./api.js";
 import { renderMarkdownInto } from "./components/prose.js";
+import { scrollToStable } from "./scroll.js";
 import type {
   Anchor,
   AskbackAnswer,
@@ -799,30 +800,11 @@ export class Drawer {
     }
   }
 
-  private prefersReducedMotion(): boolean {
-    try {
-      return !!this.doc.defaultView?.matchMedia?.(
-        "(prefers-reduced-motion: reduce)",
-      )?.matches;
-    } catch {
-      return false;
-    }
-  }
-
+  /** Drawer → content locate. Holds the marker in view against the HTML cards'
+   *  late height re-measures (which would otherwise strand a smooth scroll
+   *  off-target); interruptible by any manual scroll (see scrollToStable). */
   private scrollIntoView(el: HTMLElement, block: ScrollLogicalPosition): void {
-    if (typeof el.scrollIntoView !== "function") return;
-    try {
-      el.scrollIntoView({
-        behavior: this.prefersReducedMotion() ? "auto" : "smooth",
-        block,
-      });
-    } catch {
-      try {
-        el.scrollIntoView();
-      } catch {
-        /* no-op in non-browser env */
-      }
-    }
+    scrollToStable(el, block, this.doc.defaultView);
   }
 
   private flash(el: HTMLElement, cls: string): void {

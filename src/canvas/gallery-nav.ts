@@ -9,6 +9,7 @@
 // covers a card; it stays hidden while there is 0–1 artifact so the common
 // single-render case is uncluttered. Pure DOM; no framework.
 import type { ArtifactType } from "../shared/artifacts.js";
+import { scrollToStable } from "./scroll.js";
 
 export interface NavEntry {
   id: string;
@@ -131,20 +132,10 @@ export class GalleryNav {
   }
 
   private jump(el: HTMLElement): void {
-    if (typeof el.scrollIntoView === "function") {
-      try {
-        el.scrollIntoView({
-          behavior: this.prefersReducedMotion() ? "auto" : "smooth",
-          block: "start",
-        });
-      } catch {
-        try {
-          el.scrollIntoView();
-        } catch {
-          /* non-browser env */
-        }
-      }
-    }
+    // Hold the card at the top against the HTML cards' late height re-measures
+    // (which would otherwise strand a smooth scroll off-target); interruptible
+    // by any manual scroll (see scrollToStable).
+    scrollToStable(el, "start", this.doc.defaultView);
     // Flash the target so the eye lands on it after the scroll.
     el.classList.remove("artifact--flash");
     void el.offsetWidth; // force reflow so the animation restarts
@@ -174,16 +165,6 @@ export class GalleryNav {
     }
     for (const [id, btn] of this.items) {
       btn.classList.toggle("active", id === activeId);
-    }
-  }
-
-  private prefersReducedMotion(): boolean {
-    try {
-      return this.doc.defaultView?.matchMedia?.(
-        "(prefers-reduced-motion: reduce)",
-      ).matches === true;
-    } catch {
-      return false;
     }
   }
 }
