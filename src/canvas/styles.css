@@ -79,6 +79,20 @@ body {
   font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 0 0 96px;
 }
+/* Scroll anchoring OFF for the page scroll root. An html artifact is a
+   sandboxed iframe whose height the parent sets from a number the frame reports,
+   and that number is re-reported after layout (load, the 50/250/800/2000ms
+   re-measures, fonts.ready). When such a frame ABOVE the viewport grows, the
+   browser's scroll anchoring bumps the whole page down to "keep your place" —
+   which, across many stacked frames, accumulates into a runaway toward the
+   bottom that fights scrolling up. The changing "content" is a measurement
+   artifact, not a real edit, so the page must not chase it. Verified in-browser:
+   a +600px above-viewport frame growth shifts scrollY +594px with anchoring on,
+   and 0px with it off. */
+html,
+body {
+  overflow-anchor: none;
+}
 
 /* Brand-colored keyboard focus everywhere interactive. */
 :focus-visible {

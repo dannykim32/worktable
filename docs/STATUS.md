@@ -8,6 +8,39 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-09-02) — v0.8.4: canvas scroll no longer runs away or mis-navigates
+
+Two dogfood scroll bugs, one root cause. Reported: (1) the canvas "continuously scrolls
+until it gets to the bottom, and even scrolling up it keeps scrolling down"; (2) asking a
+question and navigating to it "scrolls to a random part — especially with multiple canvases
+on the page." Both trace to HTML-artifact iframes changing height **after** layout: an html
+card is a sandboxed iframe whose height the parent sets from a number the frame reports, and
+that number is re-reported on load, at the `50/250/800/2000ms` re-measures, and on
+`fonts.ready`. Reproduced and measured in a real browser against a 20-card / 10-iframe
+workspace.
+
+- **Issue 1 (runaway):** when a frame **above** the viewport grows, the browser's scroll
+  anchoring bumps the whole page down to "keep your place." Across many stacked frames those
+  nudges accumulate toward the bottom, and scrolling up wakes more re-measures that push back
+  down. Measured: a +600px above-viewport growth shifted `scrollY` +594px. Fix: `html, body
+  { overflow-anchor: none; }` in `src/canvas/styles.css` — the changing "content" is a
+  measurement artifact, not a real edit, so the page must not chase it. Verified: shift → 0.
+- **Issue 2 (mis-navigation):** a smooth `scrollIntoView` races those re-measures — a frame
+  above the target grows mid-animation and the marker slides out from under it. Measured: a
+  locate landed 646px off, off-screen. Fix: a shared `scrollToStable` helper
+  (`src/canvas/scroll.ts`) keeps the smooth motion, then re-asserts the target with
+  `block:"nearest"` across the ~2s re-measure window (only moves if it actually drifted out
+  of view — no jitter when stable), and cancels on any manual wheel/touch/keydown so it never
+  fights the human. Wired into the prose/absence locate (`drawer.ts`), the gallery-nav rail
+  jump (`gallery-nav.ts`), and the in-frame html locate (`server/frameShell.ts`, whose
+  `scrollIntoView` chains to the parent). Verified: 646px error → −9px of center.
+
+Neither bug is a v0.8.3 regression — both have existed as long as the html-iframe cards; the
+many-stacked-cards dogfood workspace is what made the accumulation visible. No
+security-boundary change (sandbox, sanitizer, port contract untouched). Five new unit tests
+in `test/scroll.test.ts`; 301 of 302 pass (the one miss is a pre-existing flaky SIGTERM
+lifecycle test that passes in isolation). PR #16, release v0.8.4.
+
 ## Status (updated 2026-08-29) — v0.8.3: cross-block text selection shows "Ask about this"
 
 Dogfood papercut: selecting text that spanned a block boundary — e.g. dragging from a

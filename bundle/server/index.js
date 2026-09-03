@@ -15528,10 +15528,26 @@ function capturePrelude() {
     "  function focusMarker(id, scroll) {",
     "    var el = drawMarker(id);",
     "    if (!el) return;",
-    "    if (!scroll) return; // draw-only confirmation: never move any page",
-    "    try { el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }",
     "    el.setAttribute('data-wt-flash', '1');",
     "    setTimeout(function () { if (el) el.removeAttribute('data-wt-flash'); }, 1600);",
+    "    if (!scroll) return; // draw-only confirmation: never move any page",
+    "    function snap(behavior, block) { try { el.scrollIntoView({ behavior: behavior, block: block }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} } }",
+    "    // scrollIntoView here chains to the PARENT page too, bringing this frame",
+    "    // into view. A single smooth pass races the HTML cards' late height",
+    "    // re-measures (a frame above grows mid-animation and strands us). So we",
+    "    // re-assert with block:'nearest' across the window those re-measures land",
+    "    // in (~2s); 'nearest' only moves when the marker actually drifted OUT of",
+    "    // view, so a stable page schedules no jitter. Any manual scroll cancels,",
+    "    // so we never fight the human (a programmatic scroll fires no wheel/key).",
+    "    snap(reduceMotion ? 'auto' : 'smooth', 'center');",
+    "    var stopped = false;",
+    "    function cancel() { stopped = true; teardown(); }",
+    "    function teardown() { window.removeEventListener('wheel', cancel, true); window.removeEventListener('touchmove', cancel, true); window.removeEventListener('keydown', cancel, true); }",
+    "    window.addEventListener('wheel', cancel, true);",
+    "    window.addEventListener('touchmove', cancel, true);",
+    "    window.addEventListener('keydown', cancel, true);",
+    "    var pts = [450, 750, 1100, 1500, 2000, 2400];",
+    "    pts.forEach(function (ms, i) { setTimeout(function () { if (stopped) return; if (!el.isConnected) { teardown(); return; } snap('auto', 'nearest'); if (i === pts.length - 1) teardown(); }, ms); });",
     "  }",
     "  // Clickable external references: the sandboxed frame must NEVER navigate",
     "  // itself, so intercept clicks on any <a href> (walking up from the click",
@@ -16424,7 +16440,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.8.3";
+    return "0.8.4";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }
