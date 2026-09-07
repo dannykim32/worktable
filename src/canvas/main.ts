@@ -5,6 +5,7 @@ import { connectEvents, createApi } from "./api.js";
 import { AskbackUi, wholeArtifactAnchor } from "./askback.js";
 import { Gallery } from "./gallery.js";
 import { Drawer } from "./drawer.js";
+import { installRefocusScrollGuard } from "./scroll.js";
 import type {
   ArtifactEvent,
   AskbackAnsweredEvent,
@@ -134,6 +135,11 @@ function boot(): void {
       liveLabel.textContent = connected ? "agent connected" : "reconnecting…";
     },
   });
+
+  // The page must never auto-scroll when the canvas regains focus (a smooth
+  // scroll resuming from inside an artifact iframe would otherwise run it to the
+  // bottom). Holds the human's position on refocus until they scroll.
+  installRefocusScrollGuard(window, document);
 }
 
 boot();

@@ -6,7 +6,10 @@
 // detached-target, and non-browser safety — with an injected fake window so the
 // timer/event paths run deterministically.
 import { describe, expect, test } from "bun:test";
-import { scrollToStable } from "../src/canvas/scroll.js";
+import {
+  installRefocusScrollGuard,
+  scrollToStable,
+} from "../src/canvas/scroll.js";
 
 interface Call {
   behavior: string;
@@ -114,5 +117,113 @@ describe("scrollToStable", () => {
     expect(() => scrollToStable(el, "center", null)).not.toThrow();
     expect(calls).toHaveLength(1);
     expect(calls[0]).toEqual({ behavior: "smooth", block: "center" });
+  });
+});
+
+/** A fake window + document with a controllable clock, rAF queue, and event bus,
+ *  so the refocus guard's frame loop runs deterministically. */
+function makeGuardEnv() {
+  let y = 0;
+  let clock = 0;
+  const raf: Array<() => void> = [];
+  const bus = new Map<string, Set<EventListener>>();
+  const on = (key: string) => bus.get(key) ?? bus.set(key, new Set()).get(key)!;
+  const win = {
+    get scrollY() {
+      return y;
+    },
+    scrollTo: (_x: number, ny: number) => {
+      y = ny;
+    },
+    performance: { now: () => clock },
+    requestAnimationFrame: (fn: () => void) => raf.push(fn),
+    addEventListener: (t: string, fn: EventListener) => on("w:" + t).add(fn),
+    removeEventListener: (t: string, fn: EventListener) => on("w:" + t).delete(fn),
+  } as unknown as Window;
+  const doc = {
+    visibilityState: "visible" as DocumentVisibilityState,
+    addEventListener: (t: string, fn: EventListener) => on("d:" + t).add(fn),
+  } as unknown as Document;
+  return {
+    win,
+    doc,
+    setY: (v: number) => (y = v),
+    getY: () => y,
+    advance: (ms: number) => (clock += ms),
+    fireWin: (t: string) => on("w:" + t).forEach((fn) => fn({} as Event)),
+    fireVisible: (state: DocumentVisibilityState) => {
+      (doc as { visibilityState: DocumentVisibilityState }).visibilityState = state;
+      on("d:visibilitychange").forEach((fn) => fn({} as Event));
+    },
+    // Each "frame" runs the queued rAF callbacks (which re-queue the next one).
+    frame: (n = 1) => {
+      for (let i = 0; i < n; i++) raf.splice(0).forEach((fn) => fn());
+    },
+  };
+}
+
+describe("installRefocusScrollGuard", () => {
+  test("holds the pre-blur position against a non-gesture scroll on refocus", () => {
+    const env = makeGuardEnv();
+    installRefocusScrollGuard(env.win, env.doc);
+
+    env.setY(3000); // the human reads here, then app-switches away
+    env.fireWin("blur"); // → savedY = 3000
+
+    env.setY(5000); // a resuming iframe scroll yanks the page down
+    env.fireWin("focus"); // guard snaps back immediately
+    expect(env.getY()).toBe(3000);
+
+    env.setY(6000); // …and keeps yanking over the next frames
+    env.frame();
+    expect(env.getY()).toBe(3000);
+    env.setY(6500);
+    env.frame();
+    expect(env.getY()).toBe(3000);
+  });
+
+  test("the first real gesture aborts the guard — a deliberate scroll is never fought", () => {
+    const env = makeGuardEnv();
+    installRefocusScrollGuard(env.win, env.doc);
+    env.setY(3000);
+    env.fireWin("blur");
+    env.fireWin("focus");
+
+    env.fireWin("wheel"); // the human takes over
+    env.setY(7000); // their own scroll
+    env.frame(2);
+    expect(env.getY()).toBe(7000); // guard stood down, did not snap back
+  });
+
+  test("the guard stops after its window elapses", () => {
+    const env = makeGuardEnv();
+    installRefocusScrollGuard(env.win, env.doc);
+    env.setY(3000);
+    env.fireWin("blur");
+    env.fireWin("focus");
+    env.frame(); // still guarding
+    env.advance(1300); // past the ~1200ms window
+    env.setY(8000);
+    env.frame();
+    expect(env.getY()).toBe(8000); // no longer holding
+  });
+
+  test("a hidden→visible visibilitychange arms the guard too (tab switches)", () => {
+    const env = makeGuardEnv();
+    installRefocusScrollGuard(env.win, env.doc);
+    env.setY(1200);
+    env.fireVisible("hidden"); // → savedY = 1200
+    env.setY(4000);
+    env.fireVisible("visible");
+    expect(env.getY()).toBe(1200);
+  });
+
+  test("no requestAnimationFrame (non-browser env) is a silent no-op", () => {
+    const bare = {
+      scrollY: 0,
+      addEventListener: () => {},
+    } as unknown as Window;
+    const doc = { addEventListener: () => {} } as unknown as Document;
+    expect(() => installRefocusScrollGuard(bare, doc)).not.toThrow();
   });
 });

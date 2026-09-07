@@ -11066,7 +11066,7 @@ function finalize(ctx, schema) {
     result.$schema = "http://json-schema.org/draft-07/schema#";
   } else if (ctx.target === "draft-04") {
     result.$schema = "http://json-schema.org/draft-04/schema#";
-  } else if (ctx.target === "openapi-3.0") {} else {}
+  } else if (ctx.target === "openapi-3.0") {}
   if (ctx.external?.uri) {
     const id = ctx.external.registry.get(schema)?.id;
     if (!id)
@@ -11284,7 +11284,7 @@ var literalProcessor = (schema, ctx, json, _params) => {
     if (val === undefined) {
       if (ctx.unrepresentable === "throw") {
         throw new Error("Literal `undefined` cannot be represented in JSON Schema");
-      } else {}
+      }
     } else if (typeof val === "bigint") {
       if (ctx.unrepresentable === "throw") {
         throw new Error("BigInt literals cannot be represented in JSON Schema");
@@ -16440,7 +16440,7 @@ function validateUpdateInput(input) {
 import { readFileSync as readFileSync6 } from "node:fs";
 function resolveVersion() {
   if (true)
-    return "0.8.4";
+    return "0.8.5";
   const pkg = JSON.parse(readFileSync6(new URL("../../package.json", import.meta.url), "utf8"));
   return pkg.version;
 }
