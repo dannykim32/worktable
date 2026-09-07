@@ -71,3 +71,78 @@ export function scrollToStable(
     }, ms);
   });
 }
+
+/** How long after refocus the guard holds the scroll position (ms). Covers the
+ *  ~300ms a resuming smooth scroll takes to run, with margin. */
+const REFOCUS_GUARD_MS = 1200;
+
+/** The page must never auto-scroll when the canvas tab/window regains focus.
+ *
+ *  A smooth scroll started INSIDE an artifact iframe chains out to move the
+ *  parent page; when the tab is backgrounded mid-animation and later refocused,
+ *  the animation resumes and runs the page toward the bottom with NO user input
+ *  — confirmed by scroll-trace (on refocus scrollY ramps to the bottom, no
+ *  gesture, page height static). `overflow-anchor` doesn't touch this: it's a
+ *  real scroll, not scroll anchoring. It's also invisible to a parent-side probe
+ *  because the call originates in the sandboxed frame's own realm.
+ *
+ *  So we guard at the layer that owns the page scroll: on regaining focus, snap
+ *  back to where the human left off and hold that for a short window against any
+ *  scroll they didn't drive. The FIRST gesture (wheel/key/touch/pointer) aborts
+ *  the guard entirely, so a deliberate scroll — or a locate the human clicks
+ *  right after refocus — is never fought. Keyed on window blur/focus (an
+ *  app-switch from the terminal keeps the tab "visible", so visibilitychange
+ *  alone would miss it) plus visibilitychange (tab switches). */
+export function installRefocusScrollGuard(win: Window, doc: Document): void {
+  if (typeof win.requestAnimationFrame !== "function") return; // non-browser env
+  const now = (): number => win.performance?.now?.() ?? Date.now();
+  const GESTURES = [
+    "wheel",
+    "keydown",
+    "touchstart",
+    "touchmove",
+    "pointerdown",
+    "mousedown",
+  ];
+  let savedY = win.scrollY;
+  // Only the newest guard run is live; an earlier one bails when it sees a newer
+  // generation (rapid focus/blur/focus must not stack competing rAF loops).
+  let generation = 0;
+
+  const leaving = (): void => {
+    savedY = win.scrollY;
+  };
+
+  const returning = (): void => {
+    const gen = ++generation;
+    const until = now() + REFOCUS_GUARD_MS;
+    let aborted = false;
+    const abort = (): void => {
+      aborted = true;
+    };
+    const opts = { passive: true, capture: true } as AddEventListenerOptions;
+    for (const ev of GESTURES)
+      win.addEventListener(ev, abort, { ...opts, once: true });
+    const cleanup = (): void => {
+      for (const ev of GESTURES) win.removeEventListener(ev, abort, opts);
+    };
+    // Interrupt the resuming scroll immediately, then hold each frame.
+    if (win.scrollY !== savedY) win.scrollTo(0, savedY);
+    const hold = (): void => {
+      if (gen !== generation || aborted || now() > until) {
+        cleanup();
+        return;
+      }
+      if (win.scrollY !== savedY) win.scrollTo(0, savedY);
+      win.requestAnimationFrame(hold);
+    };
+    win.requestAnimationFrame(hold);
+  };
+
+  win.addEventListener("blur", leaving);
+  win.addEventListener("focus", returning);
+  doc.addEventListener("visibilitychange", () => {
+    if (doc.visibilityState === "hidden") leaving();
+    else returning();
+  });
+}

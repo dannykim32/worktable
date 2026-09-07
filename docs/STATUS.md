@@ -8,6 +8,34 @@ pick up work without any prior conversation context.
 change.** The public front door is `README.md`; this file is where the always-current
 state lives.
 
+## Status (updated 2026-09-07) — v0.8.5: canvas holds scroll position on refocus
+
+Follow-up to v0.8.4. That release fixed the scroll-anchoring half of the runaway
+(`overflow-anchor: none`), but the owner dogfooded and it **still** slowly scrolled to
+the bottom. A console `scrollY` trace nailed the residual: on tab **refocus**, `scrollY`
+ramps toward the bottom with **no gesture** and the **document height frozen** — i.e. a
+real programmatic *smooth* scroll, not scroll anchoring (which `overflow-anchor` already
+disabled). A parent-side probe monkeypatching `scrollTo`/`scrollBy`/`scrollIntoView`
+logged **nothing**, which localizes the source to inside a sandboxed artifact iframe: a
+frame's own `scrollIntoView` chains out to move the parent page, invisible to a
+parent-realm probe. The trigger is a smooth scroll started in the frame layer that
+Chrome pauses while the tab is backgrounded and **resumes on refocus**, running the page
+down.
+
+Fix: `installRefocusScrollGuard` in `src/canvas/scroll.ts`, wired at boot in `main.ts`.
+It guards at the layer that owns the page scroll — on regaining focus (window `focus`
+OR `visibilitychange`→visible; window focus is needed because an app-switch from the
+terminal keeps the tab "visible" so `visibilitychange` alone misses it), it snaps back to
+the `scrollY` captured at blur and holds it every animation frame for ~1.2s against any
+scroll the human didn't drive. The **first** real gesture (wheel/key/touch/pointer)
+aborts the guard entirely, so a deliberate scroll — or a locate clicked right after
+refocus — is never fought. Source-agnostic by design: it acts on the final parent
+`scrollY`, so it cures the runaway regardless of which layer produced it. Verified in
+real Chromium (snaps 9000→3000 on focus, holds against a yank, yields to a wheel) and
+dogfood-confirmed by the owner on their own canvas. Five new unit tests in
+`test/scroll.test.ts` (10 total there); 306 of 307 pass (the one miss is the pre-existing
+flaky SIGTERM lifecycle test, passes in isolation). PR #17, release v0.8.5.
+
 ## Status (updated 2026-09-02) — v0.8.4: canvas scroll no longer runs away or mis-navigates
 
 Two dogfood scroll bugs, one root cause. Reported: (1) the canvas "continuously scrolls
